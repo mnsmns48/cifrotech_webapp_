@@ -1,8 +1,8 @@
-from pydantic_settings import BaseSettings
+from pydantic.v1 import BaseSettings
 
 
 class Settings(BaseSettings):
-    db_url: str = "postgresql+asyncpg://postgres:534534@localhost/activity_server"
+    db_url: str = "postgresql+asyncpg://abaza:534534@localhost:5432/activity_server"
     db_echo: bool = True
 
 

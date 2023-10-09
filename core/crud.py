@@ -1,28 +1,14 @@
 from sqlalchemy import select, Result
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.base import Directory
-
-from fastapi import APIRouter
-
-router = APIRouter()
+from core.models import Avail
 
 
 async def get_directory(session: AsyncSession):
-    stmt = select(Directory).limit(1)
+    stmt = select(Avail.type_).group_by('type_')
     result: Result = await session.execute(stmt)
     return result.scalars().all()
 
 
-@router.get("/dirs")
-async def get_dirs(session):
-    return await get_directory(session=session)
-
-
-async def get_product(session: AsyncSession, code: int):
-    return await session.get(Directory, code)
-
-
-@router.get("/dirs/code")
-async def get_code(session, code: int):
-    return await get_product(session=session, code=code)
+async def get_product(session: AsyncSession, code: int) -> Avail | None:
+    return await session.get(Avail, code)

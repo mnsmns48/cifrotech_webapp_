@@ -1,8 +1,7 @@
 import uvicorn
 from fastapi import FastAPI
 from items_views import router as items_router
-from core.crud import router as dir_router
-
+from core.views import router as dir_router
 
 app = FastAPI()
 app.include_router(items_router, tags=["items"])
