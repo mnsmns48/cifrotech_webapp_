@@ -11,7 +11,7 @@ router = APIRouter()
 
 
 @router.get("/dirs")
-async def get_dirs(session: AsyncSession = Depends(db_support.scoped_session_dependency)):
+async def get_dirs(session: AsyncSession = Depends(db_support.session_dependency)):
     return await get_directory(session=session)
 
 

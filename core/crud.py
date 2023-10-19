@@ -10,5 +10,13 @@ async def get_directory(session: AsyncSession):
     return result.scalars().all()
 
 
+
+
+
+
+
+
+
+
 async def get_product(session: AsyncSession, code: int) -> Avail | None:
     return await session.get(Avail, code)

@@ -13,7 +13,7 @@ async def product_by_id(
         session: AsyncSession = Depends(db_support.scoped_session_dependency),
 ) -> Avail:
     product = await get_product(session=session, code=code)
-    if product is not None:
+    if product:
         return product
 
     raise HTTPException(
