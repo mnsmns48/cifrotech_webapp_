@@ -1,9 +1,9 @@
 from asyncio import current_task
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, async_scoped_session, AsyncSession
-from core.settings import settings
+from core.settings import core_config
 
 
-class DBSupport:
+class LaunchDbEngine:
     def __init__(self, url: str, echo: bool = False):
         self.engine = create_async_engine(url=url, echo=echo)
         self.session_factory = async_sessionmaker(
@@ -28,4 +28,4 @@ class DBSupport:
         await session.close()
 
 
-db_support = DBSupport(url=settings.db_url, echo=settings.db_echo)
+pg_engine = LaunchDbEngine(url=core_config.db_url, echo=core_config.db_echo)
