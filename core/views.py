@@ -7,15 +7,20 @@ from core.crud import get_directory
 
 from core.schemas import Product, Dir
 
-router = APIRouter(tags=['Main menu'])
+router = APIRouter()
 
 
-@router.get("/main/{dirs}", response_model=list[Dir])
+@router.get("/all", response_model=list[Dir])
+async def get_main(session: AsyncSession = Depends(pg_engine.session_dependency)):
+    return await get_directory(session=session, parent=0)
+
+
+@router.get("/{dirs}", response_model=list[Dir])
 async def get_dirs(parent: int, session: AsyncSession = Depends(pg_engine.session_dependency)):
     return await get_directory(session=session, parent=parent)
 
 
-@router.get("/main/rt/{code}", response_model=Product)
+@router.get("/stock/{code}", response_model=Product)
 async def get_product_by_code(
         product: Product = Depends(product_by_code)):
     return product
