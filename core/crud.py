@@ -4,8 +4,9 @@ from core.models import StockTable
 
 
 async def get_directory(session: AsyncSession, parent: int) -> list[StockTable]:
-    stmt = select(StockTable) \
-        .where(StockTable.parent == parent).order_by(StockTable.price)
+    stmt = (
+        select(StockTable).where(StockTable.parent == parent).order_by(StockTable.price)
+    )
     result: Result = await session.execute(stmt)
     product = result.scalars().all()
     return list(product)

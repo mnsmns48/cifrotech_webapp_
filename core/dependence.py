@@ -9,8 +9,9 @@ from core.models import StockTable
 
 
 async def product_by_code(
-        code: Annotated[int, Path],
-        session: AsyncSession = Depends(pg_engine.scoped_session_dependency)) -> StockTable:
+    code: Annotated[int, Path],
+    session: AsyncSession = Depends(pg_engine.scoped_session_dependency),
+) -> StockTable:
     product = await get_product(session=session, code=code)
     if product:
         return product
