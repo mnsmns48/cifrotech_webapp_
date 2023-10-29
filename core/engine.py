@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import (
     async_scoped_session,
     AsyncSession,
 )
-from core.settings import core_config
+from cfg import core_config
 
 
 class LaunchDbEngine:

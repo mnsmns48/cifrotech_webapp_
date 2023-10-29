@@ -1,5 +1,11 @@
 from dataclasses import dataclass
+from pathlib import Path
+
 from environs import Env
+from pydantic.v1 import BaseSettings
+
+BASE_DIR = Path(__file__).resolve().parent
+PHOTO_DIR = str()
 
 
 def transfer(s: str) -> tuple:
@@ -47,3 +53,11 @@ def load_config(path: str = None):
 
 
 settings = load_config('..env')
+
+
+class CoreConfig(BaseSettings):
+    db_url: str = "postgresql+asyncpg://abaza:534534@localhost:5432/activity_server"
+    db_echo: bool = False
+
+
+core_config = CoreConfig()

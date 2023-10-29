@@ -5,10 +5,10 @@ from starlette.staticfiles import StaticFiles
 from core.views import dir_router
 from page_views import pages_router
 
-app = FastAPI(title="Салон мобильной связи Цифротех")
-app.include_router(pages_router, prefix="/static", tags=["pages_views"])
+app = FastAPI()
+app.include_router(pages_router, tags=["pages_views"])
 app.include_router(dir_router, prefix="/dirs", tags=["swagger_views"])
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", reload=True)
+    uvicorn.run("main:app")

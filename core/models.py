@@ -16,3 +16,5 @@ class StockTable(Base):
     name: Mapped[str]
     quantity: Mapped[int] = mapped_column(nullable=True)
     price: Mapped[int] = mapped_column(nullable=True)
+
+
