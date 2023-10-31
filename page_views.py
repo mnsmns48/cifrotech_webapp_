@@ -11,24 +11,22 @@ templates = Jinja2Templates(directory="templates")
 
 @pages_router.get("/")
 async def get_page(
-        request: Request,
-        session: AsyncSession = Depends(dependency=pg_engine.scoped_session_dependency),
+    request: Request,
+    session: AsyncSession = Depends(dependency=pg_engine.scoped_session_dependency),
 ):
     buttons = await get_directory(session=session, parent=0)
     return templates.TemplateResponse(
-        name="index.html",
-        context={"request": request, "buttons": buttons}
+        name="index.html", context={"request": request, "buttons": buttons}
     )
 
 
 @pages_router.get("/{parent}")
-async def get_page(
-        parent: int,
-        request: Request,
-        session: AsyncSession = Depends(dependency=pg_engine.scoped_session_dependency),
+async def get_page_p(
+    parent: int,
+    request: Request,
+    session: AsyncSession = Depends(dependency=pg_engine.scoped_session_dependency),
 ):
     buttons = await get_directory(session=session, parent=parent)
     return templates.TemplateResponse(
-        name="index.html",
-        context={"request": request, "buttons": buttons}
+        name="index.html", context={"request": request, "buttons": buttons}
     )

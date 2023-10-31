@@ -10,8 +10,8 @@ PHOTO_DIR = str()
 
 def transfer(s: str) -> tuple:
     _list = list()
-    _list.append(s.split(',')[0])
-    _list.append(int(s.split(',')[1]))
+    _list.append(s.split(",")[0])
+    _list.append(int(s.split(",")[1]))
     return tuple(_list)
 
 
@@ -52,11 +52,13 @@ def load_config(path: str = None):
     )
 
 
-settings = load_config('..env')
+settings = load_config("..env")
 
 
 class CoreConfig(BaseSettings):
-    db_url: str = "postgresql+asyncpg://abaza:534534@localhost:5432/activity_server"
+    db_url: str = (
+        "postgresql+asyncpg://postgres:534534@localhost:5433/activity_server"
+    )
     db_echo: bool = False
 
 
