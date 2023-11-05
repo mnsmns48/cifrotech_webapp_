@@ -1,11 +1,12 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+
 from environs import Env
 from pydantic.v1 import BaseSettings
 
 BASE_DIR = Path(__file__).resolve().parent
-PHOTO_DIR = str()
+PHOTO_DIR = 'C:/Users/WP/YandexDisk/'
 
 
 def transfer(s: str) -> tuple:
@@ -48,6 +49,7 @@ def load_config(path: str = None):
             ssh_username=env.str("SSH_USERNAME"),
             ssh_password=env.str("SSH_PASSWORD"),
             ssh_bind_address=transfer(env.str("SSH_BIND_ADDRESS")),
+
         ),
     )
 
@@ -57,7 +59,7 @@ settings = load_config("..env")
 
 class CoreConfig(BaseSettings):
     db_url: str = (
-        "postgresql+asyncpg://postgres:534534@localhost:5433/activity_server"
+        "postgresql+asyncpg://abaza:534534@localhost:5432/activity_server"
     )
     db_echo: bool = False
 

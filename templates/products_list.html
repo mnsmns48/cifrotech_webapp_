@@ -1,0 +1,12 @@
+{% extends 'index.html' %}
+{% block content %}
+{% for button in buttons %}
+<div class="col-lg-5 d-flex justify-content-left">
+    <ul class="list-group list-group-flush">
+        <form action="/{{ button.code }}">
+            <button>{{ button.name }}</button>
+         </form>
+    </ul>
+</div>
+{% endfor %}
+{% endblock %}
