@@ -58,15 +58,24 @@
 {% for button in buttons %}
 <div class="col-lg-5 d-flex justify-content-left">
     <ul class="list-group list-group-flush">
-        <form action="{{ button.code }}">
-            <button type="button" class="btn btn-light">{{ button.name }}</button> ЦЕНА {{ button.price }} КОД {{ button.code }} {{ button.quantity }}
-        </form>
+
     </ul>
 </div>
 {% endfor %}
 {% endblock %}
 
-
+<div class="dropdown">
+  <button class="btn btn-secondary dropdown-toggle" id="dropdownMenuButton2" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+    Кнопка выпадающего списка
+  </button>
+  <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="dropdownMenuButton2">
+    <li><a class="dropdown-item active" href="#">Действие</a></li>
+    <li><a class="dropdown-item" href="#">Другое действие</a></li>
+    <li><a class="dropdown-item" href="#">Что-то еще здесь</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><a class="dropdown-item" href="#">Отделенная ссылка</a></li>
+  </ul>
+</div>
 <script src="{{ url_for('static', path='/bootstrap.min.js') }}"></script>
 </body>
 </html>
