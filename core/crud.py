@@ -11,7 +11,7 @@ async def get_directory(session: AsyncSession, parent: int) -> Dict[str, list]:
         select(StockTable).where(StockTable.parent == parent).order_by(StockTable.price)
     )
     result: Result = await session.execute(stmt)
-    product = result.scalars().all()
+    product = tuple(result.scalars().all())
     for line in product:
         destination_folder = False if line.code < 1000 else True
     output = {'product': list(product), 'destination_folder': destination_folder}

@@ -2,7 +2,6 @@ from fastapi import APIRouter, Request, Depends
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 
-
 from core.crud import get_directory
 from core.engine import pg_engine
 
