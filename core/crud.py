@@ -1,6 +1,6 @@
-from typing import List, Any, Dict
+from typing import Dict
 
-from sqlalchemy import select, Result, Row, RowMapping
+from sqlalchemy import select, Result
 from sqlalchemy.ext.asyncio import AsyncSession
 from core.models import StockTable
 

@@ -1,12 +1,8 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-
 from environs import Env
 from pydantic.v1 import BaseSettings
-
-BASE_DIR = Path(__file__).resolve().parent
-PHOTO_DIR = 'C:/Users/WP/YandexDisk/'
 
 
 def transfer(s: str) -> tuple:
@@ -16,22 +12,13 @@ def transfer(s: str) -> tuple:
     return tuple(_list)
 
 
-@dataclass()
-class Remote_PG_DB:
-    remote_db_user: str
-    remote_db_password: str
-    remote_db_host: str
-    remote_db_port: int
-    remote_db_name: str
-    ssh_address_and_host: tuple
-    ssh_username: str
-    ssh_password: str
-    ssh_bind_address: tuple
-
-
 @dataclass
 class Settings:
-    remote_pg_db: Remote_PG_DB
+    local_db_username: str
+    local_db_password: str
+    local_db_port: str
+    local_db_name: str
+    photo_path: str
 
 
 def load_config(path: str = None):
@@ -39,27 +26,22 @@ def load_config(path: str = None):
     env.read_env()
 
     return Settings(
-        remote_pg_db=Remote_PG_DB(
-            remote_db_user=env.str("REMOTE_DB_USER"),
-            remote_db_password=env.str("REMOTE_DB_PASSWORD"),
-            remote_db_host=env.str("REMOTE_DB_HOST"),
-            remote_db_port=env.int("REMOTE_DB_PORT"),
-            remote_db_name=env.str("REMOTE_DB_NAME"),
-            ssh_address_and_host=transfer(env.str("SSH_ADDRESS_AND_HOST")),
-            ssh_username=env.str("SSH_USERNAME"),
-            ssh_password=env.str("SSH_PASSWORD"),
-            ssh_bind_address=transfer(env.str("SSH_BIND_ADDRESS")),
-
-        ),
+        local_db_username=env.str("LOCAL_DB_USERNAME"),
+        local_db_password=env.str("LOCAL_DB_PASSWORD"),
+        local_db_port=env.str("LOCAL_DB_PORT"),
+        local_db_name=env.str("LOCAL_DB_NAME"),
+        photo_path=env.str("PHOTO_PATH")
     )
 
 
 settings = load_config("..env")
+BASE_DIR = Path(__file__).resolve().parent
 
 
 class CoreConfig(BaseSettings):
     db_url: str = (
-        "postgresql+asyncpg://abaza:534534@localhost:5432/activity_server"
+        f"postgresql+asyncpg://{settings.local_db_username}:{settings.local_db_password}"
+        f"@localhost:{settings.local_db_port}/{settings.local_db_name}"
     )
     db_echo: bool = False
 
