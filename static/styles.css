@@ -1,3 +1,11 @@
+div {
+    display: block;
+}
+
+li {
+	list-style-type: none;
+  }
+
 .logo-anim {
 	animation: myAnim 1s ease 0s 1 normal forwards;
 }
@@ -11,30 +19,57 @@
 	}
 
 	15% {
-		transform: translateX(-30px) rotate(6deg);
+		transform: translateX(-30px) rotate(3deg);
 	}
 
 	30% {
-		transform: translateX(15px) rotate(-6deg);
+		transform: translateX(15px) rotate(-3deg);
 	}
 
 	45% {
-		transform: translateX(-15px) rotate(3.6deg);
+		transform: translateX(-15px) rotate(1.8deg);
 	}
 
 	60% {
-		transform: translateX(9px) rotate(-2.4deg);
+		transform: translateX(9px) rotate(-1.2deg);
 	}
 
 	75% {
-		transform: translateX(-6px) rotate(1.2deg);
+		transform: translateX(-6px) rotate(0.6deg);
 	}
 }
 
-.container.container-flex {
-	justify-content: center;
+.erf-head {
+    box-shadow: 0px 1px 2px rgba(0,0,0,0.08);
+    background: #000000;
+    height: 75px;
+    padding-top: 12px;
 }
 
-.nav-link {
+header .navbar {
+    font-style: normal;
+    font-weight: normal;
+    font-size: 20px;
+    line-height: 20px;
+    padding: 0px 0rem;
+}
+
+.nav-item {
+	box-sizing: border-box;
+	color: #ffffff;
+}
+
+.nav-item-contact {
 	color: #f6ff00;
+	padding-left: 50px;
+}
+
+
+.conteiner-xl-product {
+	box-sizing: border-box;
+    max-width: 1200px;
+	padding-left: 180px;
+	padding-right: 120px;
+	margin-right: auto;
+    margin-left: auto;
 }
