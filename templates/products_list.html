@@ -1,7 +1,7 @@
 {% extends 'index.html' %}
 {% block content %}
 {% for button in buttons %}
-<div class="conteiner-xl-menu">
+<div class="conteiner-xl">
     <a class="btn btn-light" href="/{{button.code }}" role="button">{{ button.name }}</a>
 </div>
 {% endfor %}

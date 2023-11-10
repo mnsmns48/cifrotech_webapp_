@@ -78,15 +78,11 @@ header .navbar {
 	padding-left: 50px;
 }
 
-.conteiner-xl-menu{
-	box-sizing: border-box;
-    max-width:1000px;
-}
 .conteiner-xl-product {
 	box-sizing: border-box;
     max-width: 900px;
 	margin-right: auto;
-    margin-left: 630px;
+    margin-left: auto;
 }
 
 .card-body {
