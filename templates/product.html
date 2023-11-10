@@ -1,16 +1,20 @@
 {% extends 'index.html' %}
 {% block content %}
 {% for button in buttons %}
-<div class="col-md-6">
-    <div class="card" style="max-width: 380px;">
-        <div class="col-md-4">
-            <img src="photo/{{ button.code }}.jpg" height=200" />
+<div class="card border-light" style="width: 25rem;">
+    <div class="hover-image-scale">
+        <img src="photo/{{ button.code }}.jpg" alt="{{ button.name }}" class="hover-image-scale">
+    </div>
+    <div class="card-body">
+        <div class="conteiner-card-title">
+            <h6 class="card-title">{{ button.name }}</h6>
         </div>
-        <div class="col-md-7">
-            <div class="card-body">
-                <h5 class="card-title">{{ button.name }}</h5>
-                <p class="card-text"><big>{{ button.price}} руб.</big></p>
-                <p class="card-text"><small class="text-muted">В наличии {{ button.quantity }} шт.</small></p>
+        <div class="conteiner-card-price d-flex justify-content-end">
+            <h5 class="card-title">{{ button.price}} руб.
+            </h5>
+        </div>
+        <div class="conteiner-card-price d-flex justify-content-end">
+            <div class="card-text"><small class="text-muted">В наличии {{ button.quantity }} шт.</small>
             </div>
         </div>
     </div>

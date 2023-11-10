@@ -25,21 +25,24 @@
               <a class="navbar-brand" href="/">
                 <img class="logo-anim" src="{{ url_for('static', path='/logo.png') }}" width="200" height="44"
                   loading="lazy">
+                <div class="adress">п. Ленино, пр-т Ленина 9
+                </div>
               </a>
             </div>
             <div class="col-sm-4 d-flex justify-content-center">
               <nav class="navbar navbar-expand-lg">
                 <ul class="navbar-nav mr-auto erf-menu">
+                  <a class="inhead nav-link" href="/">
+                    <li class="nav-item">Каталог</li>
+                  </a>
                   <a class="inhead nav-link" href="/12">
-                    <li class="nav-item">
-                      Смартфоны
-                    </li>
+                    <li class="nav-item-yellow">Смартфоны</li>
                   </a>
                   <a class="inhead nav-link" href="/36">
                     <li class="nav-item">Умные часы</li>
                   </a>
                   <a class="inhead nav-link" href="/28">
-                    <li class="nav-item">Кнопочные телефоны</li>
+                    <li class="nav-item-yellow">Кнопочные телефоны</li>
                   </a>
                 </ul>
               </nav>
@@ -47,7 +50,7 @@
             <div class="col-sm-2 d-flex justify-content-start">
               <nav class="navbar navbar-expand-lg">
                 <a class="inhead nav-link" href="/101">
-                  <li class="nav-item-contact">Контакты</li>
+                  <li class="nav-item-yellow-contact">Контакты</li>
                 </a>
               </nav>
             </div>
@@ -89,8 +92,7 @@
     </div>
   </div>
   </p>
-
-  <div class="conteiner-xl-product d-flex justify-content-center">
+  <div class="conteiner-xl-product justify-content-center">
     <div class="row">
       {% block content %} {% endblock %}
     </div>

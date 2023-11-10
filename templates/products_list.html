@@ -1,13 +1,8 @@
 {% extends 'index.html' %}
 {% block content %}
 {% for button in buttons %}
-<div class="conteiner-flex">
-    <ul class="list-group list-group-flush">
-        <a class="btn" href=" /{{ button.code }}" role="button">
-            <button type="button" class="btn btn-outline-dark">{{ button.name }}</button>
-        </a>
-    </ul>
+<div class="conteiner-xl-menu">
+    <a class="btn btn-light" href="/{{button.code }}" role="button">{{ button.name }}</a>
 </div>
-
 {% endfor %}
 {% endblock %}
