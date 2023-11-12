@@ -61,14 +61,33 @@ header .navbar {
 	width: 100%;
 	height: 100%;
 	display: inline-block; 
-
+	position: relative;
 }
-
+  
 .hover-image-scale img {
-	transition: 0.5s; /* Время эффекта */
+	transition: 0.4s;
 	display: block; 
+
+}
+  
+.block__text {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 40px;
+	background-color: #ffffff;
+	opacity: 0;
+	transition: all 0.7s ease-in-out;
+}
+  
+.hover-image-scale img:hover {
+	transform: scale(1.15); /* Увеличиваем масштаб */
 }
 
-.hover-image-scale img:hover {
-	transform: scale(1.2); /* Увеличиваем масштаб */
+.hover-image-scale:hover .block__text {
+	opacity: 1;
+}
+  
+p {
+	text-align: center;
 }

@@ -33,4 +33,5 @@ class LaunchDbEngine:
         await session.close()
 
 
-pg_engine = LaunchDbEngine(url=core_config.db_url, echo=core_config.db_echo)
+pg_engine = LaunchDbEngine(url=core_config.as_stocktable, echo=core_config.db_echo)
+phones_engine = LaunchDbEngine(url=core_config.phones_desc_db, echo=core_config.db_echo)
