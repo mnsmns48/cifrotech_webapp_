@@ -5,7 +5,7 @@ from cfg import core_config
 from core.description.description_models import s_main, display, energy, camera, performance
 
 
-def get_goods_desc(model: str):
+def get_goods_desc(model: list):
     sample = select(
         s_main.c.title,
         s_main.c.release_date,
@@ -19,14 +19,12 @@ def get_goods_desc(model: str):
         energy.c.fast_charging,
         camera.c.lenses,
         camera.c.megapixels_front,
-        performance.c.storage_size,
-        performance.c.ram_size,
         performance.c.chipset,
         performance.c.total_score,
         s_main.c.advantage,
         s_main.c.disadvantage) \
         .where(
-        (s_main.c.title == model) &
+        (s_main.c.title.in_(model)) &
         (s_main.c.title == display.c.title) &
         (s_main.c.title == energy.c.title) &
         (s_main.c.title == camera.c.title) &
@@ -35,7 +33,9 @@ def get_goods_desc(model: str):
     engine = create_engine(url=core_config.phones_desc_db)
     with Session(engine) as session:
         description = session.execute(sample).fetchone()
-    print(description)
+    return description
 
 
-get_goods_desc('Realme C25Y')
+response = get_goods_desc('Realme C25Y')
+for line in response:
+    print(line)

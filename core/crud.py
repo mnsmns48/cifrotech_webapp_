@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.description.description_models import s_main, display, energy, camera, performance
 from core.models import StockTable
+from support_func import month_conv, resolution_conv
 
 
 async def get_directory(session: AsyncSession, parent: int) -> Dict[str, list]:
@@ -33,9 +34,8 @@ async def get_products_in_parent(session: AsyncSession, parent: int) -> tuple[Ro
 
 
 #
-async def get_description(session: AsyncSession, model: str):
+async def get_description(session: AsyncSession, model: list):
     stmt = select(
-        s_main.c.title,
         s_main.c.release_date,
         s_main.c.category,
         display.c.d_size,
@@ -47,19 +47,37 @@ async def get_description(session: AsyncSession, model: str):
         energy.c.fast_charging,
         camera.c.lenses,
         camera.c.megapixels_front,
-        performance.c.storage_size,
-        performance.c.ram_size,
         performance.c.chipset,
         performance.c.total_score,
         s_main.c.advantage,
         s_main.c.disadvantage) \
         .where(
-        (s_main.c.title == model) &
+        (s_main.c.title.in_(model)) &
         (s_main.c.title == display.c.title) &
         (s_main.c.title == energy.c.title) &
         (s_main.c.title == camera.c.title) &
         (s_main.c.title == performance.c.title)
     )
     result: Result = await session.execute(stmt)
-    desc = result.scalars().all()
-    return desc
+    response_list = result.fetchall()
+    features = dict()
+    description_list = list()
+    for descript in response_list:
+        features = dict()
+        features.update(
+            {
+                'Класс': str(descript[0]),
+                'Дата выхода': month_conv(descript[1]),
+                'Дисплей': f"{descript[2]}' {descript[3]} {resolution_conv(descript[5])} {descript[4]} Hz",
+                'АКБ': f"{descript[6]}, мощность заряда {int(descript[7])} W",
+                'Быстрая зарядка': descript[8],
+                'Основные камеры': descript[9],
+                'Фронтальная камера': f"{int(descript[10])} Мп",
+                'Процессор': descript[11],
+                'Оценка производительности': descript[12],
+                'Преимущества': descript[13],
+                'Недостатки': descript[14]
+            }
+        )
+        description_list.append(features)
+    return description_list

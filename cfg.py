@@ -5,11 +5,6 @@ from environs import Env
 from pydantic.v1 import BaseSettings
 
 
-def transfer(s: str) -> tuple:
-    _list = list()
-    _list.append(s.split(",")[0])
-    _list.append(int(s.split(",")[1]))
-    return tuple(_list)
 
 
 @dataclass
@@ -46,7 +41,7 @@ class CoreConfig(BaseSettings):
         f"@localhost:{settings.local_db_port}/{settings.local_db_name}"
     )
     phones_desc_db: str = (
-        f"postgresql+psycopg2://{settings.local_db_username}:{settings.local_db_password}"
+        f"postgresql+asyncpg://{settings.local_db_username}:{settings.local_db_password}"
         f"@localhost:{settings.local_db_port}/{settings.description_db_name}"
     )
     db_echo: bool = False
