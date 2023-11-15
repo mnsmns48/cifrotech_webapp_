@@ -1,12 +1,12 @@
 {% extends 'index.html' %}
 {% block content %}
-{% for button, description in context[pairs] %}
+{% for button in buttons %}
 
 <div class="card border-light" style="width: 28rem;">
     <div class="hover-image-scale">
         <img src="photo/{{ button.code }}.jpg" alt="{{ button.name }}" class="hover-image-scale">
         <div class="block__text">
-            <p> {{ description.0 }} </p>
+            <p> {{ button.desc[0] |safe }} </p>
         </div>
     </div>
     <div class="card-body">

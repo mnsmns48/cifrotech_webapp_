@@ -72,6 +72,7 @@ header .navbar {
  
 .block__text {
 	min-height: 160px;
+	min-width: 200px;
 	position: absolute;
 	left: 0px;
 	right: 0px;
@@ -92,5 +93,6 @@ header .navbar {
 }
   
 p {
-	text-align: center;
+	text-align: left;
+	font-size: x-small;
 }

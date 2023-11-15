@@ -10,6 +10,7 @@ class Product(ProductBase):
     code: int
     quantity: int | None
     price: int | None
+    desc: str | None
 
 
 # class Dir(ProductBase):

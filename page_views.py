@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, Depends
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.crud import get_directory, get_products_in_parent, get_description
+from core.crud import get_directory, get_products_in_parent
 from core.engine import pg_engine, phones_engine
 
 pages_router = APIRouter()
@@ -45,18 +45,10 @@ async def get_products_in_parent_(
         parent: int,
         request: Request,
         session_pg: AsyncSession = Depends(dependency=pg_engine.scoped_session_dependency),
-        session_desc: AsyncSession = Depends(dependency=phones_engine.scoped_session_dependency),
+        session_desc: AsyncSession = Depends(dependency=phones_engine.scoped_session_dependency)
 ):
-    buttons = await get_products_in_parent(session=session_pg, parent=parent)
-    models = list()
-    for model in buttons:
-        models.append(model.name.rsplit(' ', maxsplit=2)[0].split(' ', maxsplit=1)[1])
-    descriptions = await get_description(session=session_desc, model=models)
-    context = dict()
-    context.update({'request': request})
-    context.update(pairs=zip(buttons, descriptions))
-    context.update({'request': request})
-    print(context)
+    buttons = await get_products_in_parent(session_pg=session_pg, session_desc=session_desc, parent=parent)
+    context = {"request": request, "buttons": buttons}
     return templates.TemplateResponse(
         name="product.html",
         context=context
