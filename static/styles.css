@@ -69,7 +69,7 @@ header .navbar {
 	display: block; 
 
 }
- 
+
 .block__text {
 	min-height: 160px;
 	min-width: 200px;
@@ -82,7 +82,7 @@ header .navbar {
 	opacity: 0;
 	transition: all 0.4s ease-in-out;
 }
-  
+
 .hover-image-scale img:hover {
 	transform: scale(1.15); /* Увеличиваем масштаб */
 }
@@ -91,7 +91,7 @@ header .navbar {
 	opacity: 1;
 	background-color: #ffffff;
 }
-  
+
 p {
 	text-align: left;
 	font-size: x-small;
