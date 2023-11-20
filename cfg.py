@@ -4,7 +4,7 @@ from pathlib import Path
 from environs import Env
 from pydantic.v1 import BaseSettings
 
-
+disabled_buttons = ['Смартфоны', 'Планшеты', 'Кнопочные телефоны', 'Смарт часы, фитнес трекеры']
 
 
 @dataclass

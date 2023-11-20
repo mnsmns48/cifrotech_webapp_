@@ -16,7 +16,7 @@ async def get_page(
 ):
     buttons = await get_directory(session=session, parent=0)
     return templates.TemplateResponse(
-        name="products_list.html",
+        name="top_buttons.html",
         context={"request": request, "buttons": buttons.get('product_list')}
     )
 

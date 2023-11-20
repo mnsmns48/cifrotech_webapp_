@@ -5,18 +5,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.description.description_models import s_main, display, energy, camera, performance
 from core.models import StockTable
 from support_func import month_convert, resolution_convert, name_cut
+from cfg import disabled_buttons
 
 
 async def get_directory(session: AsyncSession, parent: int) -> Dict[str, list]:
     destination_folder = bool()
     stmt = (
-        select(StockTable).where(StockTable.parent == parent).order_by(StockTable.price)
+        select(StockTable)
+        .where(StockTable.parent == parent)
+        .filter(StockTable.name.not_in(disabled_buttons))
+        .order_by(StockTable.price)
     )
     result: Result = await session.execute(stmt)
-    product = tuple(result.scalars().all())
+    product = list(result.scalars().all())
     for line in product:
         destination_folder = False if line.code < 1000 else True
-    output = {'product_list': list(product), 'destination_folder': destination_folder}
+    output = {'product_list': product, 'destination_folder': destination_folder}
+    for i in output.get('product_list'):
+        print(i.name)
     return output
 
 

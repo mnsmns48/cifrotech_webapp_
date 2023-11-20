@@ -4,21 +4,19 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Ленино Крым продажа смартфонов настройка аксессуары" />
   <link href="{{ url_for('static', path='/bootstrap.min.css') }}" rel="stylesheet" />
   <link href="{{ url_for('static', path='/styles.css') }}" rel="stylesheet" />
   <link id="favicon" rel="icon" type="image/x-icon" href="{{ url_for('static', path='/favicon.ico') }}" />
+  <link href="css/bootstrap-4.4.1.css" rel="stylesheet" type="text/css">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <title>Салон Цифротех</title>
-  <style>
-    body {
-      background: #f0f4f7;
-    }
-  </style>
 </head>
 
 <body>
   <header>
     <nav class="navbar navbar-expand-sm">
-      <div class="container justify-content-end">
+      <div class="container">
         <div class="collapse navbar-collapse" id="navbarSupportedContent">
           <div class="row">
             <div class="col-sm-12 d-flex justify-content-end">
@@ -34,7 +32,7 @@
             </div>
           </div>
         </div>
-        <div class="container cont container-fluid justify-content-center">
+        <div class="container-fluid">
           <ul class="navbar-nav mr-auto mb-2 mb-lg-0">
             <li class="nav-item">
               <a class="nav-link nav-link-yellow" aria-current="page" href="/">
@@ -45,7 +43,7 @@
               <a class="nav-link" aria-current="page" href="/s/12">
                 <h6>СМАРТФОНЫ</h6>
               </a>
-            </li>
+
             <li class="nav-item">
               <a class="nav-link nav-link-yellow" href="/36">
                 <h6>УМНЫЕ ЧАСЫ</h6>
@@ -68,7 +66,7 @@
     </nav>
   </header>
   <p>
-  <div class="container container-banner justify-content-center">
+  <div class="container container-banner">
     <div id="carouselExampleIndicators" class="carousel slide carousel-fade" data-bs-ride="carousel">
       <div class="carousel-indicators">
         <button type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide-to="0" class="active"
@@ -100,11 +98,7 @@
     </div>
   </div>
   </p>
-  <div class="container container-banner justify-content-center">
-    <div class="row">
-      {% block content %} {% endblock %}
-    </div>
-  </div>
+  <main>{% block content %} {% endblock %}</main>
   <script src="{{ url_for('static', path='/bootstrap.min.js') }}"></script>
 </body>
 

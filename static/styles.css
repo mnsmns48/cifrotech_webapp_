@@ -1,14 +1,22 @@
-.navbar {
-    background-color: #00111a;
-}
-
-div {
-    display: block;
+body {
+    background: #f0f4f7;
 }
 
 li {
 	list-style-type: none;
   }
+
+.navbar {
+    background-color: #00111a;
+}
+
+.nav-link {
+	color: #ffffff;
+}
+
+.nav-link.nav-link-yellow {
+	color: #f6ff00;
+}
 
 .btn {
 	width: 300px;
@@ -16,7 +24,9 @@ li {
 	font-size: 16;
 }
 
-.container.container-banner {
+
+
+.container-banner {
 	max-width: 898px;
 }
 
@@ -33,11 +43,36 @@ header .navbar {
 	padding-left: 10px;
 }
 
-.container-xl-product {
-	box-sizing: border-box;
-    max-width: 900px;
+main {
+	max-width: 898px;
+	display: flex;
+	justify-content: space-between;
+	flex-wrap: wrap;
+}
+
+.container-fluid {
+	min-width: 320px;
+    display: flex;
+    justify-content: center;
+}  
+
+.col-xl-12 {
+	display: block;
+	padding-left: auto;
+	margin-left: auto;
 	margin-right: auto;
-    margin-left: auto;
+
+}
+
+.btn-circle {
+    width: 120px;
+    height: 120px;
+    border-radius: 50px;
+    text-align: center;
+    padding-left: 0;
+    padding-right: 0;
+    font-size: 13px;
+
 }
 
 .card-body {
@@ -47,14 +82,6 @@ header .navbar {
 
 .container-card-title {
 	height: 50px;
-}
-
-.nav-link {
-	color: #ffffff;
-}
-
-.nav-link.nav-link-yellow {
-	color: #f6ff00;
 }
 
 .hover-image-scale {
@@ -67,7 +94,6 @@ header .navbar {
 .hover-image-scale img {
 	transition: 0.4s;
 	display: block; 
-
 }
 
 .block__text {
@@ -90,9 +116,4 @@ header .navbar {
 .hover-image-scale:hover .block__text {
 	opacity: 1;
 	background-color: #ffffff;
-}
-
-p {
-	text-align: left;
-	font-size: x-small;
 }
