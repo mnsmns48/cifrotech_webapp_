@@ -1,8 +1,8 @@
 {% extends 'index.html' %}
 {% block content %}
 
-<div class="container-fluid">
-    <div class="col-4">
+<div class="container-sm">
+    <div class="main-contain">
         {% for button in buttons %}
         <a href="/{{ button.code }}">
             <button class="btn btn-secondary btn-circle" class="btn btn-primary btn-circle">{{ button.name
@@ -11,6 +11,9 @@
         {% endfor %}
     </div>
 </div>
+
+
+
 
 
 {% endblock %}

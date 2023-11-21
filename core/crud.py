@@ -21,8 +21,6 @@ async def get_directory(session: AsyncSession, parent: int) -> Dict[str, list]:
     for line in product:
         destination_folder = False if line.code < 1000 else True
     output = {'product_list': product, 'destination_folder': destination_folder}
-    for i in output.get('product_list'):
-        print(i.name)
     return output
 
 

@@ -24,8 +24,6 @@ li {
 	font-size: 16;
 }
 
-
-
 .container-banner {
 	max-width: 898px;
 }
@@ -45,9 +43,6 @@ header .navbar {
 
 main {
 	max-width: 898px;
-	display: flex;
-	justify-content: space-between;
-	flex-wrap: wrap;
 }
 
 .container-fluid {
@@ -56,18 +51,22 @@ main {
     justify-content: center;
 }  
 
-.col-xl-12 {
-	display: block;
-	padding-left: auto;
-	margin-left: auto;
-	margin-right: auto;
-
+.main-contain {
+	margin-left: 200px;
+	border: 5px solid #000;
+	display: flex;
+	flex-wrap: wrap;
+	align-content:end;
+	justify-content: space-evenly;
 }
 
+
+
+
 .btn-circle {
-    width: 120px;
-    height: 120px;
-    border-radius: 50px;
+    width: 150px;
+    height: 150px;
+    border-radius: 150px;
     text-align: center;
     padding-left: 0;
     padding-right: 0;
