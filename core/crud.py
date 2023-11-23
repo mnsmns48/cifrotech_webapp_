@@ -96,7 +96,7 @@ def description(coroutine):
 
 async def get_parent_path(session_pg: AsyncSession, code: int):
     sub = select(StockTable.parent).where(StockTable.code == code).scalar_subquery()
-    query = select(StockTable).where(StockTable.parent == sub)
+    query = select(StockTable).where(StockTable.parent == sub).filter(StockTable.name.not_in(disabled_buttons))
     result: Result = await session_pg.execute(query)
     parents = result.scalars().all()
     return parents
@@ -106,6 +106,18 @@ async def get_parent_path(session_pg: AsyncSession, code: int):
 async def get_product_list(session_pg: AsyncSession, session_desc: AsyncSession, parent: int) -> Sequence:
     subquery = select(StockTable.code).where(StockTable.parent == parent).scalar_subquery()
     stmt = select(StockTable).where(StockTable.code.in_(subquery)).order_by(StockTable.price)
+    result: Result = await session_pg.execute(stmt)
+    products = result.scalars().all()
+    return products
+
+
+@description
+async def get_product_list_in_parent(session_pg: AsyncSession, session_desc: AsyncSession, parent: int) -> Sequence:
+    subquery = select(StockTable.code).where(StockTable.parent == parent).scalar_subquery()
+    stmt = select(StockTable) \
+        .where(StockTable.parent.in_(subquery)) \
+        .order_by(StockTable.price) \
+        .limit(50)
     result: Result = await session_pg.execute(stmt)
     products = result.scalars().all()
     return products

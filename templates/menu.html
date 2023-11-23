@@ -1,0 +1,11 @@
+{% extends 'index.html' %}
+{% block content %}
+
+<div class="main-contain">
+    {% for var in data %}
+    <a href="/{{ var.code }}">
+        <button class="btn btn-dark btn-circle" class="btn btn-primary btn-circle">{{ var.name
+            }}</button>
+    </a>
+    {% endfor %}
+    {% endblock %}
