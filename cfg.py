@@ -5,6 +5,7 @@ from environs import Env
 from pydantic.v1 import BaseSettings
 
 disabled_buttons = ['Смартфоны', 'Планшеты', 'Кнопочные телефоны', 'Смарт часы, фитнес трекеры']
+dir_with_desc = [12, 80, 81, 82, 83, 84, 87, 101]
 
 
 @dataclass

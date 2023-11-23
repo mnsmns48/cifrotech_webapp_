@@ -1,28 +1,29 @@
 {% extends 'index.html' %}
 {% block content %}
-{% for button in buttons %}
 
-<div class="card border-light" style="width: 28rem;">
-    <div class="hover-image-scale">
-        <img src="photo/{{ button.code }}.jpg" alt="{{ button.name }}" class="hover-image-scale">
-        <div class="block__text">
-            <p> {{ button.desc[0] |safe }} </p>
-        </div>
-    </div>
-    <div class="card-body">
-        <div class="container-card-title">
-            <h6 class="card-title">{{ button.name }}</h6>
-        </div>
-        <div class="container-card-price d-flex justify-content-end">
-            <h4 class="card-title">{{ button.price}} руб.
-            </h4>
-        </div>
-        <div class="container-card-price d-flex justify-content-end">
-            <div class="card-text"><small class="text-muted">В наличии {{ button.quantity }} шт.</small>
-            </div>
-        </div>
-    </div>
+
+<div class="main-contain">
+    {% for button in menu_buttons %}
+    <a href="/{{ button.code }}">
+        <button class="btn btn-dark btn-circle" class="btn btn-primary btn-circle">{{ button.name }}</button>
+    </a>
+    {% endfor %}
 </div>
 
-{% endfor %}
+<div class="stock-contain">
+    {% for var in data %}
+    <div class="card">
+        <img src="photo/{{ var.code }}.jpg" class="card-img-top" alt="{{ var.name }}">
+        <div class="card-body">
+            <div class="card-text">{{ var.name }}</div>
+            <div class="card-text"><small class="text-body-secondary">В наличии {{ var.quantity }} шт.</small></div>
+            <div class="card-price">Цена {{ var.price }} руб. </div>
+            {% if var.desc %}
+            <div class="card-description">{{ var.desc[0] |safe }}</div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
 {% endblock %}

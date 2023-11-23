@@ -8,7 +8,6 @@
   <link href="{{ url_for('static', path='/bootstrap.min.css') }}" rel="stylesheet" />
   <link href="{{ url_for('static', path='/styles.css') }}" rel="stylesheet" />
   <link id="favicon" rel="icon" type="image/x-icon" href="{{ url_for('static', path='/favicon.ico') }}" />
-  <link href="css/bootstrap-4.4.1.css" rel="stylesheet" type="text/css">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <title>Салон Цифротех</title>
 </head>
@@ -40,7 +39,7 @@
               </a>
             </li>
             <li class="nav-item">
-              <a class="nav-link" aria-current="page" href="/s/12">
+              <a class="nav-link" aria-current="page" href="/12">
                 <h6>СМАРТФОНЫ</h6>
               </a>
 
@@ -96,9 +95,11 @@
         <span class="visually-hidden">Next</span>
       </button>
     </div>
+    <p>
+    <main>{% block content %} {% endblock %}</main>
+    </p>
   </div>
-  </p>
-  <main>{% block content %} {% endblock %}</main>
+  </div>
   <script src="{{ url_for('static', path='/bootstrap.min.js') }}"></script>
 </body>
 

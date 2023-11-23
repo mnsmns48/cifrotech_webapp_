@@ -12,6 +12,5 @@ class Product(ProductBase):
     price: int | None
     desc: str | None
 
-
 # class Dir(ProductBase):
 #     model_config = ConfigDict(from_attributes=True)

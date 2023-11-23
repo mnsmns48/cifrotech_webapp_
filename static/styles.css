@@ -1,5 +1,5 @@
 body {
-    background: #f0f4f7;
+    background: #d7e4ee;
 }
 
 li {
@@ -20,7 +20,7 @@ li {
 
 .btn {
 	width: 300px;
-	font-family: Tahoma;
+	font-family: Roboto;
 	font-size: 16;
 }
 
@@ -48,39 +48,62 @@ main {
 .container-fluid {
 	min-width: 320px;
     display: flex;
-    justify-content: center;
+    
 }  
 
 .main-contain {
-	margin-left: 200px;
-	border: 5px solid #000;
 	display: flex;
 	flex-wrap: wrap;
-	align-content:end;
-	justify-content: space-evenly;
+	justify-content: center;
 }
 
+.stock-contain {
+	margin-top: 25px;
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+}
 
+.card {
+	width: 27rem;
+	border: none;
+}
 
+.btn-circle:hover,.btn-circle:focus,.btn-circle:visited {
+background-color: rgb(41, 56, 63);
+}
 
 .btn-circle {
     width: 150px;
-    height: 150px;
-    border-radius: 150px;
+    height: 70px;
+    border-radius: 5px;
     text-align: center;
+	margin: 5px;
     padding-left: 0;
     padding-right: 0;
-    font-size: 13px;
-
+    font-size: 12px;
+	background-color: #00111a;
 }
 
-.card-body {
-	height: 150px;
-	margin-top: 20px;
+.card-text {
+	
+	font-family: Roboto;
+	font-size: 15px;
 }
 
-.container-card-title {
-	height: 50px;
+.text-body-secondary {
+	font-size: 12px;
+}
+
+.card-price {
+	font-weight: bold;
+	font-family: Roboto;
+	font-size: 20px;
+}
+
+.card-description {
+	font-family: Roboto;
+	font-size: 12px;
 }
 
 .hover-image-scale {
@@ -90,29 +113,11 @@ main {
 	position: relative;
 }
   
-.hover-image-scale img {
+.stock-contain img {
 	transition: 0.4s;
 	display: block; 
 }
 
-.block__text {
-	min-height: 160px;
-	min-width: 200px;
-	position: absolute;
-	left: 0px;
-	right: 0px;
-	bottom: 0px;
-	top: 230px;
-	background-color: #ffffff;
-	opacity: 0;
-	transition: all 0.4s ease-in-out;
-}
-
-.hover-image-scale img:hover {
-	transform: scale(1.15); /* Увеличиваем масштаб */
-}
-
-.hover-image-scale:hover .block__text {
-	opacity: 1;
-	background-color: #ffffff;
+.stock-contain img:hover {
+	transform: scale(1.17); /* Увеличиваем масштаб */
 }

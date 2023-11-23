@@ -1,14 +1,15 @@
+from functools import wraps
 from typing import Dict, Sequence
 from sqlalchemy import select, Result
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from core.description.description_models import s_main, display, energy, camera, performance
 from core.models import StockTable
 from support_func import month_convert, resolution_convert, name_cut
-from cfg import disabled_buttons
+from cfg import disabled_buttons, dir_with_desc
 
 
-async def get_directory(session: AsyncSession, parent: int) -> Dict[str, list]:
+async def get_directory(session_pg: AsyncSession,
+                        parent: int) -> Dict[str, list]:
     destination_folder = bool()
     stmt = (
         select(StockTable)
@@ -16,7 +17,7 @@ async def get_directory(session: AsyncSession, parent: int) -> Dict[str, list]:
         .filter(StockTable.name.not_in(disabled_buttons))
         .order_by(StockTable.price)
     )
-    result: Result = await session.execute(stmt)
+    result: Result = await session_pg.execute(stmt)
     product = list(result.scalars().all())
     for line in product:
         destination_folder = False if line.code < 1000 else True
@@ -28,7 +29,7 @@ async def get_product(session: AsyncSession, code: int) -> StockTable | None:
     return await session.get(StockTable, code)
 
 
-async def get_description(session: AsyncSession, models: list):
+async def get_description(session_desc: AsyncSession, models: list):
     stmt = select(
         s_main.c.title,
         s_main.c.category,
@@ -53,7 +54,7 @@ async def get_description(session: AsyncSession, models: list):
         (s_main.c.title == camera.c.title) &
         (s_main.c.title == performance.c.title)
     )
-    result: Result = await session.execute(stmt)
+    result: Result = await session_desc.execute(stmt)
     response_list = result.fetchall()
     description_list = dict()
     for model in response_list:
@@ -76,18 +77,35 @@ async def get_description(session: AsyncSession, models: list):
     return description_list
 
 
-async def get_products_in_parent(session_pg: AsyncSession,
-                                 session_desc: AsyncSession,
-                                 parent: int) -> Sequence:
-    subquery = select(StockTable.code).where(StockTable.parent == parent)
-    stmt = select(StockTable).where(StockTable.parent.in_(subquery)).order_by(StockTable.price)
+def description(coroutine):
+    @wraps(coroutine)
+    async def wrapper(*args, **kwargs):
+        response = await coroutine(*args, **kwargs)
+        if kwargs.get('parent') in dir_with_desc:
+            names = list()
+            for line in response:
+                name = name_cut(line.name)
+                names.append(name)
+            response_description = await get_description(session_desc=kwargs.get('session_desc'), models=names)
+            for line in response:
+                line.desc = response_description.get(name_cut(line.name))
+        return response
+
+    return wrapper
+
+
+async def get_parent_path(session_pg: AsyncSession, code: int):
+    sub = select(StockTable.parent).where(StockTable.code == code).scalar_subquery()
+    query = select(StockTable).where(StockTable.parent == sub)
+    result: Result = await session_pg.execute(query)
+    parents = result.scalars().all()
+    return parents
+
+
+@description
+async def get_product_list(session_pg: AsyncSession, session_desc: AsyncSession, parent: int) -> Sequence:
+    subquery = select(StockTable.code).where(StockTable.parent == parent).scalar_subquery()
+    stmt = select(StockTable).where(StockTable.code.in_(subquery)).order_by(StockTable.price)
     result: Result = await session_pg.execute(stmt)
     products = result.scalars().all()
-    names = list()
-    for line in products:
-        name = name_cut(line.name)
-        names.append(name)
-    description = await get_description(session_desc, names)
-    for line in products:
-        line.desc = description.get(name_cut(line.name))
     return products
