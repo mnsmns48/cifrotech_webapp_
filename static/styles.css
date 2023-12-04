@@ -117,8 +117,9 @@ main {
 }
 
 .card-quantity {
+	background-color: #f0f2f3;
 	font-family: Roboto;
-	font-size: 15px;
+	font-size: 14px;
 	text-align: center;
 }
 
@@ -130,7 +131,7 @@ main {
 	text-align: center;
 	font-family: Roboto;
 	font-size: 20px;
-	background-color: #e2eaf0;
+	background-color: #d6e1e9;
 }
 
 .card-description {
