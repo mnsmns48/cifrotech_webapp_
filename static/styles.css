@@ -11,11 +11,20 @@ li {
 }
 
 .nav-link {
+	padding: 1px;
 	color: #ffffff;
 }
 
+
+
 .nav-link.nav-link-yellow {
+	padding: 1px;
 	color: #f6ff00;
+}
+
+.nav-link.nav-link-white {
+	padding: 1px;
+	color: #ffffff;
 }
 
 .btn {
@@ -24,10 +33,18 @@ li {
 	font-size: 16;
 }
 
+.container-fluid {
+	justify-content: center;
+	padding-left: 0px;
+}
+
 .container.container-banner {
 	max-width: 898px;
 }
 
+.carousel-inner{
+	box-shadow: 5px 5px 5px rgb(101, 112, 128);
+}
 
 header .navbar {
     font-style: normal;
@@ -89,11 +106,20 @@ main {
     font-size: 13px;
 	color: #ffffff;
 	background-color: rgb(98, 111, 129);
+	box-shadow: 2px 2px 4px rgb(70, 83, 141);
 }
 
 .card-text {
+	font-weight: bold;
 	font-family: Roboto;
 	font-size: 17px;
+	text-align: center;
+}
+
+.card-quantity {
+	font-family: Roboto;
+	font-size: 15px;
+	text-align: center;
 }
 
 .text-body-secondary {
@@ -101,9 +127,10 @@ main {
 }
 
 .card-price {
-	font-weight: bold;
+	text-align: center;
 	font-family: Roboto;
 	font-size: 20px;
+	background-color: #e2eaf0;
 }
 
 .card-description {
@@ -124,5 +151,10 @@ main {
 }
 
 .stock-contain img:hover {
-	transform: scale(1.17); /* Увеличиваем масштаб */
+	transform: scale(1.12); /* Увеличиваем масштаб */
+}
+
+.btn-circle:hover {
+	transform: scale(1.02); /* Увеличиваем масштаб */
+	transition: 0.1s;
 }

@@ -44,6 +44,7 @@ async def get_description(session_desc: AsyncSession, models: list):
         camera.c.lenses,
         camera.c.megapixels_front,
         performance.c.chipset,
+        performance.c.lithography_process,
         performance.c.total_score,
         s_main.c.advantage,
         s_main.c.disadvantage) \
@@ -67,10 +68,10 @@ async def get_description(session_desc: AsyncSession, models: list):
                   f"Быстрая зарядка <b>{model[9]}</b><br>"
                   f"Основные камеры <b>{model[10]}</b><br>"
                   f"Фронтальная камера <b>{int(model[11])} Мп</b><br>"
-                  f"Процессор <b>{model[12]}</b><br>"
-                  f"Оценка производительности Antutu <b>{model[13]}</b><br>",
-                  f"{' '.join(model[14])}<br>",
-                  f"{' '.join(model[15])}<br>"
+                  f"Процессор <b>{model[12]} {model[13]}нм</b><br>"
+                  f"Оценка производительности Antutu <b>{model[14]}</b><br>",
+                  f"{' '.join(model[15])}<br>",
+                  f"{' '.join(model[16])}<br>"
                   ]
              }
         )
