@@ -1,5 +1,5 @@
 body {
-    background: #d7e4ee;
+    background: #e2eaf0;
 }
 
 li {
@@ -24,9 +24,10 @@ li {
 	font-size: 16;
 }
 
-.container-banner {
+.container.container-banner {
 	max-width: 898px;
 }
+
 
 header .navbar {
     font-style: normal;
@@ -34,6 +35,8 @@ header .navbar {
     font-size: 20px;
     line-height: 20px;
     padding: 0px 0rem;
+	margin-bottom: 10px;
+
 }
 
 .adress {
@@ -48,17 +51,17 @@ main {
 .container-fluid {
 	min-width: 320px;
     display: flex;
-    
 }  
 
 .main-contain {
+	margin-top: 10px;
+	margin-bottom: 10px;
 	display: flex;
 	flex-wrap: wrap;
 	justify-content: center;
 }
 
 .stock-contain {
-	margin-top: 25px;
 	display: flex;
 	flex-wrap: wrap;
 	justify-content: center;
@@ -70,29 +73,31 @@ main {
 }
 
 .btn-circle:hover,.btn-circle:focus,.btn-circle:visited {
-background-color: rgb(41, 56, 63);
+	background-color: rgb(115, 138, 148);
+	border-color: #ffffff;
 }
 
 .btn-circle {
-    width: 150px;
+    width: 125px;
     height: 70px;
     border-radius: 5px;
+	border-color: rgb(101, 112, 128);
     text-align: center;
-	margin: 5px;
+	margin: 4px;
     padding-left: 0;
     padding-right: 0;
-    font-size: 12px;
-	background-color: #00111a;
+    font-size: 13px;
+	color: #ffffff;
+	background-color: rgb(98, 111, 129);
 }
 
 .card-text {
-	
 	font-family: Roboto;
-	font-size: 15px;
+	font-size: 17px;
 }
 
 .text-body-secondary {
-	font-size: 12px;
+	font-size: 14px;
 }
 
 .card-price {
@@ -103,7 +108,7 @@ background-color: rgb(41, 56, 63);
 
 .card-description {
 	font-family: Roboto;
-	font-size: 12px;
+	font-size: 14px;
 }
 
 .hover-image-scale {

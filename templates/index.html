@@ -4,6 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
   <meta name="description" content="Ленино Крым продажа смартфонов настройка аксессуары" />
   <link href="{{ url_for('static', path='/bootstrap.min.css') }}" rel="stylesheet" />
   <link href="{{ url_for('static', path='/styles.css') }}" rel="stylesheet" />
@@ -64,7 +65,6 @@
       </div>
     </nav>
   </header>
-  <p>
   <div class="container container-banner">
     <div id="carouselExampleIndicators" class="carousel slide carousel-fade" data-bs-ride="carousel">
       <div class="carousel-indicators">
@@ -95,9 +95,7 @@
         <span class="visually-hidden">Next</span>
       </button>
     </div>
-    <p>
     <main>{% block content %} {% endblock %}</main>
-    </p>
   </div>
   </div>
   <script src="{{ url_for('static', path='/bootstrap.min.js') }}"></script>
