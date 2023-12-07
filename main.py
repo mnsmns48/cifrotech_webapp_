@@ -13,3 +13,5 @@ app.mount("/s/photo", StaticFiles(directory=settings.photo_path), name="photo")
 
 if __name__ == "__main__":
     uvicorn.run("main:app")
+
+

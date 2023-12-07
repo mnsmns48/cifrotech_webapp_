@@ -15,8 +15,6 @@ li {
 	color: #ffffff;
 }
 
-
-
 .nav-link.nav-link-yellow {
 	padding: 1px;
 	color: #f6ff00;
@@ -39,6 +37,11 @@ li {
 }
 
 .container.container-banner {
+	max-width: 898px;
+}
+
+.container .main-photo {
+	box-shadow: 5px 5px 5px rgb(101, 112, 128);
 	max-width: 898px;
 }
 
@@ -117,7 +120,7 @@ main {
 }
 
 .card-quantity {
-	background-color: #f0f2f3;
+	background-color: #e0e7ea;
 	font-family: Roboto;
 	font-size: 14px;
 	text-align: center;
@@ -131,7 +134,7 @@ main {
 	text-align: center;
 	font-family: Roboto;
 	font-size: 20px;
-	background-color: #d6e1e9;
+	background-color: rgb(235, 213, 244);
 }
 
 .card-description {
@@ -152,10 +155,17 @@ main {
 }
 
 .stock-contain img:hover {
+	border-radius: 20%;
 	transform: scale(1.12); /* Увеличиваем масштаб */
 }
 
 .btn-circle:hover {
 	transform: scale(1.02); /* Увеличиваем масштаб */
 	transition: 0.1s;
+}
+
+.contacts {
+	text-align: center;
+	color: black;
+	padding: 12px 12px;
 }

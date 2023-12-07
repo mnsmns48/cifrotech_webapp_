@@ -1,0 +1,26 @@
+{% extends 'index.html' %}
+{% block content %}
+<p>
+<div class="container">
+    <div class="main-photo">
+        <img src="{{ url_for('static', path='/cifrotech_.jpg') }}" alt="cifrotech_main_photo" width="850" height="294">
+    </div>
+</div>
+</p>
+
+<p>
+<div class="contacts">
+    <h4> Наш телефон: +7(978)715-64-86</h4>
+    Telegram: <a href="https://t.me/tser88">
+        <h5>@tser88</h5>
+    </a>
+</div>
+</p>
+
+
+<div class="container">
+    <iframe
+        src="https://yandex.ru/map-widget/v1/?um=constructor%3A0a95ba835d61c82795fafd46843418bb4923ab84978c079e6e2602ed17d7726b&amp;source=constructor"
+        width="850" height="720" frameborder="0"></iframe>
+</div>
+{% endblock %}
