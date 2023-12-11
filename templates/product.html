@@ -16,7 +16,7 @@
         <img src="photo/{{ var.code }}.jpg" class="card-img-top" alt="{{ var.name }}">
         <div class="card-body">
             <div class="card-text">{{ var.name }}</div>
-            <div class="card-price">Цена: <b>{{ var.price }}</b> руб. </div>
+            <div class="card-price">{{ var.price }} р. </div>
             <div class="card-quantity"><small class="text-body-secondary">В наличии {{ var.quantity }} шт.</small></div>
             {% if var.desc %}
             <div class="card-description">{{ var.desc[0] |safe }}</div>
