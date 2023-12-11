@@ -122,3 +122,5 @@ async def get_product_list_in_parent(session_pg: AsyncSession, session_desc: Asy
     result: Result = await session_pg.execute(stmt)
     products = result.scalars().all()
     return products
+
+
