@@ -1,5 +1,5 @@
 body {
-    background: #e7edf1;
+    background: #e2eaf0;
 }
 
 li {
@@ -14,8 +14,6 @@ li {
 	padding: 1px;
 	color: #ffffff;
 }
-
-
 
 .nav-link.nav-link-yellow {
 	padding: 1px;
@@ -39,6 +37,11 @@ li {
 }
 
 .container.container-banner {
+	max-width: 898px;
+}
+
+.container .main-photo {
+	box-shadow: 5px 5px 5px rgb(101, 112, 128);
 	max-width: 898px;
 }
 
@@ -137,7 +140,7 @@ main {
 
 .card-description {
 	font-family: Roboto;
-	font-size: 13px;
+	font-size: 14px;
 }
 
 .hover-image-scale {
