@@ -5,11 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.crud import get_directory, get_product_list, get_parent_path, get_product_list_in_parent
 from core.engine import pg_engine, phones_engine
 
-pages_router = APIRouter()
+cifrotech_router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
 
-@pages_router.get("/")
+@cifrotech_router.get("/")
 async def get_page(
         request: Request,
         session_pg: AsyncSession = Depends(pg_engine.scoped_session_dependency),
@@ -24,7 +24,7 @@ async def get_page(
     )
 
 
-@pages_router.get("/{parent}")
+@cifrotech_router.get("/{parent}")
 async def get_page_parent(
         parent: int,
         request: Request,
@@ -42,6 +42,6 @@ async def get_page_parent(
         return templates.TemplateResponse(name="menu.html", context=context)
 
 
-@pages_router.get("/address/")
+@cifrotech_router.get("/address/")
 async def get_address(request: Request):
     return templates.TemplateResponse(name="address.html", context={"request": request})
