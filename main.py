@@ -6,7 +6,7 @@ from cifrotech_views import cifrotech_router
 from cfg import settings
 
 app = FastAPI()
-app.include_router(cifrotech_router, prefix='/api', tags=["pages_views"])
+app.include_router(cifrotech_router, tags=["pages_views"])
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/photo", StaticFiles(directory=settings.photo_path), name="photo")
 app.mount("/s/photo", StaticFiles(directory=settings.photo_path), name="photo")
