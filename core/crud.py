@@ -117,7 +117,7 @@ async def get_product_list_in_parent(session_pg: AsyncSession, session_desc: Asy
     subquery = select(StockTable.code).where(StockTable.parent == parent).scalar_subquery()
     stmt = select(StockTable) \
         .where(StockTable.parent.in_(subquery)) \
-        .order_by(StockTable.price) \
+        .order_by(StockTable.price, StockTable.name) \
         .limit(50)
     result: Result = await session_pg.execute(stmt)
     products = result.scalars().all()
