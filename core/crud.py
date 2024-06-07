@@ -106,7 +106,7 @@ async def get_parent_path(session_pg: AsyncSession, code: int):
 @description
 async def get_product_list(session_pg: AsyncSession, session_desc: AsyncSession, parent: int) -> Sequence:
     subquery = select(StockTable.code).where(StockTable.parent == parent).scalar_subquery()
-    stmt = select(StockTable).where(StockTable.code.in_(subquery)).order_by(StockTable.price)
+    stmt = select(StockTable).where(StockTable.code.in_(subquery)).order_by(StockTable.price, StockTable.name)
     result: Result = await session_pg.execute(stmt)
     products = result.scalars().all()
     return products
