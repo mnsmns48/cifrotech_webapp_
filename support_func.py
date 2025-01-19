@@ -23,6 +23,3 @@ def transfer(s: str) -> tuple:
     _list.append(s.split(",")[0])
     _list.append(int(s.split(",")[1]))
     return tuple(_list)
-
-
-

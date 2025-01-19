@@ -5,7 +5,7 @@ from starlette.staticfiles import StaticFiles
 from cifrotech_views import cifrotech_router
 from cfg import settings
 
-app = FastAPI()
+app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 app.include_router(cifrotech_router, tags=["pages_views"])
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/photo", StaticFiles(directory=settings.photo_path), name="photo")
