@@ -2,8 +2,8 @@ from fastapi import APIRouter, Request, Depends
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.crud import get_directory, get_product_list, get_parent_path, get_product_list_in_parent
-from core.engine import pg_engine, phones_engine
+from api_v1.crud import get_directory, get_product_list, get_parent_path, get_product_list_in_parent
+from engine import pg_engine, phones_engine
 
 cifrotech_router = APIRouter()
 templates = Jinja2Templates(directory="templates")
