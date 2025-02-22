@@ -11,7 +11,7 @@ from engine import pg_engine
 api_v2_router = APIRouter(prefix="/api2")
 
 
-@api_v2_router.get("/")
+@api_v2_router.get("/root")
 async def get_root(session_pg: AsyncSession = Depends(pg_engine.scoped_session_dependency)):
     menu_data = await get_root_menu(session_pg)
     return {"root_menu": menu_data}
