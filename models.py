@@ -1,3 +1,4 @@
+from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, declared_attr
 
 
@@ -16,3 +17,4 @@ class StockTable(Base):
     name: Mapped[str]
     quantity: Mapped[int] = mapped_column(nullable=True)
     price: Mapped[int] = mapped_column(nullable=True)
+    info: Mapped[dict | None ] = mapped_column(type_=JSON)

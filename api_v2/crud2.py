@@ -1,12 +1,10 @@
 import json
 import re
-import time
-from sqlalchemy import select, Result, func, literal
-from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.responses import FileResponse
 
-from api_v2.schemas import Menu
-from cfg import disabled_buttons, core_config, settings
+from sqlalchemy import select, Result, func, literal, and_
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from cfg import disabled_buttons
 from models import StockTable
 
 
@@ -68,19 +66,18 @@ async def get_root_menu(session_pg: AsyncSession):
 
 
 async def get_page_items(items_key, session_pg: AsyncSession):
-    stmt = (
-        select(StockTable)
-        .where(StockTable.parent == items_key)
-        .filter(StockTable.name.not_in(disabled_buttons))
-        .order_by(StockTable.price)
-    )
+    stmt = (select(StockTable).filter(and_(StockTable.name.not_in(disabled_buttons)), (StockTable.parent == items_key))
+            .order_by(StockTable.price))
     fetch: Result = await session_pg.execute(stmt)
     data = fetch.scalars().all()
     result = list()
     for row in data:
-        result.append({'code': row.code,
-                       'name': row.name,
-                       'qty': row.quantity,
-                       'price': row.price})
+        item = {'code': row.code,
+                'name': row.name,
+                'qty': row.quantity,
+                'price': row.price}
+        if row.info:
+            item.update({'info': row.info})
+        result.append(item)
     json_result = json.dumps(result, ensure_ascii=False, indent=2)
     return json_result
