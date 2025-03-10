@@ -8,8 +8,7 @@ from api_v2.api_v2_views import api_v2_router
 from cfg import settings
 
 cors = [
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
+    "http://10.10.2.161:5175",
 ]
 
 app = FastAPI()
@@ -17,7 +16,7 @@ app.add_middleware(CORSMiddleware,
                    allow_origins=cors,
                    allow_methods=["*"],
                    allow_headers=["*"],
-                   allow_credentials=True, )
+                   allow_credentials=True)
 app.include_router(cifrotech_router, tags=["Api_v1"])
 app.include_router(api_v2_router, tags=["Api_v2"])
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -25,4 +24,4 @@ app.mount("/photo", StaticFiles(directory=settings.photo_path), name="photo")
 app.mount("/s/photo", StaticFiles(directory=settings.photo_path), name="photo")
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", port=5000)
+    uvicorn.run("main:app", host='0.0.0.0', port=5000)

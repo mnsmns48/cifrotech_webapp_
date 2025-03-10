@@ -2,7 +2,7 @@ import os
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.responses import JSONResponse, FileResponse
+from starlette.responses import FileResponse
 
 from api_v2.crud2 import get_root_menu, get_page_items
 from cfg import settings
