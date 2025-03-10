@@ -7,13 +7,9 @@ from api_v1.cifrotech_views import cifrotech_router
 from api_v2.api_v2_views import api_v2_router
 from cfg import settings
 
-cors = [
-    "http://10.10.2.161:5175",
-]
-
 app = FastAPI()
 app.add_middleware(CORSMiddleware,
-                   allow_origins=cors,
+                   allow_origins=settings.cors,
                    allow_methods=["*"],
                    allow_headers=["*"],
                    allow_credentials=True)
