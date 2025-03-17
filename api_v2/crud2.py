@@ -65,19 +65,53 @@ async def get_root_menu(session_pg: AsyncSession):
     return json_result
 
 
-async def get_page_items(items_key, session_pg: AsyncSession):
-    stmt = (select(StockTable).filter(and_(StockTable.name.not_in(disabled_buttons)), (StockTable.parent == items_key))
-            .order_by(StockTable.price))
-    fetch: Result = await session_pg.execute(stmt)
-    data = fetch.scalars().all()
+# async def get_page_items(items_key, session_pg: AsyncSession):
+#     stmt = (select(StockTable).filter(and_(StockTable.name.not_in(disabled_buttons)), (StockTable.parent == items_key))
+#             .order_by(StockTable.price))
+#     fetch: Result = await session_pg.execute(stmt)
+#     data = fetch.scalars().all()
+#     result = list()
+#     for row in data:
+#         item = {'code': row.code,
+#                 'name': row.name,
+#                 'qty': row.quantity,
+#                 'price': row.price}
+#         if row.info:
+#             item.update({'info': row.info})
+#         result.append(item)
+#     json_result = json.dumps(result, ensure_ascii=False, indent=2)
+#     return json_result
+
+
+async def get_page_items(items_key: int, session_pg: AsyncSession) -> str:
     result = list()
-    for row in data:
-        item = {'code': row.code,
-                'name': row.name,
-                'qty': row.quantity,
-                'price': row.price}
-        if row.info:
-            item.update({'info': row.info})
-        result.append(item)
+
+    async def fetch_items_recursive(key: int):
+        stmt = (
+            select(StockTable)
+            .filter(
+                and_(
+                    StockTable.name.not_in(disabled_buttons),
+                    StockTable.parent == key
+                )
+            )
+            .order_by(StockTable.price)
+        )
+        fetch: Result = await session_pg.execute(stmt)
+        data = fetch.scalars().all()
+        for row in data:
+            if not row.ispath:
+                item = {
+                    'code': row.code,
+                    'name': row.name,
+                    'qty': row.quantity,
+                    'price': row.price
+                }
+                if row.info:
+                    item.update({'info': row.info})
+                result.append(item)
+            else:
+                await fetch_items_recursive(row.code)
+    await fetch_items_recursive(items_key)
     json_result = json.dumps(result, ensure_ascii=False, indent=2)
     return json_result
