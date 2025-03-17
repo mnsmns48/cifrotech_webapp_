@@ -8,6 +8,28 @@ from cfg import disabled_buttons
 from models import StockTable
 
 
+async def get_random12(session_pg: AsyncSession):
+    query = (select(StockTable)
+             .where(and_(StockTable.info == None), (StockTable.ispath == False))
+             .order_by(func.random()).limit(12))
+    result = await session_pg.execute(query)
+    random_products = result.scalars().all()
+    products = list()
+    for product in random_products:
+        products.append(
+            {
+                "code": product.code,
+                "parent": product.parent,
+                "ispath": product.ispath,
+                "name": product.name,
+                "quantity": product.quantity,
+                "price": product.price
+            }
+        )
+    json_result = json.dumps(products, ensure_ascii=False, indent=2)
+    return json_result
+
+
 async def get_root_menu(session_pg: AsyncSession):
     base = select(
         StockTable.code,
@@ -112,6 +134,7 @@ async def get_page_items(items_key: int, session_pg: AsyncSession) -> str:
                 result.append(item)
             else:
                 await fetch_items_recursive(row.code)
+
     await fetch_items_recursive(items_key)
     json_result = json.dumps(result, ensure_ascii=False, indent=2)
     return json_result

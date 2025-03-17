@@ -4,11 +4,17 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import FileResponse
 
-from api_v2.crud2 import get_root_menu, get_page_items
+from api_v2.crud2 import get_root_menu, get_page_items, get_random12
 from cfg import settings
 from engine import pg_engine
 
 api_v2_router = APIRouter(prefix="/api2")
+
+
+@api_v2_router.get("/root")
+async def get_root_random12(session_pg: AsyncSession = Depends(pg_engine.scoped_session_dependency)):
+    random12 = await get_random12(session_pg)
+    return {"items": random12}
 
 
 @api_v2_router.get("/")
