@@ -22,7 +22,7 @@ async def get_random12(session_pg: AsyncSession):
                 "parent": product.parent,
                 "ispath": product.ispath,
                 "name": product.name,
-                "quantity": product.quantity,
+                "qty": product.quantity,
                 "price": product.price
             }
         )
