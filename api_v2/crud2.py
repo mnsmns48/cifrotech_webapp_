@@ -9,23 +9,16 @@ from models import StockTable
 
 
 async def get_random12(session_pg: AsyncSession):
-    query = (select(StockTable)
-             .where(and_(StockTable.info == None), (StockTable.ispath == False))
-             .order_by(func.random()).limit(12))
+    query = (select(StockTable.code, StockTable.name, StockTable.quantity, StockTable.price)
+             .where(StockTable.ispath == False).order_by(func.random()).limit(12))
     result = await session_pg.execute(query)
-    random_products = result.scalars().all()
+    random_products = result.fetchall()
     products = list()
     for product in random_products:
-        products.append(
-            {
-                "code": product.code,
-                "parent": product.parent,
-                "ispath": product.ispath,
-                "name": product.name,
-                "qty": product.quantity,
-                "price": product.price
-            }
-        )
+        products.append({"code": product.code,
+                         "name": product.name,
+                         "qty": product.quantity,
+                         "price": product.price})
     json_result = json.dumps(products, ensure_ascii=False, indent=2)
     return json_result
 
@@ -87,37 +80,14 @@ async def get_root_menu(session_pg: AsyncSession):
     return json_result
 
 
-# async def get_page_items(items_key, session_pg: AsyncSession):
-#     stmt = (select(StockTable).filter(and_(StockTable.name.not_in(disabled_buttons)), (StockTable.parent == items_key))
-#             .order_by(StockTable.price))
-#     fetch: Result = await session_pg.execute(stmt)
-#     data = fetch.scalars().all()
-#     result = list()
-#     for row in data:
-#         item = {'code': row.code,
-#                 'name': row.name,
-#                 'qty': row.quantity,
-#                 'price': row.price}
-#         if row.info:
-#             item.update({'info': row.info})
-#         result.append(item)
-#     json_result = json.dumps(result, ensure_ascii=False, indent=2)
-#     return json_result
-
-
 async def get_page_items(items_key: int, session_pg: AsyncSession) -> str:
     result = list()
 
     async def fetch_items_recursive(key: int):
         stmt = (
-            select(StockTable)
-            .filter(
-                and_(
-                    StockTable.name.not_in(disabled_buttons),
-                    StockTable.parent == key
-                )
-            )
-            .order_by(StockTable.price)
+            select(StockTable).filter(
+                and_(StockTable.name.not_in(disabled_buttons),
+                     StockTable.parent == key)).order_by(StockTable.price)
         )
         fetch: Result = await session_pg.execute(stmt)
         data = fetch.scalars().all()
