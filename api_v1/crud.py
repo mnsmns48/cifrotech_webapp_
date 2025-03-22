@@ -2,9 +2,9 @@ from functools import wraps
 from typing import Dict, Sequence
 from sqlalchemy import select, Result
 from sqlalchemy.ext.asyncio import AsyncSession
-from core.description.description_models import s_main, display, energy, camera, performance
-from core.models import StockTable
-from support_func import month_convert, resolution_convert, name_cut
+from api_v1.description.description_models import s_main, display, energy, camera, performance
+from models import StockTable
+from utils import month_convert, resolution_convert, name_cut
 from cfg import disabled_buttons, dir_with_desc
 
 

@@ -16,6 +16,8 @@ class Settings:
     local_db_name: str
     photo_path: str
     description_db_name: str
+    backend_url: str
+    cors: list
 
 
 def load_config(path: str = None):
@@ -28,7 +30,9 @@ def load_config(path: str = None):
         local_db_port=env.str("LOCAL_DB_PORT"),
         local_db_name=env.str("LOCAL_DB_NAME"),
         photo_path=env.str("PHOTO_PATH"),
-        description_db_name=env.str("DESCRIPTION_DB_NAME")
+        description_db_name=env.str("DESCRIPTION_DB_NAME"),
+        backend_url=env.str("BACKEND_URL"),
+        cors=env.list("CORS")
     )
 
 
