@@ -20,5 +20,4 @@ app.mount("/photo", StaticFiles(directory=settings.photo_path), name="photo")
 app.mount("/s/photo", StaticFiles(directory=settings.photo_path), name="photo")
 
 if __name__ == "__main__":
-    print(settings.cors)
-    uvicorn.run("main:app", port=5000) #host='0.0.0.0',
+    uvicorn.run("main:app", host='0.0.0.0',port=5000)
