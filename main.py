@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from starlette.staticfiles import StaticFiles
 from api_v1.cifrotech_views import cifrotech_router
 from typing import AsyncGenerator
@@ -10,7 +11,8 @@ from bot.api import bot_fastapi_router
 from cfg import settings
 
 
-async def lifespan(app: FastAPI) -> AsyncGenerator:
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     await bot.set_webhook(url=f"{bot_config.WEBHOOK_URL.get_secret_value()}/webhook",
                           allowed_updates=dp.resolve_used_update_types(),
                           drop_pending_updates=True)
