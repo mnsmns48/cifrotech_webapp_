@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 from pathlib import Path
-
 from environs import Env
 from pydantic.v1 import BaseSettings
+
+BASE_DIR = Path(__file__).resolve().parent
 
 disabled_buttons = ['Смартфоны', 'Планшеты', 'Кнопочные телефоны', 'Смарт часы и фитнес трекеры']
 dir_with_desc = [12, 80, 81, 82, 83, 84, 87, 101]
@@ -37,7 +38,6 @@ def load_config(path: str = None):
 
 
 settings = load_config("..env")
-BASE_DIR = Path(__file__).resolve().parent
 
 
 class CoreConfig(BaseSettings):
@@ -53,3 +53,12 @@ class CoreConfig(BaseSettings):
 
 
 core_config = CoreConfig()
+
+
+
+
+
+
+
+
+
