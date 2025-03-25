@@ -13,9 +13,14 @@ from cfg import settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await bot.set_webhook(url=f"{bot_config.WEBHOOK_URL.get_secret_value()}/webhook",
-                          allowed_updates=dp.resolve_used_update_types(),
-                          drop_pending_updates=True)
+    current_webhook = await bot.get_webhook_info()
+    expected_url = f"{bot_config.WEBHOOK_URL.get_secret_value()}/webhook"
+    if current_webhook.url != expected_url:
+        await bot.set_webhook(
+            url=expected_url,
+            allowed_updates=dp.resolve_used_update_types(),
+            drop_pending_updates=True
+        )
     yield
 
 
