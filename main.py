@@ -14,7 +14,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     await bot.set_webhook(url=f"{bot_config.WEBHOOK_URL.get_secret_value()}/webhook",
                           allowed_updates=dp.resolve_used_update_types(),
                           drop_pending_updates=True)
-    await bot.session.close()
     yield
 
 
