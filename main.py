@@ -1,26 +1,18 @@
-from contextlib import asynccontextmanager
 from starlette.staticfiles import StaticFiles
 from api_v1.cifrotech_views import cifrotech_router
-from typing import AsyncGenerator
+from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api_v2.api_v2_views import api_v2_router
-from bot.bot_settings import bot_config, dp, bot
 from bot.api import bot_fastapi_router
+from bot.bot_main import bot_set_webhook
 from cfg import settings
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    current_webhook = await bot.get_webhook_info()
-    expected_url = f"{bot_config.WEBHOOK_URL.get_secret_value()}/webhook"
-    if current_webhook.url != expected_url:
-        await bot.set_webhook(
-            url=expected_url,
-            allowed_updates=dp.resolve_used_update_types(),
-            drop_pending_updates=True
-        )
+    await bot_set_webhook()
     yield
 
 

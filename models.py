@@ -1,4 +1,5 @@
-from sqlalchemy.dialects.postgresql import JSON
+from sqlalchemy import BigInteger, func
+from sqlalchemy.dialects.postgresql import JSON, TIMESTAMP
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, declared_attr
 
 
@@ -17,4 +18,11 @@ class StockTable(Base):
     name: Mapped[str]
     quantity: Mapped[int] = mapped_column(nullable=True)
     price: Mapped[int] = mapped_column(nullable=True)
-    info: Mapped[dict | None ] = mapped_column(type_=JSON)
+    info: Mapped[dict | None] = mapped_column(type_=JSON)
+
+
+class Guests(Base):
+    time_: Mapped[TIMESTAMP] = mapped_column(TIMESTAMP(timezone=False), server_default=func.now())
+    id_: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    fullname: Mapped[str | None]
+    username: Mapped[str | None]

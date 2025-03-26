@@ -1,9 +1,11 @@
 from asyncio import current_task
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
+
 from sqlalchemy.ext.asyncio import (
     create_async_engine,
     async_sessionmaker,
-    async_scoped_session,
-    AsyncSession,
+    async_scoped_session
 )
 from cfg import core_config
 
@@ -22,15 +24,25 @@ class LaunchDbEngine:
         )
         return session
 
-    async def session_dependency(self) -> AsyncSession:
+    async def session_dependency(self) -> AsyncGenerator:
         async with self.session_factory() as session:
-            yield session
-            await session.close()
+            try:
+                yield session
+            finally:
+                await session.close()
 
-    async def scoped_session_dependency(self) -> AsyncSession:
+    async def scoped_session_dependency(self) -> AsyncGenerator:
         session = self.get_scoped_session()
         yield session
         await session.close()
+
+    @asynccontextmanager
+    async def tg_session(self) -> AsyncGenerator:
+        session = self.session_factory()
+        try:
+            yield session
+        finally:
+            await session.close()
 
 
 pg_engine = LaunchDbEngine(url=core_config.as_stocktable, echo=core_config.db_echo)
