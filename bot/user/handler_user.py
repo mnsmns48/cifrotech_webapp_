@@ -15,6 +15,10 @@ tg_user_router = Router()
 
 @tg_user_router.message(CommandStart())
 async def start(m: Message) -> None:
+    hello_text = (f'Привет, {m.from_user.full_name}, '
+                  f'этот БОТ показывает наличие и цены в салоне мобильной связи ЦИФРОТЕХ\n'
+                  f'Спросить/узнать @cifrotech_mobile\n'
+                  f'Телеграм канал @cifrotechmobile\nУправление через кнопки ↓ ↓ ↓ ↓ ↓ ↓ ')
     message_data = {'id_': m.from_user.id, 'fullname': m.from_user.full_name, 'username': m.from_user.username}
     async with aiohttp.ClientSession() as client_session, pg_engine.tg_session() as pg_session:
         await notify_new_user(
@@ -36,12 +40,7 @@ async def start(m: Message) -> None:
                 token=bot_conf.BOT_TOKEN.get_secret_value(),
                 chat_id=str(m.chat.id)
             )
+            await m.answer(text=hello_text)
             await update_bot(session=pg_session, **{'username': bot_username, 'main_pic': pic})
         else:
-            await m.answer_photo(
-                photo=main_pic,
-                caption=f'Привет, {m.from_user.full_name}, этот БОТ показывает наличие и цены '
-                        f'в салоне мобильной связи ЦИФРОТЕХ\n\n'
-                        f'Телеграм канал @cifrotechmobile\n\n'
-                        f'Управление через кнопки ↓ ↓ ↓ ↓ ↓ ↓ '
-            )
+            await m.answer_photo(photo=main_pic, caption=hello_text)

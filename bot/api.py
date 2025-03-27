@@ -21,7 +21,10 @@ async def get_bot_username(session: ClientSession, bot_token: str) -> str:
             raise Exception(f"Ошибка запроса: {response.status}")
 
 
-async def upload_photo_to_telegram(session: ClientSession, file_path: str, token: str, chat_id: str) -> str:
+async def upload_photo_to_telegram(session: ClientSession,
+                                   file_path: str,
+                                   token: str,
+                                   chat_id: str) -> str:
     url = api_url + token + '/sendPhoto'
     with open(file_path, 'rb') as photo:
         form_data = aiohttp.FormData()
