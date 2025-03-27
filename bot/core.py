@@ -1,8 +1,9 @@
-from sqlalchemy import select, Result, update
+from datetime import datetime
+from sqlalchemy import select, Result, update, func
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import Guests, TgBotOptions
+from models import Guests, TgBotOptions, Activity
 
 
 async def user_spotted(session: AsyncSession, data: dict) -> None:
@@ -22,10 +23,17 @@ async def add_bot_options(session: AsyncSession, **kwargs):
         await session.execute(insert(TgBotOptions).values(kwargs))
         await session.commit()
 
+
 async def update_bot(session: AsyncSession, **kwargs):
     if kwargs:
-        await session.execute(
-            update(TgBotOptions).filter(TgBotOptions.username == kwargs.get('username'))
-            .values(main_pic=kwargs.get('main_pic'))
-        )
+        await session.execute(update(TgBotOptions).filter(TgBotOptions.username == kwargs.get('username'))
+                              .values(main_pic=kwargs.get('main_pic')))
         await session.commit()
+
+
+async def show_day_sales(session: AsyncSession):
+    stmt = (select(Activity)
+            .filter(func.date(Activity.time_) == datetime.now().date())
+            .order_by(Activity.time_))
+    result = await session.execute(stmt)
+    return result.scalars().all()
