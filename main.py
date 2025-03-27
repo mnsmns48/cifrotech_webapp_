@@ -7,6 +7,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api_v2.api_v2_views import api_v2_router
+from aservice88.aservice_views import aservice88
 from bot.bot_main import bot_setup_webhook, bot_fastapi_router, bot
 from bot.core import get_option_value, add_bot_options
 from cfg import settings
@@ -39,8 +40,9 @@ app.add_middleware(CORSMiddleware,
 
 app.include_router(api_v2_router, tags=["Api_v2"])
 app.include_router(bot_fastapi_router, tags=["TG Bot Router"])
+app.include_router(aservice88, tags=["Service"])
+app.mount("/static", StaticFiles(directory="static"), name="static")
 # app.include_router(cifrotech_router, tags=["Api_v1"])
-# app.mount("/static", StaticFiles(directory="static"), name="static")
 # app.mount("/photo", StaticFiles(directory=settings.photo_path), name="photo")
 # app.mount("/s/photo", StaticFiles(directory=settings.photo_path), name="photo")
 
