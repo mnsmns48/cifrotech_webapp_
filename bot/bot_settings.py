@@ -12,4 +12,4 @@ class TelegramBot(BaseSettings):
     model_config = SettingsConfigDict(env_file=BASE_DIR / "bot/bot.env", env_file_encoding="utf-8")
 
 
-bot_config = TelegramBot()
+bot_conf = TelegramBot()

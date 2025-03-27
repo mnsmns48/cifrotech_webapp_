@@ -26,3 +26,8 @@ class Guests(Base):
     id_: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     fullname: Mapped[str | None]
     username: Mapped[str | None]
+
+class TgBotOptions(Base):
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
+    username: Mapped[str] = mapped_column(primary_key=True)
+    main_pic: Mapped[str | None]

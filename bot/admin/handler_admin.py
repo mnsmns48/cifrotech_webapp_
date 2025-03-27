@@ -2,7 +2,7 @@ from aiogram import Router
 from aiogram.filters import BaseFilter
 from aiogram.types import Message
 
-from bot.bot_settings import bot_config
+from bot.bot_settings import bot_conf
 
 tg_admin_router = Router()
 
@@ -11,7 +11,7 @@ class AdminFilter(BaseFilter):
     is_admin: bool = True
 
     async def __call__(self, obj: Message):
-        return (obj.from_user.id in bot_config.TELEGRAM_ADMIN_ID) == self.is_admin
+        return (obj.from_user.id in bot_conf.TELEGRAM_ADMIN_ID) == self.is_admin
 
 
 tg_admin_router.message.filter(AdminFilter())

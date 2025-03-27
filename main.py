@@ -5,14 +5,22 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api_v2.api_v2_views import api_v2_router
-from bot.api import bot_fastapi_router
-from bot.bot_main import bot_set_webhook
+from bot.bot_main import bot_setup_webhook, bot_fastapi_router
+from bot.core import get_option_value, add_bot_options
 from cfg import settings
+from engine import pg_engine
+from models import Base
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await bot_set_webhook()
+    bot_username = await bot_setup_webhook()
+    async with pg_engine.engine.begin() as async_connect:
+        await async_connect.run_sync(Base.metadata.create_all)
+    async with pg_engine.tg_session() as session:
+        already_add = await get_option_value(session=session, username=bot_username, field='username')
+        if not already_add:
+            await add_bot_options(session=session, **{'username': bot_username})
     yield
 
 
