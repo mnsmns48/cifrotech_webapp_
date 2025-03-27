@@ -1,3 +1,5 @@
+import logging
+
 from starlette.staticfiles import StaticFiles
 from api_v1.cifrotech_views import cifrotech_router
 from contextlib import asynccontextmanager
@@ -5,7 +7,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api_v2.api_v2_views import api_v2_router
-from bot.bot_main import bot_setup_webhook, bot_fastapi_router
+from bot.bot_main import bot_setup_webhook, bot_fastapi_router, bot
 from bot.core import get_option_value, add_bot_options
 from cfg import settings
 from engine import pg_engine
@@ -21,7 +23,11 @@ async def lifespan(app: FastAPI):
         already_add = await get_option_value(session=session, username=bot_username, field='username')
         if not already_add:
             await add_bot_options(session=session, **{'username': bot_username})
-    yield
+    try:
+        yield
+    finally:
+        await bot.session.close()
+
 
 
 app = FastAPI(lifespan=lifespan)
@@ -39,4 +45,5 @@ app.include_router(bot_fastapi_router, tags=["TG Bot Router"])
 # app.mount("/s/photo", StaticFiles(directory=settings.photo_path), name="photo")
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
     uvicorn.run("main:app", host='0.0.0.0', port=5000)
