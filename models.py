@@ -13,7 +13,7 @@ class Base(DeclarativeBase):
 
 class Activity(Base):
     operation_code: Mapped[int] = mapped_column(primary_key=True)
-    time_: Mapped[str] = mapped_column(TIMESTAMP)
+    time_: Mapped[TIMESTAMP] = mapped_column(TIMESTAMP)
     product_code: Mapped[int]
     product: Mapped[str]
     quantity: Mapped[int]
@@ -44,3 +44,13 @@ class TgBotOptions(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
     username: Mapped[str] = mapped_column(primary_key=True)
     main_pic: Mapped[str | None]
+
+
+class Sellers(Base):
+    seller: Mapped[str | None]
+    time_: Mapped[TIMESTAMP] = mapped_column(TIMESTAMP(timezone=False), primary_key=True)
+    product_type: Mapped[str | None]
+    brand: Mapped[str | None]
+    name: Mapped[str] = mapped_column(primary_key=True)
+    price_1: Mapped[int | None]
+    price_2: Mapped[int | None]
