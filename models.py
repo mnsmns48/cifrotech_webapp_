@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Annotated
 
 from sqlalchemy import BigInteger, func, Computed, DateTime, Index, text, event
 from sqlalchemy.dialects.postgresql import JSON, TIMESTAMP, TSVECTOR
@@ -88,6 +87,7 @@ class VendorStock(Base):
     vendor_price: Mapped[float]
     client_price: Mapped[float]
     delivery_term: Mapped[str] = mapped_column(nullable=True)
+    source_data: Mapped[str] = mapped_column(nullable=True)
     create: Mapped[datetime] = mapped_column(DateTime(timezone=False))
     update: Mapped[datetime] = mapped_column(DateTime(timezone=False), server_default=func.now())
 

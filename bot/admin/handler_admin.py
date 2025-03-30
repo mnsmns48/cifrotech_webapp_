@@ -1,3 +1,5 @@
+import json
+
 from aiogram import Router, F
 from aiogram.filters import BaseFilter, CommandStart
 from aiogram.types import Message
@@ -54,3 +56,22 @@ async def show_sales(m: Message):
     if sum(cardpay):
         res += f'Картой {int(sum(cardpay))}'
     await m.answer(text=res)
+
+
+def remove_null_values(data):
+    if isinstance(data, dict):
+        return {key: remove_null_values(value) for key, value in data.items() if value is not None}
+    elif isinstance(data, list):
+        return [remove_null_values(item) for item in data if item is not None]
+    else:
+        return data
+
+
+@tg_admin_router.message()
+async def get_forwarding_message(m: Message):
+    await m.answer(text='ok')
+    message_dict = m.model_dump()
+    filtered_dict = remove_null_values(message_dict)
+    message_json = json.dumps(filtered_dict, indent=4, ensure_ascii=False)
+
+    print(message_json)
