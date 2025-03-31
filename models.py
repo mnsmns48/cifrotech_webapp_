@@ -1,7 +1,7 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, func, Computed, DateTime, Index, text, event
-from sqlalchemy.dialects.postgresql import JSON, TIMESTAMP, TSVECTOR
+from sqlalchemy import BigInteger, func, Computed, DateTime, Index, text, event, String
+from sqlalchemy.dialects.postgresql import JSON, TIMESTAMP, TSVECTOR, ARRAY
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, declared_attr
 
 
@@ -72,6 +72,7 @@ class Products(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
     title: Mapped[str]
     title_tsv: Mapped[TSVECTOR] = mapped_column(TSVECTOR, Computed("to_tsvector('simple', title)", persisted=True))
+    product_type_id: Mapped[int] = mapped_column(primary_key=True)
 
 
 class ProductInfo(Base):
@@ -92,6 +93,16 @@ class VendorStock(Base):
     update: Mapped[datetime] = mapped_column(DateTime(timezone=False), server_default=func.now())
 
 
+class ProductType(Base):
+    __table_args__ = (
+        Index('idx_kind_tsv', 'kind_tsv', postgresql_using='gin'),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    type: Mapped[str] = mapped_column(nullable=False)
+    kind: Mapped[list] = mapped_column(ARRAY(String), nullable=False)
+    kind_tsv: Mapped[TSVECTOR] = mapped_column(TSVECTOR, nullable=True)
+
+
 @event.listens_for(Products.__table__, 'after_create')
 def create_update_title_tsv_trigger(target, connection, **kw):
     connection.execute(text(
@@ -99,5 +110,24 @@ def create_update_title_tsv_trigger(target, connection, **kw):
         CREATE TRIGGER tsvectorupdate BEFORE INSERT OR UPDATE
         ON {Products.__table__} FOR EACH ROW EXECUTE PROCEDURE
         tsvector_update_trigger(title_tsv, 'pg_catalog.simple', title);
+        """
+    ))
+
+
+@event.listens_for(ProductType.__table__, 'after_create')
+def create_update_kind_tsv_trigger(target, connection, **kw):
+    connection.execute(text(
+        f"""
+        CREATE OR REPLACE FUNCTION update_kind_tsv_function() RETURNS TRIGGER AS $$
+        BEGIN
+            NEW.kind_tsv := to_tsvector('simple', array_to_string(NEW.kind, ' '));
+            RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+
+        CREATE TRIGGER tsvectorupdate BEFORE INSERT OR UPDATE
+        ON {ProductType.__tablename__}
+        FOR EACH ROW
+        EXECUTE FUNCTION update_kind_tsv_function();
         """
     ))

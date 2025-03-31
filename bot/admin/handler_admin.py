@@ -1,16 +1,29 @@
-import json
-
 from aiogram import Router, F
 from aiogram.filters import BaseFilter, CommandStart
-from aiogram.types import Message
+from aiogram.fsm.context import FSMContext
+from aiogram.types import Message, CallbackQuery
 
-from bot.admin.keyboards_admin import admin_basic_kb
+from bot.admin.keyboards_admin import admin_basic_choice_kb, admin_basic_kb
 from bot.bot_settings import bot_conf
 from bot.core import show_day_sales
+from bot.utils import filter_keys
 from engine import pg_engine
 
 tg_admin_router = Router()
 
+
+# class AdminFilter(BaseFilter):
+#     is_admin: bool = True
+#
+#     async def __call__(self, obj):
+#         user_id = None
+#         if isinstance(obj, Message):
+#             user_id = obj.from_user.id
+#         elif isinstance(obj, CallbackQuery):
+#             user_id = obj.from_user.id
+#         if user_id is not None:
+#             return (user_id in bot_conf.TELEGRAM_ADMIN_ID) == self.is_admin
+#         return False
 
 class AdminFilter(BaseFilter):
     is_admin: bool = True
@@ -20,6 +33,9 @@ class AdminFilter(BaseFilter):
 
 
 tg_admin_router.message.filter(AdminFilter())
+
+
+# tg_admin_router.callback_query.filter(AdminFilter())
 
 
 @tg_admin_router.message(CommandStart())
@@ -58,20 +74,15 @@ async def show_sales(m: Message):
     await m.answer(text=res)
 
 
-def remove_null_values(data):
-    if isinstance(data, dict):
-        return {key: remove_null_values(value) for key, value in data.items() if value is not None}
-    elif isinstance(data, list):
-        return [remove_null_values(item) for item in data if item is not None]
-    else:
-        return data
+@tg_admin_router.callback_query(F.data == 'process_vendor_message')
+async def callback_process_vendor_message(c: CallbackQuery, state: FSMContext):
+    await c.answer()
+    data = await state.get_data()
+    msg = data.get('msg')
+    print(msg.keys())
 
 
 @tg_admin_router.message()
-async def get_forwarding_message(m: Message):
-    await m.answer(text='ok')
-    message_dict = m.model_dump()
-    filtered_dict = remove_null_values(message_dict)
-    message_json = json.dumps(filtered_dict, indent=4, ensure_ascii=False)
-
-    print(message_json)
+async def get_forwarding_message(m: Message, state: FSMContext):
+    await state.update_data(msg=filter_keys(m.model_dump()))
+    await m.answer(text='?', reply_markup=admin_basic_choice_kb.as_markup())
