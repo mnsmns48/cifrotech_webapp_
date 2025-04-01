@@ -1,3 +1,5 @@
+import emoji
+
 month = {
     '01': 'Январь',
     '02': 'Февраль',
@@ -23,3 +25,7 @@ def transfer(s: str) -> tuple:
     _list.append(s.split(",")[0])
     _list.append(int(s.split(",")[1]))
     return tuple(_list)
+
+
+def sanitize_emoji(text):
+    return emoji.replace_emoji(text, replace='')

@@ -1,39 +1,40 @@
-from datetime import datetime
-from sqlalchemy import select, Result, update, func
-from sqlalchemy.dialects.postgresql import insert
+import asyncio
+import re
+
+from aiohttp import ClientSession
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import Guests, TgBotOptions, Activity
+from bot.api_digitaltube import get_one_item
+from bot.search_device import search_devices
+
+symbols_to_remove = ['-', '—']
 
 
-async def user_spotted(session: AsyncSession, data: dict) -> None:
-    await session.execute(insert(Guests), data)
-    await session.commit()
+def sanitize(text, symbols) -> str:
+    remove_set = ''.join(map(re.escape, symbols))
+    sanitized_text = re.sub(f"^[{remove_set}]+|[{remove_set}]+$", '', text)
+    return sanitized_text
 
 
-async def get_option_value(session: AsyncSession, username, field):
-    stmt = select(TgBotOptions).filter(TgBotOptions.username == username)
-    result: Result = await session.execute(stmt)
-    option_obj = result.scalars().first()
-    return getattr(option_obj, field) if option_obj else None
+def parse_product_message(text) -> list:
+    lines = text.splitlines()
+    products = list()
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        match = re.search(r'(\d{4,6})\s*$', line)
+        if match:
+            price = int(match.group(1))
+            name = line[:match.start()].strip()
+            products.append({"title": sanitize(name, symbols_to_remove), "price": price})
+    return products
 
-
-async def add_bot_options(session: AsyncSession, **kwargs):
-    if kwargs:
-        await session.execute(insert(TgBotOptions).values(kwargs))
-        await session.commit()
-
-
-async def update_bot(session: AsyncSession, **kwargs):
-    if kwargs:
-        await session.execute(update(TgBotOptions).filter(TgBotOptions.username == kwargs.get('username'))
-                              .values(main_pic=kwargs.get('main_pic')))
-        await session.commit()
-
-
-async def show_day_sales(session: AsyncSession):
-    stmt = (select(Activity)
-            .filter(func.date(Activity.time_) == datetime.now().date())
-            .order_by(Activity.time_))
-    result = await session.execute(stmt)
-    return result.scalars().all()
+async def working_under_product_list(pg_session: AsyncSession, cl_session: ClientSession, products: list[dict]):
+    for product_line in products:
+        product_obj = await search_devices(session=pg_session, query_string=product_line['title'].replace(')', ' ').replace('(', ' ').replace('!', ' '))
+        print('search_devices', product_obj)
+        if not product_obj:
+            product_obj = await get_one_item(session=cl_session, query_string=product_line['title'].replace(')', ' ').replace('(', ' ').replace('!', ' '))
+        print('get_one_item', product_obj)
+        await asyncio.sleep(0.1)

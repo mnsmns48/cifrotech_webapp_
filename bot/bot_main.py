@@ -1,3 +1,5 @@
+import asyncio
+
 from aiogram import Bot, Dispatcher
 from aiogram.types import Update
 from fastapi import APIRouter, Request
@@ -12,6 +14,8 @@ dp.include_routers(tg_admin_router, tg_user_router)
 
 
 async def bot_setup_webhook():
+    await bot.delete_webhook(drop_pending_updates=True, request_timeout=5)
+    await asyncio.sleep(3)
     current_webhook = await bot.get_webhook_info()
     expected_url = f"{bot_conf.WEBHOOK_URL.get_secret_value()}/webhook"
     if current_webhook.url != expected_url:

@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from api_v2.api_v2_views import api_v2_router
 from aservice88.aservice_views import aservice88
 from bot.bot_main import bot_setup_webhook, bot_fastapi_router, bot
-from bot.core import get_option_value, add_bot_options
+from bot.crud_bot import get_option_value, add_bot_options
 from cfg import settings
 from engine import pg_engine
 from models import Base

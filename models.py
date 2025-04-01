@@ -66,9 +66,7 @@ class Vendor(Base):
 
 
 class Products(Base):
-    __table_args__ = (
-        Index('idx_title_tsv', 'title_tsv', postgresql_using='gin'),
-    )
+    __table_args__ = (Index('idx_title_tsv', 'title_tsv', postgresql_using='gin'),)
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
     title: Mapped[str]
     title_tsv: Mapped[TSVECTOR] = mapped_column(TSVECTOR, Computed("to_tsvector('simple', title)", persisted=True))

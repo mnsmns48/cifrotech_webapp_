@@ -18,6 +18,7 @@ class Settings:
     photo_path: str
     description_db_name: str
     backend_url: str
+    digitaltube: str
     cors: list
 
 
@@ -33,6 +34,7 @@ def load_config(path: str = None):
         photo_path=env.str("PHOTO_PATH"),
         description_db_name=env.str("DESCRIPTION_DB_NAME"),
         backend_url=env.str("BACKEND_URL"),
+        digitaltube=env.str("DIGITALTUBE_URL"),
         cors=env.list("CORS")
     )
 

@@ -5,7 +5,7 @@ from aiogram.types import Message
 
 from bot.api import notify_new_user, get_bot_username
 from bot.bot_settings import bot_conf
-from bot.core import user_spotted, get_option_value, update_bot
+from bot.crud_bot import user_spotted, get_option_value, update_bot
 from bot.api import upload_photo_to_telegram
 from bot.user.keyboards_user import user_kb
 from cfg import BASE_DIR

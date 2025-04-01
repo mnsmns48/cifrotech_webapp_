@@ -2,28 +2,17 @@ from aiogram import Router, F
 from aiogram.filters import BaseFilter, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery
-
+from aiohttp import ClientSession
 from bot.admin.keyboards_admin import admin_basic_choice_kb, admin_basic_kb
 from bot.bot_settings import bot_conf
-from bot.core import show_day_sales
+from bot.core import parse_product_message, working_under_product_list
+from bot.crud_bot import show_day_sales
 from bot.utils import filter_keys
 from engine import pg_engine
+from utils import sanitize_emoji
 
 tg_admin_router = Router()
 
-
-# class AdminFilter(BaseFilter):
-#     is_admin: bool = True
-#
-#     async def __call__(self, obj):
-#         user_id = None
-#         if isinstance(obj, Message):
-#             user_id = obj.from_user.id
-#         elif isinstance(obj, CallbackQuery):
-#             user_id = obj.from_user.id
-#         if user_id is not None:
-#             return (user_id in bot_conf.TELEGRAM_ADMIN_ID) == self.is_admin
-#         return False
 
 class AdminFilter(BaseFilter):
     is_admin: bool = True
@@ -33,9 +22,6 @@ class AdminFilter(BaseFilter):
 
 
 tg_admin_router.message.filter(AdminFilter())
-
-
-# tg_admin_router.callback_query.filter(AdminFilter())
 
 
 @tg_admin_router.message(CommandStart())
@@ -76,10 +62,14 @@ async def show_sales(m: Message):
 
 @tg_admin_router.callback_query(F.data == 'process_vendor_message')
 async def callback_process_vendor_message(c: CallbackQuery, state: FSMContext):
-    await c.answer()
-    data = await state.get_data()
-    msg = data.get('msg')
-    print(msg.keys())
+    await c.answer('ok')
+    context = await state.get_data()
+    msg = context.get('msg')
+    string_data_key = 'caption' if 'caption' in msg else 'text' if 'text' in msg else None
+    parsed_data_list: list[dict] = parse_product_message(text=sanitize_emoji(msg.get(string_data_key)))
+    async with pg_engine.tg_session() as tg_session, ClientSession() as cl_session:
+        await working_under_product_list(pg_session=tg_session, cl_session=cl_session, products=parsed_data_list)
+
 
 
 @tg_admin_router.message()
