@@ -34,5 +34,5 @@ async def submit_link(request: Request, form=Depends(take_form_result)):
     filename = form['receipt_product'].replace(' ', '_')
     response = StreamingResponse(result_stream,
                                  media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    response.headers["Content-Disposition"] = f"attachment; filename=receipt-{filename[:25]}.xlsx"
+    response.headers["Content-Disposition"] = f"attachment; filename=receipt.xlsx"
     return response
