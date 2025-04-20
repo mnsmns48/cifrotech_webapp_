@@ -18,8 +18,8 @@ from models import Base
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     bot_username = await bot_setup_webhook()
-    async with pg_engine.engine.begin() as async_connect:
-        await async_connect.run_sync(Base.metadata.create_all)
+    # async with pg_engine.engine.begin() as async_connect:
+    #     await async_connect.run_sync(Base.metadata.create_all)
     async with pg_engine.tg_session() as session:
         already_add = await get_option_value(session=session, username=bot_username, field='username')
         if not already_add:
@@ -31,7 +31,7 @@ async def lifespan(app: FastAPI):
 
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(lifespan=lifespan, docs_url=settings.docs_url)
 app.add_middleware(CORSMiddleware,
                    allow_origins=settings.cors,
                    allow_methods=["*"],
