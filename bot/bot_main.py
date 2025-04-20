@@ -19,8 +19,7 @@ async def bot_setup_webhook():
     current_webhook = await bot.get_webhook_info()
     expected_url = f"{bot_conf.WEBHOOK_URL.get_secret_value()}/webhook"
     if current_webhook.url != expected_url:
-        await bot.set_webhook(url=expected_url,
-                              allowed_updates=dp.resolve_used_update_types(),
+        await bot.set_webhook(url=expected_url, allowed_updates=dp.resolve_used_update_types(),
                               drop_pending_updates=True)
     bot_obj = await bot.me()
     return bot_obj.username

@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api_v1.description.description_models import s_main, display, energy, camera, performance
 from models import StockTable
 from utils import month_convert, resolution_convert, name_cut
-from cfg import disabled_buttons, dir_with_desc
+from api_v1.old_config import disabled_buttons, dir_with_desc
 
 
 async def get_directory(session_pg: AsyncSession,

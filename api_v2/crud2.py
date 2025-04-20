@@ -4,7 +4,7 @@ import re
 from sqlalchemy import select, Result, func, literal, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from cfg import disabled_buttons
+from api_v1.old_config import disabled_buttons
 from models import StockTable
 
 
