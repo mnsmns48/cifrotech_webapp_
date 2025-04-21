@@ -5,13 +5,13 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api_v2.api_v2_views import api_v2_router
-from aservice88.aservice_views import aservice88
+
+from api_service.aservice_views import service_router
+from api_v2.views import api_v2_router
 from bot.bot_main import bot_setup_webhook, bot_fastapi_router, bot
 from bot.crud_bot import get_option_value, add_bot_options
 from config import settings
 from engine import pg_engine
-
 
 
 @asynccontextmanager
@@ -27,19 +27,16 @@ async def lifespan(app: FastAPI):
         await bot.session.close()
 
 
-
 app = FastAPI(lifespan=lifespan, docs_url=settings.api.docs_url)
-app.add_middleware(CORSMiddleware,
-                   allow_origins=settings.cors,
+app.add_middleware(CORSMiddleware, allow_origins=settings.cors,
                    allow_methods=["*"],
                    allow_headers=["*"],
                    allow_credentials=True)
 
-app.include_router(api_v2_router, tags=["Api_v2"])
+app.include_router(api_v2_router, tags=["Api V2"])
 app.include_router(bot_fastapi_router, tags=["TG Bot Router"])
-app.include_router(aservice88, tags=["Service"])
+app.include_router(service_router, tags=["Service"])
 app.mount("/static", StaticFiles(directory="static"), name="static")
-
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)

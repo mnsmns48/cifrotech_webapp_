@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import FileResponse
 
-from api_v2.crud2 import get_root_menu, get_page_items, get_random12
+from api_v2.crud import get_root_menu, get_page_items, get_random12
 from config import settings
 from engine import pg_engine
 

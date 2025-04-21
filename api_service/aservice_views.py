@@ -6,22 +6,22 @@ from num2words import num2words
 from starlette.responses import HTMLResponse, StreamingResponse
 from xlsxtpl.writerx import BookWriter
 
-from aservice88.schemas import take_form_result
+from api_service.schemas import take_form_result
 from config import BASE_DIR
 
-aservice88 = APIRouter(prefix="/aservice88")
-templates = Jinja2Templates(directory=f"{BASE_DIR}/aservice88/tmplts")
+service_router = APIRouter(prefix="/service")
+templates = Jinja2Templates(directory=f"{BASE_DIR}/api_service/templates")
 
 
-@aservice88.get("/tpl")
+@service_router.get("/bill_editor")
 async def bill_editor(request: Request):
     context = {"request": request}
     return templates.TemplateResponse(name="cash_receipt_editor.html", context=context)
 
 
-@aservice88.post("/submit", response_class=HTMLResponse)
+@service_router.post("/submit", response_class=HTMLResponse)
 async def submit_link(request: Request, form=Depends(take_form_result)):
-    xlsx_template = BASE_DIR / "aservice88/tmplts/E1.xlsx"
+    xlsx_template = BASE_DIR / "api_service/templates/E1.xlsx"
     with open(xlsx_template, "rb") as template_file:
         file_stream = BytesIO(template_file.read())
         writer = BookWriter(file_stream)
