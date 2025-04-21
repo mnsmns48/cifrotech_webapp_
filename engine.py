@@ -7,7 +7,8 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     async_scoped_session
 )
-from cfg import core_config
+
+from config import settings
 
 
 class LaunchDbEngine:
@@ -45,5 +46,4 @@ class LaunchDbEngine:
             await session.close()
 
 
-pg_engine = LaunchDbEngine(url=core_config.as_stocktable, echo=core_config.db_echo)
-phones_engine = LaunchDbEngine(url=core_config.phones_desc_db, echo=core_config.db_echo)
+pg_engine = LaunchDbEngine(url=str(settings.db.url))

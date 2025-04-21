@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import FileResponse
 
 from api_v2.crud2 import get_root_menu, get_page_items, get_random12
-from cfg import settings
+from config import settings
 from engine import pg_engine
 
 api_v2_router = APIRouter(prefix="/api2")
@@ -31,7 +31,7 @@ async def get_items(items_key: int, session_pg: AsyncSession = Depends(pg_engine
 
 @api_v2_router.get("/images/{image_name}")
 async def get_image(image_name: str):
-    image_path = os.path.join(settings.photo_path, image_name)
+    image_path = os.path.join(settings.api.photo_path, image_name)
     if os.path.exists(image_path):
         return FileResponse(image_path)
     return {"error": "Image not found"}

@@ -4,7 +4,7 @@ import re
 from sqlalchemy import select, Result, func, literal, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api_v1.old_config import disabled_buttons
+
 from models import StockTable
 
 
@@ -85,9 +85,7 @@ async def get_page_items(items_key: int, session_pg: AsyncSession) -> str:
 
     async def fetch_items_recursive(key: int):
         stmt = (
-            select(StockTable).filter(
-                and_(StockTable.name.not_in(disabled_buttons),
-                     StockTable.parent == key)).order_by(StockTable.price)
+            select(StockTable).filter(StockTable.parent == key).order_by(StockTable.price)
         )
         fetch: Result = await session_pg.execute(stmt)
         data = fetch.scalars().all()

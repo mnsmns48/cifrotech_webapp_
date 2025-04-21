@@ -7,7 +7,7 @@ from starlette.responses import HTMLResponse, StreamingResponse
 from xlsxtpl.writerx import BookWriter
 
 from aservice88.schemas import take_form_result
-from cfg import BASE_DIR
+from config import BASE_DIR
 
 aservice88 = APIRouter(prefix="/aservice88")
 templates = Jinja2Templates(directory=f"{BASE_DIR}/aservice88/tmplts")

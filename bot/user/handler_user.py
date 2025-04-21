@@ -8,7 +8,7 @@ from bot.bot_settings import bot_conf
 from bot.crud_bot import user_spotted, get_option_value, update_bot
 from bot.api import upload_photo_to_telegram
 from bot.user.keyboards_user import user_kb
-from cfg import BASE_DIR
+from config import BASE_DIR
 from engine import pg_engine
 
 tg_user_router = Router()
