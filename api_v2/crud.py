@@ -1,9 +1,8 @@
 import json
 import re
 
-from sqlalchemy import select, Result, func, literal, and_
+from sqlalchemy import select, Result, func, literal
 from sqlalchemy.ext.asyncio import AsyncSession
-
 
 from models import StockTable
 

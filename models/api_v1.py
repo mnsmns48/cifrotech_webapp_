@@ -1,16 +1,8 @@
-from datetime import datetime
+from sqlalchemy import func, BigInteger
+from sqlalchemy.dialects.postgresql import TIMESTAMP, JSON
+from sqlalchemy.orm import Mapped, mapped_column
 
-from sqlalchemy import BigInteger, func, Computed, DateTime, Index, text, event, String
-from sqlalchemy.dialects.postgresql import JSON, TIMESTAMP, TSVECTOR, ARRAY
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, declared_attr
-
-
-class Base(DeclarativeBase):
-    __abstract__ = True
-
-    @declared_attr.directive
-    def __tablename__(cls) -> str:
-        return cls.__name__.lower()
+from models.base import Base
 
 
 class Activity(Base):
@@ -42,12 +34,6 @@ class Guests(Base):
     username: Mapped[str] = mapped_column(nullable=True)
 
 
-class TgBotOptions(Base):
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
-    username: Mapped[str] = mapped_column(primary_key=True)
-    main_pic: Mapped[str] = mapped_column(nullable=True)
-
-
 class Sellers(Base):
     seller: Mapped[str | None]
     time_: Mapped[TIMESTAMP] = mapped_column(TIMESTAMP(timezone=False), primary_key=True)
@@ -56,10 +42,3 @@ class Sellers(Base):
     name: Mapped[str] = mapped_column(primary_key=True)
     price_1: Mapped[str] = mapped_column(nullable=True)
     price_2: Mapped[str] = mapped_column(nullable=True)
-
-
-class Vendor(Base):
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
-    name: Mapped[str] = mapped_column(primary_key=True)
-    source: Mapped[str] = mapped_column(nullable=True)
-    telegram_id: Mapped[str] = mapped_column(nullable=True)
