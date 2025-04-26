@@ -19,6 +19,13 @@ class DBSettings(CustomConfigSettings):
     url: PostgresDsn
 
 
+class Token(CustomConfigSettings):
+    reset_password_token_secret: str
+    verification_token_secret: str
+    lifetime_seconds: int
+    bearer_token_url: str = '/auth/login'
+
+
 class APISettings(CustomConfigSettings):
     photo_path: str
     backend_url: str
@@ -36,6 +43,7 @@ class APISettings(CustomConfigSettings):
 class Settings(CustomConfigSettings):
     db: DBSettings = DBSettings()
     api: APISettings = APISettings()
+    token: Token = Token()
 
 
 settings = Settings()

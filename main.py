@@ -11,13 +11,13 @@ from api_v2.views import api_v2_router
 from bot.bot_main import bot_setup_webhook, bot_fastapi_router, bot
 from bot.crud_bot import get_option_value, add_bot_options
 from config import settings
-from engine import pg_engine
+from engine import db
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     bot_username = await bot_setup_webhook()
-    async with pg_engine.tg_session() as session:
+    async with db.tg_session() as session:
         already_add = await get_option_value(session=session, username=bot_username, field='username')
         if not already_add:
             await add_bot_options(session=session, **{'username': bot_username})

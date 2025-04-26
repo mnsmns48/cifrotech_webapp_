@@ -8,7 +8,7 @@ from bot.bot_settings import bot_conf
 # from bot.core import parse_product_message, working_under_product_list
 from bot.crud_bot import show_day_sales
 from bot.utils import filter_keys
-from engine import pg_engine
+from engine import db
 from utils import sanitize_emoji
 
 tg_admin_router = Router()
@@ -31,7 +31,7 @@ async def start(m: Message):
 
 @tg_admin_router.message(F.text == 'Продажи сегодня')
 async def show_sales(m: Message):
-    async with pg_engine.tg_session() as session:
+    async with db.tg_session() as session:
         day_sales = await show_day_sales(session=session)
     sales, returns, cardpay, amount = [], [], [], []
     for activity in day_sales:

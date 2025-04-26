@@ -6,25 +6,25 @@ from starlette.responses import FileResponse
 
 from api_v2.crud import get_root_menu, get_page_items, get_random12
 from config import settings
-from engine import pg_engine
+from engine import db
 
 api_v2_router = APIRouter(prefix="/api2")
 
 
 @api_v2_router.get("/root")
-async def get_root_random12(session_pg: AsyncSession = Depends(pg_engine.scoped_session_dependency)):
+async def get_root_random12(session_pg: AsyncSession = Depends(db.scoped_session_dependency)):
     random12 = await get_random12(session_pg)
     return {"items": random12}
 
 
 @api_v2_router.get("/")
-async def get_root(session_pg: AsyncSession = Depends(pg_engine.scoped_session_dependency)):
+async def get_root(session_pg: AsyncSession = Depends(db.scoped_session_dependency)):
     menu_data = await get_root_menu(session_pg)
     return {"root_menu": menu_data}
 
 
 @api_v2_router.get("/{items_key}")
-async def get_items(items_key: int, session_pg: AsyncSession = Depends(pg_engine.scoped_session_dependency)):
+async def get_items(items_key: int, session_pg: AsyncSession = Depends(db.scoped_session_dependency)):
     items = await get_page_items(items_key=items_key, session_pg=session_pg)
     return {'items': items}
 

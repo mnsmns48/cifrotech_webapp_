@@ -9,7 +9,7 @@ from bot.crud_bot import user_spotted, get_option_value, update_bot
 from bot.api import upload_photo_to_telegram
 from bot.user.keyboards_user import user_kb
 from config import BASE_DIR
-from engine import pg_engine
+from engine import db
 
 tg_user_router = Router()
 
@@ -21,7 +21,7 @@ async def start(m: Message) -> None:
                   f'Спросить/узнать @cifrotech_mobile\n'
                   f'Телеграм канал @cifrotechmobile')
     message_data = {'id_': m.from_user.id, 'fullname': m.from_user.full_name, 'username': m.from_user.username}
-    async with aiohttp.ClientSession() as client_session, pg_engine.tg_session() as pg_session:
+    async with aiohttp.ClientSession() as client_session, db.tg_session() as pg_session:
         await notify_new_user(
             session=client_session,
             bot_token=bot_conf.BOT_TOKEN.get_secret_value(),
