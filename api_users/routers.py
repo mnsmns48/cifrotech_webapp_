@@ -1,9 +1,8 @@
 from fastapi import APIRouter, Depends
 from fastapi.security import HTTPBearer
 
-
 from api_users.backend import authentication_backend
-from api_users.dependencies.fastapi_users_dep import fastapi_users
+from api_users.dependencies.fastapi_users_dep import fastapi_users, current_user
 from api_users.schemas import UserRead, UserCreate
 
 http_bearer = HTTPBearer(auto_error=False)
@@ -12,6 +11,13 @@ auth_api_router = APIRouter(dependencies=[Depends(http_bearer)])
 auth_router = APIRouter(tags=['Auth'])
 auth_router.include_router(fastapi_users.get_auth_router(authentication_backend))
 auth_router.include_router(fastapi_users.get_register_router(UserRead, UserCreate))
+
+
+@auth_router.get("/auth", response_model=UserRead)
+async def get_authenticated_user(user: UserRead = Depends(current_user)):
+    return user
+
+
 users_router = APIRouter(tags=['Users'], prefix='/users')
 users_router.include_router(fastapi_users.get_users_router(UserRead, UserCreate))
 users_router.include_router(fastapi_users.get_verify_router(UserRead))

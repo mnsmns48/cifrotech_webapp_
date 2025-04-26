@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from starlette.requests import Request
 
-from api_service.aservice_views import templates
+from api_service.routers import templates
 from utils import all_css
 
 
