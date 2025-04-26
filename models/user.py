@@ -3,6 +3,8 @@ from typing import TYPE_CHECKING
 
 from fastapi_users_db_sqlalchemy import SQLAlchemyBaseUserTable, SQLAlchemyUserDatabase
 from sqlalchemy import DateTime
+from sqlalchemy.dialects.postgresql import BIGINT
+
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models import Base
@@ -25,7 +27,7 @@ class User(Base,
     __tablename__ = 'users'
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    phone_number: Mapped[int] = mapped_column(index=True, unique=True)
+    phone_number: Mapped[int] = mapped_column(BIGINT, index=True, unique=True)
 
     @classmethod
     def get_db(cls, session: "AsyncSession"):
