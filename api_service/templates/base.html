@@ -4,13 +4,15 @@
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
-    <link href="{{ url_for('static', path='/css/cash_receipt_editor.css') }}" rel="stylesheet"/>
+    {% for css_file in all_css %}
+    <link rel="stylesheet" href="{{ url_for('static', path=css_file) }}">
+    {% endfor %}
     <link id="favicon" rel="icon" type="image/x-icon" href="{{ url_for('static', path='/favicon4.ico') }}"/>
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <title>ЦифроХаб Service</title>
-    {% block scripts %}{% endblock %}
 </head>
 <body>
 <main>{% block content %} {% endblock %}</main>
 </body>
+{% block scripts %} {% endblock %}
 </html>

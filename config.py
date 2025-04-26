@@ -23,7 +23,7 @@ class Token(CustomConfigSettings):
     reset_password_token_secret: str
     verification_token_secret: str
     lifetime_seconds: int
-    bearer_token_url: str = '/auth/login'
+    bearer_token_url: str = '/service/login'
 
 
 class APISettings(CustomConfigSettings):

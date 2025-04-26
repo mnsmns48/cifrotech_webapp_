@@ -1,5 +1,4 @@
 from io import BytesIO
-
 from fastapi import APIRouter, Request, Depends
 from fastapi.templating import Jinja2Templates
 from num2words import num2words
@@ -7,15 +6,18 @@ from starlette.responses import HTMLResponse, StreamingResponse
 from xlsxtpl.writerx import BookWriter
 
 from api_service.schemas import take_form_result
+from api_users.dependencies.fastapi_users_dep import current_super_user
 from config import BASE_DIR
+from utils import all_css
 
-service_router = APIRouter(prefix="/service")
+service_router = APIRouter(prefix="/service", dependencies=[Depends(current_super_user)])
 templates = Jinja2Templates(directory=f"{BASE_DIR}/api_service/templates")
 
 
 @service_router.get("/bill_editor")
 async def bill_editor(request: Request):
     context = {"request": request}
+    context.update(all_css)
     return templates.TemplateResponse(name="cash_receipt_editor.html", context=context)
 
 

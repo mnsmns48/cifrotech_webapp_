@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="form-container" style="margin-bottom: 20px">
+    <form action="/login" method="post">
+        <label for="username">Логин</label>
+        <input type="text" id="username" name="username"><br>
+        <label for="password">Пароль</label>
+        <input type="password" id="password" name="password"><br>
+        <input type="submit" value="Войти" class="button">
+    </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+    document.querySelector("form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const formData = new FormData(event.target);
+        const response = await fetch("/login", {
+            method: "POST",
+            body: formData
+        });
+        if (response.status === 200 || response.status === 204) {
+            window.location.reload();
+        } else {
+            alert("Ошибка входа");
+        }
+    });
+</script>
+{% endblock %}
