@@ -6,7 +6,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api_service.routers import service_router
-from api_service.handlers import register_service_handlers
 from api_users.routers import auth_api_router
 from api_v2.routers import api_v2_router
 from bot.bot_main import bot_setup_webhook, bot_fastapi_router, bot
@@ -41,7 +40,7 @@ app.include_router(router=auth_api_router)
 app.include_router(service_router, tags=["Service"])
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-register_service_handlers(app)
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
