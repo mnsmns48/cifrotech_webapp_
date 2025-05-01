@@ -1,6 +1,5 @@
 from io import BytesIO
 from fastapi import APIRouter, Request, Depends
-from fastapi.templating import Jinja2Templates
 from num2words import num2words
 from starlette.responses import HTMLResponse, StreamingResponse
 from xlsxtpl.writerx import BookWriter
@@ -10,7 +9,6 @@ from api_users.dependencies.fastapi_users_dep import current_super_user
 from config import BASE_DIR
 
 service_router = APIRouter(prefix="/service", dependencies=[Depends(current_super_user)])
-templates = Jinja2Templates(directory=f"{BASE_DIR}/api_service/templates")
 
 
 @service_router.post("/billrender", response_class=HTMLResponse)
