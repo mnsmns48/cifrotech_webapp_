@@ -1,5 +1,7 @@
-from datetime import datetime
-from sqlalchemy import select, Result, update, func
+from datetime import datetime, date
+
+import sqlalchemy
+from sqlalchemy import select, Result, update, func, cast, Date, Text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,10 +33,9 @@ async def update_bot(session: AsyncSession, **kwargs):
         await session.commit()
 
 
-async def show_day_sales(session: AsyncSession):
-    stmt = select(Activity).filter(func.date(Activity.time_) == datetime.now().date()).order_by(Activity.time_)
-    result = await session.execute(stmt)
-    return result.scalars().all()
-
-
-
+async def show_day_sales(session: AsyncSession, current_date: date):
+    stmt = sqlalchemy.text(f"""SELECT * from activity
+        where CAST(activity.time_ AS DATE) = '{current_date}'
+        ORDER BY activity.time_ """)
+    response: Result = await session.execute(stmt)
+    return response.fetchall()
