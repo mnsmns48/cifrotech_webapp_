@@ -27,8 +27,7 @@ async def lifespan(app: FastAPI):
         await bot.session.close()
 
 
-# app = FastAPI(lifespan=lifespan, docs_url=settings.api.docs_url)
-app = FastAPI(docs_url=settings.api.docs_url)
+app = FastAPI(lifespan=lifespan, docs_url=settings.api.docs_url)
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors,
                    allow_methods=["*"],
                    allow_headers=["*"],
