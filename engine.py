@@ -5,9 +5,10 @@ from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import (
     create_async_engine,
     async_sessionmaker,
-    async_scoped_session
+    async_scoped_session, AsyncSession
 )
-from cfg import core_config
+
+from config import settings
 
 
 class LaunchDbEngine:
@@ -44,6 +45,9 @@ class LaunchDbEngine:
         finally:
             await session.close()
 
+    async def session_getter(self) -> AsyncGenerator[AsyncSession, None]:
+        async with self.session_factory() as session:
+            yield session
 
-pg_engine = LaunchDbEngine(url=core_config.as_stocktable, echo=core_config.db_echo)
-phones_engine = LaunchDbEngine(url=core_config.phones_desc_db, echo=core_config.db_echo)
+
+db = LaunchDbEngine(url=str(settings.db.url))

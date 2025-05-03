@@ -1,31 +1,15 @@
+import os
 import emoji
-
-month = {
-    '01': 'Январь',
-    '02': 'Февраль',
-    '03': 'Март',
-    '04': 'Апрель',
-    '05': 'Май',
-    '06': 'Июнь',
-    '07': 'Июль',
-    '08': 'Август',
-    '09': 'Сентябрь',
-    '10': 'Октябрь',
-    '11': 'Ноябрь',
-    '12': 'Декабрь'
-}
-
-resolution_convert = lambda x: f"{x.split(' x ')[1]}x{x.split(' x ')[0]}"
-month_convert = lambda n: f"{month.get(n.split('-')[1])} {n.split('-')[0]}"
-name_cut = lambda n: n.rsplit(' ', maxsplit=2)[0].split(' ', maxsplit=1)[1]
-
-
-def transfer(s: str) -> tuple:
-    _list = list()
-    _list.append(s.split(",")[0])
-    _list.append(int(s.split(",")[1]))
-    return tuple(_list)
 
 
 def sanitize_emoji(text):
     return emoji.replace_emoji(text, replace='')
+
+
+def connect_all_css():
+    css_folder = os.path.join("static", "css")
+    css_files = [f"css/{file}" for file in os.listdir(css_folder) if file.endswith(".css")]
+    return {'all_css': css_files}
+
+
+all_css = connect_all_css()

@@ -2,7 +2,7 @@ from typing import List
 
 from pydantic import SecretStr
 from pydantic_settings import SettingsConfigDict, BaseSettings
-from cfg import BASE_DIR
+from config import BASE_DIR
 
 
 class TelegramBot(BaseSettings):
