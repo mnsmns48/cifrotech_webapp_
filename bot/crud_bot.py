@@ -1,11 +1,11 @@
-from datetime import datetime, date
+from datetime import date
 
 import sqlalchemy
-from sqlalchemy import select, Result, update, func, cast, Date, Text
+from sqlalchemy import select, Result, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import Guests, TgBotOptions, Activity
+from models import Guests, TgBotOptions
 
 
 async def user_spotted(session: AsyncSession, data: dict) -> None:
@@ -34,8 +34,11 @@ async def update_bot(session: AsyncSession, **kwargs):
 
 
 async def show_day_sales(session: AsyncSession, current_date: date):
-    stmt = sqlalchemy.text(f"""SELECT * from activity
+    stmt = sqlalchemy.text(
+        f"""
+        SELECT * from activity
         where CAST(activity.time_ AS DATE) = '{current_date}'
-        ORDER BY activity.time_ """)
+        ORDER BY activity.time_
+""")
     response: Result = await session.execute(stmt)
     return response.fetchall()

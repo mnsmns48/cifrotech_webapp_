@@ -3,6 +3,8 @@ import logging
 from fastapi import Form
 from pydantic import BaseModel, Field
 
+from models import Base
+
 logging.getLogger("python_multipart.multipart").setLevel(logging.WARNING)
 
 
@@ -30,3 +32,18 @@ def get_receipt_form(
                        receipt_product=receipt_product,
                        receipt_qty=receipt_qty,
                        receipt_price=receipt_price)
+
+
+class VendorSchema(BaseModel):
+    id: int
+    name: str
+    source: str | None = None
+    telegram_id: str | None = None
+
+
+def serialize_vendors(vendors):
+    vendors_list = list()
+    for vendor in vendors:
+        schema = VendorSchema(id=vendor.id, name=vendor.name, source=vendor.source, telegram_id=vendor.telegram_id).model_dump()
+        vendors_list.append(schema)
+    return {"vendors": vendors_list}
