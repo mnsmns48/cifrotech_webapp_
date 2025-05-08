@@ -46,7 +46,7 @@ async def add_vendor(vendor_data: VendorSchema, session: AsyncSession = Depends(
     session.add(new_vendor)
     await session.commit()
     await session.refresh(new_vendor)
-    return {"message": "Поставщик добавлен", "vendor": new_vendor.__dict__}
+    return {"result": "Vendor added", "vendor": new_vendor.__dict__}
 
 
 @service_router.put("/vendors/{vendor_id}")
@@ -54,21 +54,20 @@ async def update_vendor(vendor_id: int, vendor_data: VendorSchema,
                         session: AsyncSession = Depends(db.scoped_session_dependency)):
     vendor = await session.get(Vendor, vendor_id)
     if not vendor:
-        raise HTTPException(status_code=404, detail="Поставщик не найден")
+        raise HTTPException(status_code=404, detail="Vendor not found")
     update_data = {key: value for key, value in vendor_data.model_dump().items() if value is not None and key != "id"}
     for key, value in update_data.items():
         setattr(vendor, key, value)
     await session.commit()
     await session.refresh(vendor)
-
-    return {"message": "Поставщик обновлен", "vendor": vendor.__dict__}
+    return {"result": "Vendor Updated", "vendor": vendor.__dict__}
 
 
 @service_router.delete("/vendors/{vendor_id}")
 async def delete_vendor(vendor_id: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
     vendor = await session.get(Vendor, vendor_id)
     if not vendor:
-        raise HTTPException(status_code=404, detail="Поставщик не найден")
+        raise HTTPException(status_code=404, detail="Vendor not found")
     await session.delete(vendor)
     await session.commit()
-    return {"message": "Поставщик удален"}
+    return {"result": "Vendor deleted"}
