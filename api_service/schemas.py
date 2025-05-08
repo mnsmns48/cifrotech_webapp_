@@ -3,8 +3,6 @@ import logging
 from fastapi import Form
 from pydantic import BaseModel, Field
 
-from models import Base
-
 logging.getLogger("python_multipart.multipart").setLevel(logging.WARNING)
 
 
@@ -40,10 +38,8 @@ class VendorSchema(BaseModel):
     source: str | None = None
     telegram_id: str | None = None
 
-
-def serialize_vendors(vendors):
-    vendors_list = list()
-    for vendor in vendors:
-        schema = VendorSchema(id=vendor.id, name=vendor.name, source=vendor.source, telegram_id=vendor.telegram_id).model_dump()
-        vendors_list.append(schema)
-    return {"vendors": vendors_list}
+    @classmethod
+    def cls_validate(cls, vendor, exclude_id=False):
+        if exclude_id:
+            return cls.model_validate(vendor.__dict__).model_dump(exclude={"id"})
+        return cls.model_validate(vendor.__dict__).model_dump()

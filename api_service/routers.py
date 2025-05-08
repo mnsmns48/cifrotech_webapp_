@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import HTMLResponse, StreamingResponse
 from xlsxtpl.writerx import BookWriter
 
-from api_service.schemas import get_receipt_form, serialize_vendors, VendorSchema
+from api_service.schemas import get_receipt_form, VendorSchema
 from api_users.dependencies.fastapi_users_dep import current_super_user
 from config import BASE_DIR
 from engine import db
@@ -35,18 +35,20 @@ async def submit_link(request: Request, form=Depends(get_receipt_form)):
 
 @service_router.get("/vendors")
 async def get_vendors(request: Request, session: AsyncSession = Depends(db.scoped_session_dependency)):
-    result = await session.execute(select(Vendor))
-    vendors = result.scalars().all()
-    return serialize_vendors(vendors)
+    result = await session.execute(select(Vendor).order_by(Vendor.id))
+    vendors = list()
+    for vendor in result.scalars().all():
+        vendors.append(VendorSchema.cls_validate(vendor))
+    return {"vendors": vendors}
 
 
 @service_router.post("/vendors")
-async def add_vendor(vendor_data: VendorSchema, session: AsyncSession = Depends(db.scoped_session_dependency)):
-    new_vendor = Vendor(name=vendor_data.name, source=vendor_data.source, telegram_id=vendor_data.telegram_id)
+async def add_vendor(data: VendorSchema, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    new_vendor = Vendor(**VendorSchema.cls_validate(data, exclude_id=True))
     session.add(new_vendor)
     await session.commit()
     await session.refresh(new_vendor)
-    return {"result": "Vendor added", "vendor": new_vendor.__dict__}
+    return {"result": "Vendor added", "vendor": VendorSchema.cls_validate(new_vendor)}
 
 
 @service_router.put("/vendors/{vendor_id}")
@@ -55,12 +57,12 @@ async def update_vendor(vendor_id: int, vendor_data: VendorSchema,
     vendor = await session.get(Vendor, vendor_id)
     if not vendor:
         raise HTTPException(status_code=404, detail="Vendor not found")
-    update_data = {key: value for key, value in vendor_data.model_dump().items() if value is not None and key != "id"}
+    update_data = VendorSchema.cls_validate(vendor_data, exclude_id=True)
     for key, value in update_data.items():
         setattr(vendor, key, value)
     await session.commit()
     await session.refresh(vendor)
-    return {"result": "Vendor Updated", "vendor": vendor.__dict__}
+    return {"result": f"Vendor {vendor.name} updated"}
 
 
 @service_router.delete("/vendors/{vendor_id}")
@@ -70,4 +72,4 @@ async def delete_vendor(vendor_id: int, session: AsyncSession = Depends(db.scope
         raise HTTPException(status_code=404, detail="Vendor not found")
     await session.delete(vendor)
     await session.commit()
-    return {"result": "Vendor deleted"}
+    return {"result": f"Vendor {vendor.name} deleted"}
