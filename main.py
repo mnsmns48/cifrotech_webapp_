@@ -36,7 +36,7 @@ app.add_middleware(CORSMiddleware, allow_origins=settings.cors,
 app.include_router(api_v2_router, tags=["Api V2"])
 app.include_router(bot_fastapi_router, tags=["TG Bot Router"])
 app.include_router(router=auth_api_router)
-app.include_router(service_router, tags=["Service"])
+app.include_router(service_router)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 if __name__ == "__main__":

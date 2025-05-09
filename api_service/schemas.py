@@ -43,3 +43,16 @@ class VendorSchema(BaseModel):
         if exclude_id:
             return cls.model_validate(vendor.__dict__).model_dump(exclude={"id"})
         return cls.model_validate(vendor.__dict__).model_dump()
+
+
+class VendorSearchLineSchema(BaseModel):
+    id: int
+    vendor_id: int
+    title: str
+    url: str
+
+    @classmethod
+    def cls_validate(cls, vendor, exclude_id=False):
+        if exclude_id:
+            return cls.model_validate(vendor.__dict__).model_dump(exclude={"id"})
+        return cls.model_validate(vendor.__dict__).model_dump()
