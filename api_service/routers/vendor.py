@@ -1,10 +1,11 @@
 from fastapi import Request, Depends, HTTPException, APIRouter
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.schemas import VendorSchema
+from api_service.utils import update_instance_fields
 from engine import db
 from models import Vendor
+from sqlalchemy.ext.asyncio import AsyncSession
 
 vendor_router = APIRouter(tags=['Service-Vendors'])
 
@@ -34,10 +35,7 @@ async def update_vendor(vendor_id: int, vendor_data: VendorSchema,
     if not vendor:
         raise HTTPException(status_code=404, detail="Vendor not found")
     update_data = VendorSchema.cls_validate(vendor_data, exclude_id=True)
-    for key, value in update_data.items():
-        setattr(vendor, key, value)
-    await session.commit()
-    await session.refresh(vendor)
+    await update_instance_fields(vendor, update_data, session)
     return {"result": f"Vendor {vendor.name} updated"}
 
 

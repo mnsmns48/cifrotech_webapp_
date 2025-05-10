@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.requests import Request
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from api_service.schemas import VendorSearchLineSchema
+from api_service.utils import update_instance_fields
 from engine import db
-from models.vendor import Vendor_search_line
+from models.vendor import Vendor_search_line, Vendor
+from sqlalchemy.ext.asyncio import AsyncSession
 
 vendor_search_line_router = APIRouter(tags=['Service-Vendors-Search-Line'])
 
@@ -18,3 +18,28 @@ async def get_vendors(request: Request, vendor_id: int, session: AsyncSession = 
     for vsl in result.scalars().all():
         vendor_search_lines.append(VendorSearchLineSchema.cls_validate(vsl))
     return {"vsl": vendor_search_lines}
+
+
+@vendor_search_line_router.post("/create_vsl/{vendor_id}")
+async def create_vendor_search_line(request: Request, vendor_id: int, vsl_data: VendorSearchLineSchema,
+                                    session: AsyncSession = Depends(db.scoped_session_dependency)):
+    vendor = await session.get(Vendor, vendor_id)
+    if not vendor:
+        raise HTTPException(status_code=404, detail="Vendor not found")
+    new_vsl_data = vsl_data.model_dump(exclude={"id", "vendor_id"})
+    new_vsl = Vendor_search_line(vendor_id=vendor_id, **new_vsl_data)
+    session.add(new_vsl)
+    await session.commit()
+    await session.refresh(new_vsl)
+    return {"vsl": VendorSearchLineSchema.cls_validate(new_vsl)}
+
+
+@vendor_search_line_router.put("/update_vsl/{vsl_id}")
+async def update_vendor_search_line(request: Request, vsl_id: int, vsl_data: VendorSearchLineSchema,
+                                    session: AsyncSession = Depends(db.scoped_session_dependency)):
+    vsl = await session.get(Vendor_search_line, vsl_id)
+    if not vsl:
+        raise HTTPException(status_code=404, detail="VendorSearchLine not found")
+    update_data = VendorSearchLineSchema.cls_validate(vsl_data, exclude_id=True)
+    await update_instance_fields(vsl, update_data, session)
+    return {"result": f"Vendor Search Line {vsl.id} updated"}
