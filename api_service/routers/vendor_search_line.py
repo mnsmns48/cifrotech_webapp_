@@ -43,3 +43,14 @@ async def update_vendor_search_line(request: Request, vsl_id: int, vsl_data: Ven
     update_data = VendorSearchLineSchema.cls_validate(vsl_data, exclude_id=True)
     await update_instance_fields(vsl, update_data, session)
     return {"result": f"Vendor Search Line {vsl.id} updated"}
+
+
+@vendor_search_line_router.delete("/delete_vsl/{vsl_id}")
+async def delete_vendor_search_line(vsl_id: int,
+                                    session: AsyncSession = Depends(db.scoped_session_dependency)):
+    vsl = await session.get(Vendor_search_line, vsl_id)
+    if not vsl:
+        raise HTTPException(status_code=404, detail="Vendor Search Line not found")
+    await session.delete(vsl)
+    await session.commit()
+    return {"result": f"Vendor Search Line {vsl_id} deleted"}
