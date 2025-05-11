@@ -23,9 +23,12 @@ async def get_vendors(request: Request, vendor_id: int, session: AsyncSession = 
 @vendor_search_line_router.post("/create_vsl/{vendor_id}")
 async def create_vendor_search_line(request: Request, vendor_id: int, vsl_data: VendorSearchLineSchema,
                                     session: AsyncSession = Depends(db.scoped_session_dependency)):
-    vendor = await session.get(Vendor, vendor_id)
-    if not vendor:
-        raise HTTPException(status_code=404, detail="Vendor not found")
+    existing_vsl = await session.execute(
+        select(Vendor_search_line).where(
+            (Vendor_search_line.title == vsl_data.title) | (Vendor_search_line.url == vsl_data.url)))
+    existing_vsl = existing_vsl.scalar()
+    if existing_vsl:
+        raise HTTPException(status_code=409, detail="Vendor Search Line with this title or URL already exists")
     new_vsl_data = vsl_data.model_dump(exclude={"id", "vendor_id"})
     new_vsl = Vendor_search_line(vendor_id=vendor_id, **new_vsl_data)
     session.add(new_vsl)
