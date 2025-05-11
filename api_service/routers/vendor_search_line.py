@@ -1,11 +1,18 @@
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.requests import Request
 from sqlalchemy import select
-from api_service.schemas import VendorSearchLineSchema
-from api_service.utils import update_instance_fields
+from sqlalchemy.orm import selectinload
+from starlette.responses import StreamingResponse
+
+from api_service.schemas import VendorSearchLineSchema, VendorSchema, ParsingRequest
+from api_service.utils import update_instance_fields, event_stream, coro_1, coro_2, coro_3, coro_4, coro_5, coro_6
 from engine import db
 from models.vendor import Vendor_search_line, Vendor
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from parsing.browser import open_link
 
 vendor_search_line_router = APIRouter(tags=['Service-Vendors-Search-Line'])
 
@@ -56,3 +63,26 @@ async def delete_vendor_search_line(vsl_id: int,
     await session.delete(vsl)
     await session.commit()
     return {"result": f"Vendor Search Line {vsl_id} deleted"}
+
+
+@vendor_search_line_router.post("/pars_me")
+async def parsing_data(request: Request, data: ParsingRequest,
+                       session: AsyncSession = Depends(db.scoped_session_dependency)):
+    result = await session.execute(
+        select(Vendor)
+        .options(selectinload(Vendor.search_lines))
+        .where(Vendor.search_lines.any(Vendor_search_line.url == data.url))
+    )
+    vendor = result.scalars().first()
+    if not vendor:
+        return {"error": "Vendor not found"}
+    vendor_data = VendorSchema.cls_validate(vendor, exclude_id=True)
+    vendor_data["search_lines"] = [VendorSearchLineSchema.cls_validate(sl, exclude_id=True) for sl in
+                                   vendor.search_lines]
+    # html = await open_link(url=data.url)
+    return {'result': vendor_data}
+
+
+@vendor_search_line_router.get("/progress")
+async def get_progress():
+    return StreamingResponse(content=event_stream([coro_1, coro_2, coro_3, coro_4, coro_5, coro_6]), media_type="text/event-stream")

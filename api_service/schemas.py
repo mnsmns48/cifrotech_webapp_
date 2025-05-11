@@ -56,3 +56,7 @@ class VendorSearchLineSchema(BaseModel):
         if exclude_id:
             return cls.model_validate(vendor.__dict__).model_dump(exclude={"id"})
         return cls.model_validate(vendor.__dict__).model_dump()
+
+
+class ParsingRequest(BaseModel):
+    url: str
