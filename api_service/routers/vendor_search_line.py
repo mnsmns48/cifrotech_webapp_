@@ -29,8 +29,7 @@ async def create_vendor_search_line(request: Request, vendor_id: int, vsl_data: 
     existing_vsl = existing_vsl.scalar()
     if existing_vsl:
         raise HTTPException(status_code=409, detail="Vendor Search Line with this title or URL already exists")
-    new_vsl_data = vsl_data.model_dump(exclude={"id", "vendor_id"})
-    new_vsl = Vendor_search_line(vendor_id=vendor_id, **new_vsl_data)
+    new_vsl = Vendor_search_line(**VendorSearchLineSchema.cls_validate(vsl_data, exclude_id=True))
     session.add(new_vsl)
     await session.commit()
     await session.refresh(new_vsl)
