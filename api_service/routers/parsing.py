@@ -17,7 +17,14 @@ async def create_parsing_id(data: ParsingRequest):
 @parsing_router.post("/start_parsing")
 async def main_parsing(data: StartParsing, redis=Depends(redis_session)):
     progress_channel = f"progress:{data.parsing_id}"
-    for i in range(1, 150):
-        await asyncio.sleep(3)
-        await redis.publish(progress_channel, f"WORK {i} DONE")
+    pubsub_obj = redis.pubsub()
+    await pubsub_obj.subscribe(progress_channel)
+    await redis.publish(progress_channel, f"Start parsing")
+    try:
+        for i in range(1, 2):
+            await asyncio.sleep(3)
+            await redis.publish(progress_channel, f"WORK {i} DONE")
+    finally:
+        await pubsub_obj.unsubscribe(progress_channel)
+        await pubsub_obj.close()
     return {"result": data}
