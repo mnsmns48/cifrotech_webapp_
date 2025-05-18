@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import List, Union
+import redis.asyncio as redis
 
 from pydantic import PostgresDsn, field_validator, Field
 
@@ -44,6 +45,10 @@ class Settings(CustomConfigSettings):
     db: DBSettings = DBSettings()
     api: APISettings = APISettings()
     token: Token = Token()
+
+
+def redis_session():
+    return redis.from_url("redis://localhost", decode_responses=True)
 
 
 settings = Settings()

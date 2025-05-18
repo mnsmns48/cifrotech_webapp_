@@ -1,6 +1,4 @@
 import asyncio
-import time
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -11,40 +9,12 @@ async def update_instance_fields(instance, update_data: dict, session: AsyncSess
     await session.refresh(instance)
 
 
-async def event_stream(coroutines: list):
-    total_tasks = len(coroutines)
+async def event_stream(coroutine_funcs: list):
+    total_tasks = len(coroutine_funcs)
     yield f"data: COUNT={total_tasks}\n\n"
-    for coro in coroutines:
-        result = await coro()
-        yield f"data: {result}\n\n"
+    for coro_fn, *args in coroutine_funcs:
+        if asyncio.iscoroutinefunction(coro_fn):
+            result = await coro_fn(*args)
+            yield f"data: {result.get('msg')}\n\n"
     yield "data: END\n\n"
 
-
-async def coro_1():
-    await asyncio.sleep(2)
-    return '1!'
-
-
-async def coro_2():
-    await asyncio.sleep(2)
-    return '2!'
-
-
-async def coro_3():
-    await asyncio.sleep(2)
-    return '3!'
-
-
-async def coro_4():
-    await asyncio.sleep(2)
-    return '4!'
-
-
-async def coro_5():
-    await asyncio.sleep(2)
-    return '5!'
-
-
-async def coro_6():
-    await asyncio.sleep(2)
-    return '6!'
