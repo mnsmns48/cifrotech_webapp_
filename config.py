@@ -41,14 +41,19 @@ class APISettings(CustomConfigSettings):
         return value
 
 
+class RedisSettings(CustomConfigSettings):
+    redis_url: str
+
+
 class Settings(CustomConfigSettings):
     db: DBSettings = DBSettings()
     api: APISettings = APISettings()
     token: Token = Token()
-
-
-def redis_session():
-    return redis.from_url("redis://localhost", decode_responses=True)
+    redis: RedisSettings = RedisSettings()
 
 
 settings = Settings()
+
+
+def redis_session():
+    return redis.from_url(settings.redis.redis_url, decode_responses=True)

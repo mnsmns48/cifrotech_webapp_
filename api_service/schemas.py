@@ -60,3 +60,8 @@ class VendorSearchLineSchema(BaseModel):
 
 class ParsingRequest(BaseModel):
     url: str
+
+
+class StartParsing(BaseModel):
+    parsing_id: str
+    url: str

@@ -1,6 +1,6 @@
 import asyncio
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from redis.asyncio.client import PubSub
 from starlette.responses import StreamingResponse
 
@@ -26,6 +26,9 @@ async def get_progress(progress_channel_id: str, redis=Depends(redis_session)):
     channel = f"progress:{progress_channel_id}"
     pubsub = redis.pubsub()
     await pubsub.subscribe(channel)
+    active_channels = await redis.pubsub_channels()
+    if channel not in active_channels:
+        raise HTTPException(status_code=404, detail=f"Канал {progress_channel_id} не активен")
 
     async def event_generator(pubsub_obj: PubSub):
         try:
