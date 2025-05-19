@@ -45,11 +45,16 @@ class RedisSettings(CustomConfigSettings):
     redis_url: str
 
 
+class ParsingSettings(CustomConfigSettings):
+    browser_headless: bool
+
+
 class Settings(CustomConfigSettings):
     db: DBSettings = DBSettings()
     api: APISettings = APISettings()
     token: Token = Token()
     redis: RedisSettings = RedisSettings()
+    parsing: ParsingSettings = ParsingSettings()
 
 
 settings = Settings()

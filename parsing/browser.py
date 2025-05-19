@@ -3,11 +3,12 @@ from typing import Any, Coroutine
 from playwright.async_api import Playwright, Browser, async_playwright, Page
 from playwright_stealth import stealth_async
 
+from config import settings
 from utils import responses
 
 
 async def create_browser(playwright: Playwright) -> Browser:
-    browser = await playwright.chromium.launch(headless=False)
+    browser = await playwright.chromium.launch(headless=settings.parsing.browser_headless)
     return browser
 
 
