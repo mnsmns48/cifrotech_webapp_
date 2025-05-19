@@ -24,10 +24,9 @@ progress_router = APIRouter()
 @progress_router.get("/progress/{progress_channel_id}")
 async def get_progress(progress_channel_id: str, redis=Depends(redis_session)):
     channel = f"progress:{progress_channel_id}"
-
     active_channels = await redis.pubsub_channels()
     if channel not in active_channels:
-        raise HTTPException(status_code=404, detail=f"Канал {progress_channel_id} не активен")
+        raise HTTPException(status_code=404, detail=f"Я такого канала не знаю")
     pubsub = redis.pubsub()
     await pubsub.subscribe(channel)
 

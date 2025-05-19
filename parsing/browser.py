@@ -1,5 +1,3 @@
-from typing import Any, Coroutine
-
 from playwright.async_api import Playwright, Browser, async_playwright, Page
 from playwright_stealth import stealth_async
 
