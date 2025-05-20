@@ -1,30 +1,16 @@
 import asyncio
-import uuid
-
 from fastapi import APIRouter, Depends
-
-from api_service.crud import add_parsing_event
 from api_service.schemas import ParsingRequest
-from api_users.dependencies.fastapi_users_dep import current_user
 from config import redis_session
-from engine import db
+
 from parsing.browser import open_page, run_browser
 
 parsing_router = APIRouter(tags=['Service-Parsing'])
 
 
-@parsing_router.post("/give_parsing_id")
-async def create_parsing_id(data: ParsingRequest, user=Depends(current_user)):
-    progress = str(uuid.uuid4())
-    async with db.session_factory() as pg_session:
-        pg_session.add({"progress": progress})
-        await pg_session.commit()
-    return {"progress": progress}
-
-
 @parsing_router.post("/start_parsing")
 async def go_parsing(data: ParsingRequest, redis=Depends(redis_session)):
-    progress_channel = f"progress:{data.request}"
+    progress_channel = data.progress
     pubsub_obj = redis.pubsub()
     await redis.publish(progress_channel, "data: COUNT=4")
     playwright, browser, page = await run_browser()

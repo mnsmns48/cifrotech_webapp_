@@ -60,10 +60,5 @@ class VendorSearchLineSchema(BaseModel):
 
 
 class ParsingRequest(BaseModel):
-    progress: Optional[str] = None
-    vendor_id: int
-    title: str
+    progress: str
     url: str
-
-    class Config:
-        from_attributes = True
