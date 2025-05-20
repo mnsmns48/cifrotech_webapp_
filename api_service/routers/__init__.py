@@ -2,6 +2,7 @@ import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException
 from redis.asyncio.client import PubSub
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import StreamingResponse
 
 from api_service.routers.printer import printer_router
@@ -10,6 +11,7 @@ from api_service.routers.vendor_search_line import vendor_search_line_router
 from api_users.dependencies.fastapi_users_dep import current_super_user
 from api_service.routers.parsing import parsing_router
 from config import redis_session
+from engine import db
 
 service_router = APIRouter(prefix="/service", dependencies=[Depends(current_super_user)])
 service_router.include_router(printer_router)
@@ -22,8 +24,9 @@ progress_router = APIRouter()
 
 
 @progress_router.get("/progress/{progress_channel_id}")
-async def get_progress(progress_channel_id: str, redis=Depends(redis_session)):
-    channel = f"progress:{progress_channel_id}"
+async def get_progress(request: str, redis=Depends(redis_session),
+                       pg_session: AsyncSession = Depends(db.session_dependency)):
+    channel = f"progress:{request}"
     active_channels = await redis.pubsub_channels()
     if channel not in active_channels:
         raise HTTPException(status_code=404, detail=f"Я такого канала не знаю")

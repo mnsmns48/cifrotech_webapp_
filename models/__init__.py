@@ -8,12 +8,10 @@ __all__ = (
     "TgBotOptions",
     "User",
     "AccessToken",
-    "ParsingLog"
 )
 
 from .base import Base
 from .api_v1 import Activity, StockTable, Guests, Sellers
-from .parsing import ParsingLog
 from .telegram_bot import TgBotOptions
 from .vendor import Vendor
 from .user import User

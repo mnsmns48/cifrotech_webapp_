@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 from fastapi import Form
 from pydantic import BaseModel, Field
@@ -59,25 +60,10 @@ class VendorSearchLineSchema(BaseModel):
 
 
 class ParsingRequest(BaseModel):
-    url: str
+    progress: Optional[str] = None
     vendor_id: int
     title: str
-
-
-
-class StartParsing(BaseModel):
-    parsing_id: str
     url: str
-
-
-
-class ParsingLogEvent(BaseModel):
-    request_id: str
-    user: int
-    vendor: int
-    parsing_title: str
-    parsing_url: str
-    result: bool | None
 
     class Config:
         from_attributes = True
