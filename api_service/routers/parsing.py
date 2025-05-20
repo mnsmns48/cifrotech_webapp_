@@ -12,9 +12,9 @@ parsing_router = APIRouter(tags=['Service-Parsing'])
 async def go_parsing(data: ParsingRequest, redis=Depends(redis_session)):
     progress_channel = data.progress
     pubsub_obj = redis.pubsub()
-    await redis.publish(progress_channel, "data: COUNT=4")
     playwright, browser, page = await run_browser()
     await redis.publish(progress_channel, f"Браузер запущен")
+    await redis.publish(progress_channel, "data: COUNT=4")
     try:
         await open_page(page=page, url='https://mail.ru')
         await redis.publish(progress_channel, f"mail.ru открыт")
