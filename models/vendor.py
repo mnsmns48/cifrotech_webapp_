@@ -8,6 +8,9 @@ class Vendor(Base):
     name: Mapped[str] = mapped_column(nullable=False, primary_key=False)
     source: Mapped[str] = mapped_column(nullable=True)
     telegram_id: Mapped[str] = mapped_column(nullable=True)
+    login: Mapped[str] = mapped_column(nullable=True)
+    password: Mapped[str] = mapped_column(nullable=True)
+    function: Mapped[str] = mapped_column(nullable=True)
     search_lines: Mapped[list["Vendor_search_line"]] = relationship("Vendor_search_line", back_populates="vendor",
                                                                     cascade="all, delete")
 

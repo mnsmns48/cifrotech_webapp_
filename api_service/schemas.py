@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 from fastapi import Form
 from pydantic import BaseModel, Field
@@ -38,6 +37,9 @@ class VendorSchema(BaseModel):
     name: str
     source: str | None = None
     telegram_id: str | None = None
+    login: str | None = None
+    password: str | None = None
+    function: str | None = None
 
     @classmethod
     def cls_validate(cls, vendor, exclude_id=False):

@@ -1,8 +1,11 @@
+import pathlib
+
 from fastapi import Request, Depends, HTTPException, APIRouter
 from sqlalchemy import select
 
 from api_service.schemas import VendorSchema
 from api_service.utils import update_instance_fields
+from config import BASE_DIR
 from engine import db
 from models import Vendor
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,3 +50,10 @@ async def delete_vendor(vendor_id: int, session: AsyncSession = Depends(db.scope
     await session.delete(vendor)
     await session.commit()
     return {"result": f"Vendor {vendor.name} deleted"}
+
+
+@vendor_router.get("/vendors/functions")
+async def get_parsing_functions():
+    directory = pathlib.Path(f"{BASE_DIR}/parsing/sources/")
+    files = [file.stem for file in directory.glob("*.py")]
+    return {'functions': files} if files else {'functions': []}
