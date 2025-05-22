@@ -45,7 +45,6 @@ async def search_content(page: Page, url):
     html_body = await open_page(page=page, url=url)
 
 
-
 async def main_parsing(browser: Browser, page: Page, progress_channel: str, redis: Redis, url: str, vendor: Vendor):
     cookie_file = f"{BASE_DIR}/parsing/sources/{this_file_name}.json"
     html_body = await open_page(page=page, url=url)
