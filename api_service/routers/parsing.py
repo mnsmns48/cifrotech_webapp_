@@ -27,7 +27,7 @@ async def go_parsing(data: ParsingRequest,
         func = getattr(module, "main_parsing")
         await func(browser, page, progress_channel, redis, data.url, vendor)
     finally:
-        await redis.publish(progress_channel, "data: END")
+        await redis.publish(progress_channel, "END")
         await browser.close()
         await playwright.stop()
         await pubsub_obj.unsubscribe(progress_channel)

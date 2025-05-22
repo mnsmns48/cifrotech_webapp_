@@ -42,12 +42,14 @@ async def registration(page: Page, vendor: Vendor, url: str):
 
 
 async def search_content(page: Page, url):
-    html_body = await open_page(page=page, url=url)
+    pass
+    # html_body = await open_page(page=page, url=url)
 
 
 async def main_parsing(browser: Browser, page: Page, progress_channel: str, redis: Redis, url: str, vendor: Vendor):
     cookie_file = f"{BASE_DIR}/parsing/sources/{this_file_name}.json"
     html_body = await open_page(page=page, url=url)
+    await redis.publish(progress_channel, "data: COUNT=6")
     await redis.publish(progress_channel, "data: Открываю страницу")
     if html_body.get('is_ok'):
         soup = BeautifulSoup(markup=html_body['response'], features='lxml')
@@ -55,7 +57,7 @@ async def main_parsing(browser: Browser, page: Page, progress_channel: str, redi
         await redis.publish(progress_channel, "data: Проверяю авторизацию")
         if not check:
             if not os.path.exists(cookie_file):
-                await redis.publish(progress_channel, "data: Нет куки-файла")
+                await redis.publish(progress_channel, "data: Файл COOKIE отсутствует")
                 await registration(page, vendor, url)
                 await redis.publish(progress_channel, "data: Ввожу логин и пароль")
     with open(cookie_file, "r") as file:
@@ -67,4 +69,4 @@ async def main_parsing(browser: Browser, page: Page, progress_channel: str, redi
     await redis.publish(progress_channel, "data: Авторизировался")
     page = await context.new_page()
     await search_content(page=page, url=url)
-    await asyncio.sleep(1)
+
