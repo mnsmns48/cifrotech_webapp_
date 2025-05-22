@@ -42,14 +42,14 @@ async def registration(page: Page, vendor: Vendor, url: str):
 
 
 async def search_content(page: Page, url):
-    pass
-    # html_body = await open_page(page=page, url=url)
+    html_body = await open_page(page=page, url=url)
+
 
 
 async def main_parsing(browser: Browser, page: Page, progress_channel: str, redis: Redis, url: str, vendor: Vendor):
     cookie_file = f"{BASE_DIR}/parsing/sources/{this_file_name}.json"
     html_body = await open_page(page=page, url=url)
-    await redis.publish(progress_channel, "data: COUNT=6")
+    await redis.publish(progress_channel, "data: COUNT=60")
     await redis.publish(progress_channel, "data: Открываю страницу")
     if html_body.get('is_ok'):
         soup = BeautifulSoup(markup=html_body['response'], features='lxml')
@@ -69,4 +69,3 @@ async def main_parsing(browser: Browser, page: Page, progress_channel: str, redi
     await redis.publish(progress_channel, "data: Авторизировался")
     page = await context.new_page()
     await search_content(page=page, url=url)
-
