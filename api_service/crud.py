@@ -1,8 +1,9 @@
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import Vendor
-from models.vendor import Vendor_search_line
+from models.vendor import Vendor_search_line, Harvest
 
 
 async def get_vendor_by_url(url: str, session: AsyncSession):
@@ -11,3 +12,9 @@ async def get_vendor_by_url(url: str, session: AsyncSession):
                                    .where(Vendor_search_line.url == url))
     vendor = result.scalars().first()
     return vendor
+
+
+async def save_harvest(data: list, session: AsyncSession):
+    stmt = insert(Harvest).values(data).on_conflict_do_nothing()
+    await session.execute(stmt)
+    await session.commit()

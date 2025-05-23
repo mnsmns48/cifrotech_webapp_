@@ -28,10 +28,11 @@ class Vendor_search_line(Base):
 
 
 class Harvest(Base):
-    date: Mapped[datetime] = mapped_column(DateTime(timezone=False), server_default=func.now())
     origin: Mapped[int] = mapped_column(primary_key=True, unique=True, nullable=False)
+    date: Mapped[datetime] = mapped_column(DateTime(timezone=False), server_default=func.now())
     vendor_id: Mapped[int] = mapped_column(ForeignKey("vendor.id"), nullable=False)
     title: Mapped[str] = mapped_column(nullable=False)
+    link: Mapped[str] = mapped_column(nullable=True)
     shipment: Mapped[str] = mapped_column(nullable=True)
     warranty: Mapped[str] = mapped_column(nullable=True)
     input_price: Mapped[float] = mapped_column(nullable=True)

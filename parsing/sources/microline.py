@@ -5,7 +5,9 @@ import os
 from bs4 import BeautifulSoup
 from playwright.async_api import Browser, Page
 from redis.asyncio import Redis
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from api_service.crud import save_harvest
 from config import BASE_DIR
 from models import Vendor
 from parsing.browser import open_page
@@ -41,14 +43,65 @@ async def registration(page: Page, vendor: Vendor, url: str):
     return True
 
 
-async def search_content(page: Page, url):
+async def processing_page(page: Page, url, vendor_id: int, redis: Redis, progress_channel: str, session: AsyncSession):
+    content = list()
     html_body = await open_page(page=page, url=url)
+    soup = BeautifulSoup(markup=html_body['response'], features='lxml')
+    pagination = soup.find('ul', {'class': 'pagination'})
+    pages = pagination.find_all('li')
+    current_page = 1
+    content_list = soup.find_all("div", class_="ty-product-block ty-compact-list__content")
+    page_data = await search_content(content_list, vendor_id)
+    content = page_data
+    await redis.publish(progress_channel, f"data: Обработана {current_page} из {len(pages)} страниц")
+    if len(pages) > 1:
+        for i in pages[1:]:
+            await page.goto(i.find('a').get('href'))
+            page_data = await search_content(content_list, vendor_id)
+            content += page_data
+            await redis.publish(progress_channel, f"data: Обработана {current_page} из {len(pages)} страниц")
+            await asyncio.sleep(1)
+            current_page += 1
+    await save_harvest(session=session, data=content)
 
 
-async def main_parsing(browser: Browser, page: Page, progress_channel: str, redis: Redis, url: str, vendor: Vendor):
+async def search_content(content_list: list, vendor_id: int) -> list:
+    content = list()
+    for line in content_list:
+        keys = ["origin", "vendor_id", "title", "link", "shipment", "warranty", "input_price", "pic", "optional"]
+        data_item = dict.fromkeys(keys, '')
+        data_item["vendor_id"] = vendor_id
+        if (code_block := line.find("div", class_="code")) and (span_element := code_block.find("span")):
+            origin = span_element.get_text()
+            if origin.isdigit():
+                data_item["origin"] = int(origin) or None
+        if code_block := line.find("div", class_="category-list-item__title ty-compact-list__title"):
+            data_item["title"] = code_block.a.get_text() or None
+            data_item["link"] = code_block.a.get('href') or ''
+        if code_block := line.find("p", class_="delivery"):
+            data_item["shipment"] = code_block.get_text() or ''
+        if (code_block := line.find("div", class_="divisible-block")) and (span_element := code_block.find("span")):
+            data_item["warranty"] = span_element.get_text() or ''
+        if code_block := line.find("span", class_="ty-price-num", id=lambda x: x and "sec_discounted_price" in x):
+            data_item["input_price"] = float(code_block.get_text().replace("\xa0", "")) or 0
+        if code_block := line.find("div", class_="swiper-slide"):
+            data_item["pic"] = code_block.a.get('href') or ''
+        if (code_block := line.find("div", class_="code")) and (sub_div := code_block.find_next_sibling("div")):
+            data_item["optional"] = sub_div.get_text().strip() or ''
+        content.append(data_item)
+    return content
+
+
+async def main_parsing(browser: Browser,
+                       page: Page,
+                       progress_channel: str,
+                       redis: Redis,
+                       url: str,
+                       vendor: Vendor,
+                       session: AsyncSession):
     cookie_file = f"{BASE_DIR}/parsing/sources/{this_file_name}.json"
     html_body = await open_page(page=page, url=url)
-    await redis.publish(progress_channel, "data: COUNT=60")
+    await redis.publish(progress_channel, "data: COUNT=15")
     await redis.publish(progress_channel, "data: Открываю страницу")
     if html_body.get('is_ok'):
         soup = BeautifulSoup(markup=html_body['response'], features='lxml')
@@ -67,4 +120,9 @@ async def main_parsing(browser: Browser, page: Page, progress_channel: str, redi
     await redis.publish(progress_channel, "data: Добавил куки в браузер")
     await redis.publish(progress_channel, "data: Авторизировался")
     page = await context.new_page()
-    await search_content(page=page, url=url)
+    await processing_page(page=page,
+                          url=url,
+                          vendor_id=vendor.id,
+                          redis=redis,
+                          progress_channel=progress_channel,
+                          session=session)

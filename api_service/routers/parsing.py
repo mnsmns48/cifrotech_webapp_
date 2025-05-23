@@ -25,7 +25,7 @@ async def go_parsing(data: ParsingRequest,
     try:
         module = importlib.import_module(f"parsing.sources.{vendor.function}")
         func = getattr(module, "main_parsing")
-        await func(browser, page, progress_channel, redis, data.url, vendor)
+        await func(browser, page, progress_channel, redis, data.url, vendor, session)
     finally:
         await redis.publish(progress_channel, "END")
         await browser.close()
