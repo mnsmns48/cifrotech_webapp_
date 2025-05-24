@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,17 +21,15 @@ async def go_parsing(data: ParsingRequest,
                      session: AsyncSession = Depends(db.scoped_session_dependency)):
     progress_channel = data.progress
     pubsub_obj = redis.pubsub()
-    playwright, browser, page = await run_browser()
-    await redis.publish(progress_channel, f"Браузер запущен")
     vendor = await get_vendor_by_url(session=session, url=data.url)
     try:
         module = importlib.import_module(f"parsing.sources.{vendor.function}")
-        func = getattr(module, "main_parsing")
-        await func(browser, page, progress_channel, redis, data.url, vendor, session)
+        func = getattr(module, "parsing_logic")
+        fetch_data = await func(progress_channel, redis, data.url, vendor, session)
     finally:
+        await redis.publish(progress_channel, "data: COUNT=1")
+        await asyncio.sleep(0.5)
         await redis.publish(progress_channel, "END")
-        await browser.close()
-        await playwright.stop()
         await pubsub_obj.unsubscribe(progress_channel)
         await pubsub_obj.close()
-    return {"result": 'ok'}
+    return {"result": fetch_data, 'is_ok': True}

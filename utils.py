@@ -1,4 +1,5 @@
 import emoji
+from bs4 import BeautifulSoup
 
 
 def sanitize_emoji(text):
@@ -6,4 +7,7 @@ def sanitize_emoji(text):
 
 
 def responses(response: str, is_ok: bool, message: str = '') -> dict:
-    return {'response': response, 'is_ok': is_ok, 'msg': message}
+    return {'response': response,
+            'is_ok': is_ok,
+            'msg': message,
+            'soup': BeautifulSoup(markup=response, features='lxml')}
