@@ -9,7 +9,7 @@ from playwright_stealth import stealth_async
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api_service.crud import save_harvest
+from api_service.crud import save_harvest, truncate_harvest
 from config import BROWSER_HEADERS, BASE_DIR
 from models import Vendor
 from parsing.browser import create_browser, open_page
@@ -165,6 +165,7 @@ async def parsing_logic(progress_channel: str, redis: Redis, url: str, vendor: V
     pars_obj = FetchParse(progress_channel, redis, url, vendor, session)
     await pars_obj.run()
     try:
+        await truncate_harvest(session=session)
         data: dict = await pars_obj.process()
     finally:
         await pars_obj.browser.close()
