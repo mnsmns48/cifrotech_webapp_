@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+from datetime import datetime
 
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
@@ -26,6 +27,7 @@ class FetchParse:
                  session: AsyncSession):
         self.page, self.browser, self.playwright = None, None, None
         self.pages = list()
+        self.category = str()
         self.progress_channel = progress_channel
         self.redis = redis
         self.url = url
@@ -63,7 +65,7 @@ class FetchParse:
     async def run(self):
         self.playwright = await async_playwright().start()
         self.browser = await create_browser(self.playwright)
-        await self.redis.publish(self.progress_channel, "data: COUNT=15")
+        await self.redis.publish(self.progress_channel, "data: COUNT=30")
         await self.redis.publish(self.progress_channel, f"Браузер запущен")
         context = await self.browser.new_context()
         await context.set_extra_http_headers(BROWSER_HEADERS)
@@ -81,13 +83,12 @@ class FetchParse:
         await stealth_async(self.page)
 
     @staticmethod
-    async def store_results(soup: BeautifulSoup, vendor: int, session: AsyncSession) -> list:
+    async def store_results(soup: BeautifulSoup, session: AsyncSession) -> list:
         result = list()
         content_list = soup.find_all("div", class_="ty-product-block ty-compact-list__content")
         for line in content_list:
-            keys = ["origin", "vendor_id", "title", "link", "shipment", "warranty", "input_price", "pic", "optional"]
+            keys = ["origin", "title", "link", "shipment", "warranty", "input_price", "pic", "optional"]
             data_item = dict.fromkeys(keys, '')
-            data_item["vendor_id"] = vendor
             if (code_block := line.find("div", class_="code")) and (span_element := code_block.find("span")):
                 origin = span_element.get_text()
                 if origin.isdigit():
@@ -109,10 +110,26 @@ class FetchParse:
         await save_harvest(session=session, data=result)
         return result
 
-    async def process(self) -> list:
+    @staticmethod
+    def actual_pagination(soup: BeautifulSoup) -> list:
+        pagination = soup.find('ul', {'class': 'pagination'})
+        pages = list()
+        if not pagination:
+            return pages
+        for li in pagination.find_all('li'):
+            link = li.find('a')
+            if link and link.getText().strip() not in ["Предыдущая", "Следующая"] and "active" not in li.get("class",
+                                                                                                             []):
+                pages.append(li)
+        return pages
+
+    async def process(self) -> dict:
         opened_page = await open_page(page=self.page, url=self.url)
-        pagination = opened_page['soup'].find('ul', {'class': 'pagination'})
-        self.pages = pagination.find_all('li') if pagination else []
+        self.pages = self.actual_pagination(opened_page['soup'])
+        if code_block := opened_page['soup'].find("div",
+                                                  class_="ty-breadcrumbs clearfix breadcrumb user-logged-margin"):
+            span = code_block.find_all('span')
+            self.category = span[-1].get_text().strip() or ''
         await self.redis.publish(self.progress_channel, f"{len(self.pages) - 1} страниц для сбора информации")
         if not await self.check_auth(text=opened_page['soup']):
             context = await self.browser.new_context()
@@ -125,30 +142,31 @@ class FetchParse:
             self.page = await context.new_page()
             await stealth_async(self.page)
             opened_page = await open_page(page=self.page, url=self.url)
-        result = await self.store_results(soup=opened_page['soup'], session=self.session, vendor=self.vendor.id)
-        await self.redis.publish(self.progress_channel, f"Страница 1 сохранена")
-        page_counter = 1
-        while len(self.pages) > page_counter:
-            page_item = self.pages[page_counter].find('a')
-            if page_item and page_item.getText() != 'Следующая':
-                next_url = page_item.get('href')
-                opened_page = await open_page(page=self.page, url=next_url)
-                result += await self.store_results(soup=opened_page['soup'],
-                                                   session=self.session,
-                                                   vendor=self.vendor.id)
-                page_counter += 1
-                await self.redis.publish(self.progress_channel, f"Страница {page_counter} сохранена")
-                pagination = opened_page['soup'].find('ul', {'class': 'pagination'})
-                if pagination:
-                    self.pages = pagination.find_all('li')
-        return result
+        result = await self.store_results(soup=opened_page['soup'], session=self.session)
+        await self.redis.publish(self.progress_channel, f"Страница 1 из {len(self.pages) + 1} сохранена")
+        page_counter = 0
+        while page_counter < len(self.pages):
+            await self.redis.publish(self.progress_channel, f"data: COUNT={len(self.pages) + 5}")
+            page_item = self.pages[page_counter]
+            next_url = page_item.a.get('href')
+            opened_page = await open_page(page=self.page, url=next_url)
+            result += await self.store_results(soup=opened_page['soup'], session=self.session)
+            page_counter += 1
+            await self.redis.publish(self.progress_channel,
+                                     f"Страница {page_counter} из {len(self.pages) + 1} сохранена")
+            new_pages = self.actual_pagination(opened_page['soup'])
+            if len(new_pages) > len(self.pages):
+                self.pages = new_pages
+                await self.redis.publish(self.progress_channel, f"data: COUNT={len(self.pages) + 5}")
+
+        return {'category': self.category, 'data': result, 'actual': datetime.now()}
 
 
-async def parsing_logic(progress_channel: str, redis: Redis, url: str, vendor: Vendor, session: AsyncSession) -> list:
+async def parsing_logic(progress_channel: str, redis: Redis, url: str, vendor: Vendor, session: AsyncSession) -> dict:
     pars_obj = FetchParse(progress_channel, redis, url, vendor, session)
     await pars_obj.run()
     try:
-        data: list = await pars_obj.process()
+        data: dict = await pars_obj.process()
     finally:
         await pars_obj.browser.close()
         await pars_obj.playwright.stop()

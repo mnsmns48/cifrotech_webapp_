@@ -7,9 +7,6 @@ from api_service.crud import get_vendor_by_url
 from api_service.schemas import ParsingRequest
 from config import redis_session
 from engine import db
-
-from parsing.browser import run_browser
-
 import importlib
 
 parsing_router = APIRouter(tags=['Service-Parsing'])
@@ -25,11 +22,11 @@ async def go_parsing(data: ParsingRequest,
     try:
         module = importlib.import_module(f"parsing.sources.{vendor.function}")
         func = getattr(module, "parsing_logic")
-        fetch_data = await func(progress_channel, redis, data.url, vendor, session)
+        fetch_data: dict = await func(progress_channel, redis, data.url, vendor, session)
     finally:
         await redis.publish(progress_channel, "data: COUNT=1")
         await asyncio.sleep(0.5)
         await redis.publish(progress_channel, "END")
         await pubsub_obj.unsubscribe(progress_channel)
         await pubsub_obj.close()
-    return {"result": fetch_data, 'is_ok': True}
+    return {"parsing_result": fetch_data, 'is_ok': True}
