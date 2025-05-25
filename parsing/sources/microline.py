@@ -158,8 +158,7 @@ class FetchParse:
             if len(new_pages) > len(self.pages):
                 self.pages = new_pages
                 await self.redis.publish(self.progress_channel, f"data: COUNT={len(self.pages) + 5}")
-
-        return {'category': self.category, 'data': result, 'actual': datetime.now()}
+        return {'category': self.category, 'datetime_now': datetime.now(), 'data': result}
 
 
 async def parsing_logic(progress_channel: str, redis: Redis, url: str, vendor: Vendor, session: AsyncSession) -> dict:
