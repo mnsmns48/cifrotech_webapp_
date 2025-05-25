@@ -23,10 +23,12 @@ async def go_parsing(data: ParsingRequest,
         module = importlib.import_module(f"parsing.sources.{vendor.function}")
         func = getattr(module, "parsing_logic")
         fetch_data: dict = await func(progress_channel, redis, data.url, vendor, session)
+        if len(fetch_data.get('data')) > 0:
+            fetch_data.update({'is_ok': True})
     finally:
         await redis.publish(progress_channel, "data: COUNT=1")
         await asyncio.sleep(0.5)
         await redis.publish(progress_channel, "END")
         await pubsub_obj.unsubscribe(progress_channel)
         await pubsub_obj.close()
-    return {"parsing_result": fetch_data, 'is_ok': True}
+    return fetch_data
