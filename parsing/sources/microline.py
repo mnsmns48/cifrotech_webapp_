@@ -90,9 +90,7 @@ class FetchParse:
             keys = ["origin", "title", "link", "shipment", "warranty", "input_price", "pic", "optional"]
             data_item = dict.fromkeys(keys, '')
             if (code_block := line.find("div", class_="code")) and (span_element := code_block.find("span")):
-                origin = span_element.get_text()
-                if origin.isdigit():
-                    data_item["origin"] = int(origin) or None
+                data_item["origin"] = span_element.get_text().strip() or None
             if code_block := line.find("div", class_="category-list-item__title ty-compact-list__title"):
                 data_item["title"] = code_block.a.get_text().strip() or None
                 data_item["link"] = code_block.a.get('href') or ''

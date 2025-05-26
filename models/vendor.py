@@ -26,7 +26,7 @@ class Vendor_search_line(Base):
 
 
 class Harvest(Base):
-    origin: Mapped[int] = mapped_column(primary_key=True, unique=True, nullable=False)
+    origin: Mapped[str] = mapped_column(primary_key=True, unique=True, nullable=False)
     title: Mapped[str] = mapped_column(nullable=False)
     link: Mapped[str] = mapped_column(nullable=True)
     shipment: Mapped[str] = mapped_column(nullable=True)

@@ -21,5 +21,5 @@ async def save_harvest(data: list, session: AsyncSession):
 
 
 async def truncate_harvest(session: AsyncSession) -> None:
-    async with session.begin():
-        await session.execute(delete(Harvest))
+    await session.execute(delete(Harvest))
+    await session.commit()
