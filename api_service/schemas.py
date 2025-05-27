@@ -1,4 +1,5 @@
 import logging
+from typing import List
 
 from fastapi import Form
 from pydantic import BaseModel, Field
@@ -64,3 +65,16 @@ class VendorSearchLineSchema(BaseModel):
 class ParsingRequest(BaseModel):
     progress: str
     url: str
+
+
+class RewardRangeLineSchema(BaseModel):
+    id: int
+    line_from: int
+    line_to: int
+    reward: int
+
+
+class RewardRangeSchema(BaseModel):
+    id: int
+    title: str
+    lines: List[RewardRangeLineSchema]

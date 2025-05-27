@@ -34,3 +34,31 @@ class Harvest(Base):
     input_price: Mapped[float] = mapped_column(nullable=True)
     pic: Mapped[str] = mapped_column(nullable=True)
     optional: Mapped[str] = mapped_column(nullable=True)
+
+
+class RewardRange(Base):
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
+    title: Mapped[str] = mapped_column(nullable=False)
+
+    lines: Mapped[list["RewardRangeLine"]] = relationship("RewardRangeLine",
+                                                          back_populates="range", cascade="all, delete")
+
+
+class RewardRangeLine(Base):
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    range_id: Mapped[int] = mapped_column(ForeignKey("rewardrange.id"), nullable=False)
+    line_from: Mapped[int] = mapped_column(nullable=False)
+    line_to: Mapped[int] = mapped_column(nullable=False)
+    reward: Mapped[int] = mapped_column(nullable=False)
+
+    range: Mapped["RewardRange"] = relationship("RewardRange", back_populates="lines")
+
+# class OrderCatalog(Base):
+#     origin: Mapped[int] = mapped_column(primary_key=True, unique=True, nullable=False)
+#     title: Mapped[str] = mapped_column(nullable=False)
+#     shipment: Mapped[str] = mapped_column(nullable=True)
+#     warranty: Mapped[str] = mapped_column(nullable=True)
+#     input_price: Mapped[float] = mapped_column(nullable=True)
+#     output_price: Mapped[float] = mapped_column(nullable=True)
+#     pic: Mapped[str] = mapped_column(nullable=True)
+#     optional: Mapped[str] = mapped_column(nullable=True)

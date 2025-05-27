@@ -1,4 +1,4 @@
-import asyncio
+import pytz
 import json
 import os
 from datetime import datetime
@@ -27,7 +27,7 @@ class FetchParse:
                  session: AsyncSession):
         self.page, self.browser, self.playwright = None, None, None
         self.pages = list()
-        self.category = str()
+        self.category = list()
         self.progress_channel = progress_channel
         self.redis = redis
         self.url = url
@@ -127,7 +127,7 @@ class FetchParse:
         if code_block := opened_page['soup'].find("div",
                                                   class_="ty-breadcrumbs clearfix breadcrumb user-logged-margin"):
             span = code_block.find_all('span')
-            self.category = span[-1].get_text().strip() or ''
+            self.category = [s.get_text().strip() for s in span[1:] if s.find('a')]
         await self.redis.publish(self.progress_channel, f"{len(self.pages) - 1} страниц для сбора информации")
         if not await self.check_auth(text=opened_page['soup']):
             context = await self.browser.new_context()
@@ -156,7 +156,7 @@ class FetchParse:
             if len(new_pages) > len(self.pages):
                 self.pages = new_pages
                 await self.redis.publish(self.progress_channel, f"data: COUNT={len(self.pages) + 5}")
-        return {'category': self.category, 'datetime_now': datetime.now(), 'data': result}
+        return {'category': self.category, 'datetime_now': datetime.now(pytz.timezone('Europe/Moscow')), 'data': result}
 
 
 async def parsing_logic(progress_channel: str, redis: Redis, url: str, vendor: Vendor, session: AsyncSession) -> dict:

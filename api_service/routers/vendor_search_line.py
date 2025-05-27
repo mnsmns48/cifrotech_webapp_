@@ -1,11 +1,6 @@
-import asyncio
-import uuid
-from asyncio import Queue
-
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.requests import Request
 from sqlalchemy import select
-from starlette.responses import StreamingResponse
 
 from api_service.schemas import VendorSearchLineSchema
 from api_service.utils import update_instance_fields
@@ -14,7 +9,6 @@ from models.vendor import Vendor_search_line
 from sqlalchemy.ext.asyncio import AsyncSession
 
 vendor_search_line_router = APIRouter(tags=['Service-Vendors-Search-Line'])
-
 
 
 @vendor_search_line_router.get("/get_vsl/{vendor_id}")
@@ -63,96 +57,3 @@ async def delete_vendor_search_line(vsl_id: int,
     await session.delete(vsl)
     await session.commit()
     return {"result": f"Vendor Search Line {vsl_id} deleted"}
-
-
-# @vendor_search_line_router.post("/pars_me")
-# async def parsing_data(request: Request, data: ParsingRequest,
-#                        session: AsyncSession = Depends(db.scoped_session_dependency)):
-#     playwright, browser, page = await run_browser()
-#
-#     async def process(playwright, browser, page):
-#         result = await session.execute(
-#             select(Vendor)
-#             .options(selectinload(Vendor.search_lines))
-#             .where(Vendor.search_lines.any(Vendor_search_line.url == data.url))
-#         )
-#         vendor = result.scalars().first()
-#
-#         if not vendor:
-#             await progress_queue.put("Vendor not found")
-#             await progress_queue.put(None)
-#             return
-#
-#         await progress_queue.put("Vendor найден")
-#
-#         vendor_data = VendorSchema.cls_validate(vendor, exclude_id=True)
-#         vendor_data["search_lines"] = [VendorSearchLineSchema.cls_validate(sl, exclude_id=True) for sl in
-#                                        vendor.search_lines]
-#
-#         await progress_queue.put("Vendor данные обработаны")
-#         html = await open_page(page, url='https://mail.ru')
-#         await progress_queue.put("HTML загружен")
-#         await progress_queue.put(str(vendor_data))
-#         await progress_queue.put(None)
-#         await browser.close()
-#         await playwright.stop()
-#
-#     asyncio.create_task(process(playwright, browser, page))
-#     return {"status": "Парсинг запущен"}
-
-
-class ProgressManager:
-    def __init__(self):
-        self.progress = 0
-        self.total_steps = 5
-        self.queue = Queue()
-
-    async def update_progress(self, message: str):
-        await self.queue.put(message)
-        self.progress += 1
-
-        if self.progress >= self.total_steps:
-            await self.queue.put("END")
-
-    async def event_stream(self):
-        yield f"data: COUNT={self.total_steps}\n\n"
-
-        while True:
-            message = await self.queue.get()
-            if message == "END":
-                yield "data: END\n\n"
-                self.queue = Queue()
-                self.progress = 0
-                break
-            yield f"data: {message}\n\n"
-
-#
-# @vendor_search_line_router.post("/pars_me")
-# async def parsing_data(data: ParsingRequest):
-#     request_id = str(uuid.uuid4())
-#     channel = f"progress:{request_id}"
-#
-#     async def process():
-#         await redis_client.setex(request_id, 600, data.url)
-#         await asyncio.sleep(15)
-#         await redis_client.publish(channel, "data: COUNT=9")
-#         await redis_client.publish(channel, "Парсинг начался")
-#         for i in range(1, 6):
-#             await asyncio.sleep(5)
-#             await redis_client.publish(channel, f"Шаг {i} выполнен")
-#         await asyncio.sleep(60)
-#         final_result = "Основной результат парсинга: данные собраны успешно через 10 секунд."
-#         await redis_client.publish(channel, final_result)
-#         await redis_client.publish(channel, "data: END")
-#
-#     asyncio.create_task(process())
-#     return {"request_id": request_id}
-#
-#
-
-#
-#
-# @vendor_search_line_router.get("/result/{request_id}")
-# async def get_result(request_id: str):
-#     result = await redis_client.get(name=request_id)
-#     return {'result': result}
