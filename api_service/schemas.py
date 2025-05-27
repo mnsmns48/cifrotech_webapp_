@@ -73,8 +73,14 @@ class RewardRangeLineSchema(BaseModel):
     line_to: int
     reward: int
 
+    class Config:
+        from_attributes = True
+
 
 class RewardRangeSchema(BaseModel):
     id: int
     title: str
     lines: List[RewardRangeLineSchema]
+
+    class Config:
+        from_attributes = True
