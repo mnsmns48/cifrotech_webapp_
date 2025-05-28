@@ -1,7 +1,7 @@
-from datetime import datetime
-
-from sqlalchemy import ForeignKey, DATETIME, DateTime, func
+from sqlalchemy import ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql.annotation import Annotated
+
 from models.base import Base
 
 
@@ -37,9 +37,8 @@ class Harvest(Base):
 
 
 class RewardRange(Base):
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True,)
     title: Mapped[str] = mapped_column(nullable=False)
-
     lines: Mapped[list["RewardRangeLine"]] = relationship("RewardRangeLine",
                                                           back_populates="range", cascade="all, delete")
 
@@ -49,8 +48,8 @@ class RewardRangeLine(Base):
     range_id: Mapped[int] = mapped_column(ForeignKey("rewardrange.id"), nullable=False)
     line_from: Mapped[int] = mapped_column(nullable=False)
     line_to: Mapped[int] = mapped_column(nullable=False)
+    is_percent: Mapped[bool] = mapped_column(nullable=False)
     reward: Mapped[int] = mapped_column(nullable=False)
-
     range: Mapped["RewardRange"] = relationship("RewardRange", back_populates="lines")
 
 # class OrderCatalog(Base):

@@ -69,18 +69,21 @@ class ParsingRequest(BaseModel):
 
 class RewardRangeLineSchema(BaseModel):
     id: int
+    range_id: int
     line_from: int
     line_to: int
+    is_percent: bool
     reward: int
+
+    @classmethod
+    def cls_validate(cls, data, exclude_id=False):
+        if exclude_id:
+            return cls.model_validate(data.__dict__).model_dump(exclude={"id"})
+        return cls.model_validate(data.__dict__).model_dump()
 
     class Config:
         from_attributes = True
 
 
 class RewardRangeSchema(BaseModel):
-    id: int
     title: str
-    lines: List[RewardRangeLineSchema]
-
-    class Config:
-        from_attributes = True
