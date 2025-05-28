@@ -29,6 +29,16 @@ async def add_reward_title(data: RewardRangeSchema, session: AsyncSession = Depe
     return new_reward_range
 
 
+@reward_range_router.get("/get_reward_line/{range_id}")
+async def get_reward_range(range_id: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    range_exists = await session.execute(select(RewardRange).filter(RewardRange.id == range_id))
+    if not range_exists.scalars().first():
+        raise HTTPException(status_code=404, detail="Такого профиля нет")
+
+    query = select(RewardRangeLine).filter(RewardRangeLine.range_id == range_id).order_by(RewardRangeLine.line_from)
+    result = await session.execute(query)
+    return result.scalars().all()
+
 # @reward_range_router.get("/rewards", response_model=List[RewardRangeSchema])
 # async def get_rewards(session: AsyncSession = Depends(db.scoped_session_dependency)):
 #     query = select(RewardRange).options(selectinload(RewardRange.lines))
