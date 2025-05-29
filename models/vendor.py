@@ -45,7 +45,7 @@ class RewardRange(Base):
 
 class RewardRangeLine(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    range_id: Mapped[int] = mapped_column(ForeignKey("rewardrange.id"), nullable=False)
+    range_id: Mapped[int] = mapped_column(ForeignKey("rewardrange.id", ondelete="CASCADE"), nullable=False)
     line_from: Mapped[int] = mapped_column(nullable=False)
     line_to: Mapped[int] = mapped_column(nullable=False)
     is_percent: Mapped[bool] = mapped_column(nullable=False)
