@@ -3,7 +3,7 @@ import json
 import os
 from datetime import datetime
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, PageElement
 from playwright.async_api import async_playwright
 from playwright_stealth import stealth_async
 from redis.asyncio import Redis
@@ -83,11 +83,29 @@ class FetchParse:
         await stealth_async(self.page)
 
     @staticmethod
+    async def extract_pic(swiper_wrapper: BeautifulSoup) -> list | None:
+        carousel = swiper_wrapper.find_all('div')
+        pics = list()
+        for item in carousel:
+            if 'data-ca-image-width' in item.a.attrs and 'data-ca-image-height' in item.a.attrs:
+                width = item.a.attrs['data-ca-image-width']
+                height = item.a.attrs['data-ca-image-height']
+                image = item.a.get('href')
+                if image:
+                    pics.append(
+                        f'https://technosuccess.ru/images/thumbnails/'
+                        f'{width}/{height}/detailed{image.rsplit('detailed', 1)[1]}')
+            else:
+                pics.append(item.a.get('href'))
+
+        return pics
+
+    @staticmethod
     async def store_results(soup: BeautifulSoup, session: AsyncSession) -> list:
         result = list()
         content_list = soup.find_all("div", class_="ty-product-block ty-compact-list__content")
         for line in content_list:
-            keys = ["origin", "title", "link", "shipment", "warranty", "input_price", "pic", "optional"]
+            keys = ["origin", "title", "link", "shipment", "warranty", "input_price", "pics", "preview", "optional"]
             data_item = dict.fromkeys(keys, '')
             if (code_block := line.find("div", class_="code")) and (span_element := code_block.find("span")):
                 data_item["origin"] = span_element.get_text().strip() or None
@@ -100,8 +118,9 @@ class FetchParse:
                 data_item["warranty"] = span_element.get_text().strip() or ''
             if code_block := line.find("span", class_="ty-price-num", id=lambda x: x and "sec_discounted_price" in x):
                 data_item["input_price"] = float(code_block.get_text().replace("\xa0", "")) or 0
-            if code_block := line.find("div", class_="swiper-slide"):
-                data_item["pic"] = code_block.a.get('href') or ''
+            if code_block := line.find("div", class_="swiper-wrapper"):
+                data_item["pics"] = await FetchParse.extract_pic(code_block)
+                data_item["preview"] = code_block.find('a').get('href')
             if (code_block := line.find("div", class_="code")) and (sub_div := code_block.find_next_sibling("div")):
                 data_item["optional"] = sub_div.get_text().strip() or ''
             result.append(data_item)
