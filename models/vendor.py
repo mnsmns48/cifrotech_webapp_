@@ -35,13 +35,14 @@ class Harvest(Base):
     shipment: Mapped[str] = mapped_column(nullable=True)
     warranty: Mapped[str] = mapped_column(nullable=True)
     input_price: Mapped[float] = mapped_column(nullable=True)
+    output_price: Mapped[float] = mapped_column(nullable=True)
     pics: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=True)
     preview: Mapped[str] = mapped_column(nullable=True)
     optional: Mapped[str] = mapped_column(nullable=True)
 
 
 class RewardRange(Base):
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True,)
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, )
     title: Mapped[str] = mapped_column(nullable=False)
     is_default: Mapped[bool] = mapped_column(nullable=False)
     lines: Mapped[list["RewardRangeLine"]] = relationship("RewardRangeLine",

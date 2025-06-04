@@ -1,6 +1,9 @@
 import asyncio
+from datetime import datetime
 
+import pytz
 from fastapi import APIRouter, Depends
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.crud import get_vendor_by_url
@@ -8,6 +11,8 @@ from api_service.schemas import ParsingRequest
 from config import redis_session
 from engine import db
 import importlib
+
+from models import Harvest
 
 parsing_router = APIRouter(tags=['Service-Parsing'])
 
@@ -32,3 +37,12 @@ async def go_parsing(data: ParsingRequest,
         await pubsub_obj.unsubscribe(progress_channel)
         await pubsub_obj.close()
     return parsing_data
+
+
+@parsing_router.get("/previous_parsing_results")
+async def get_previous_results(session: AsyncSession = Depends(db.scoped_session_dependency)):
+    query = select(Harvest).order_by(Harvest.input_price)
+    results = await session.execute(query)
+    return {'category': ['Данные не актуальны, перенесение в приложение невозможно'],
+            'datetime_now': datetime(1988, 2, 18, 8, 15, 0),
+            'data': results.scalars().all()}

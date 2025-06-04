@@ -3,16 +3,17 @@ import json
 import os
 from datetime import datetime
 
-from bs4 import BeautifulSoup, PageElement
+from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
 from playwright_stealth import stealth_async
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api_service.crud import save_harvest, truncate_harvest
+from api_service.crud import save_harvest, truncate_harvest, get_range_rewards
 from config import BROWSER_HEADERS, BASE_DIR
 from models import Vendor
 from parsing.browser import create_browser, open_page
+from parsing.utils import cost_value_update
 
 this_file_name = os.path.basename(__file__).rsplit('.', 1)[0]
 cookie_file = f"{BASE_DIR}/parsing/sources/{this_file_name}.json"
@@ -97,7 +98,6 @@ class FetchParse:
                         f'{width}/{height}/detailed{image.rsplit('detailed', 1)[1]}')
             else:
                 pics.append(item.a.get('href'))
-
         return pics
 
     @staticmethod
@@ -124,7 +124,8 @@ class FetchParse:
             if (code_block := line.find("div", class_="code")) and (sub_div := code_block.find_next_sibling("div")):
                 data_item["optional"] = sub_div.get_text().strip() or ''
             result.append(data_item)
-        await save_harvest(session=session, data=result)
+        ranges = await get_range_rewards(session=session)
+        await save_harvest(session=session, data=cost_value_update(result, list(ranges)))
         return result
 
     @staticmethod
@@ -178,12 +179,17 @@ class FetchParse:
         return {'category': self.category, 'datetime_now': datetime.now(pytz.timezone('Europe/Moscow')), 'data': result}
 
 
-async def parsing_logic(progress_channel: str, redis: Redis, url: str, vendor: Vendor, session: AsyncSession) -> dict:
+async def parsing_logic(progress_channel: str,
+                        redis: Redis,
+                        url: str,
+                        vendor: Vendor,
+                        session: AsyncSession) -> dict:
     pars_obj = FetchParse(progress_channel, redis, url, vendor, session)
     await pars_obj.run()
     try:
         await truncate_harvest(session=session)
         data: dict = await pars_obj.process()
+
     finally:
         await pars_obj.browser.close()
         await pars_obj.playwright.stop()
