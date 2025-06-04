@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.schemas import RewardRangeSchema, RewardRangeLineSchema
@@ -54,6 +54,18 @@ async def update_reward_range(range_id: int, update_data: RewardRangeSchema,
         raise HTTPException(status_code=404, detail="Нельзя изменить несуществующий профиль")
     await update_instance_fields(profile, update_data.model_dump(), session)
     return "Профиль успешно обновлен"
+
+
+@reward_range_router.put("/update_range_profile_is_default/{range_id}")
+async def update_is_default_reward_range(range_id: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    profile = await session.get(RewardRange, range_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Нельзя изменить несуществующий профиль")
+    await session.execute(update(RewardRange).values(is_default=False))
+    profile.is_default = True
+    await session.commit()
+    await session.refresh(profile)
+    return profile
 
 
 ###################### reward_range_lines ##############################
