@@ -95,7 +95,7 @@ class FetchParse:
                 if image:
                     pics.append(
                         f'https://technosuccess.ru/images/thumbnails/'
-                        f'{width}/{height}/detailed{image.rsplit('detailed', 1)[1]}')
+                        f'{width}/{height}/detailed{image.rsplit("detailed", 1)[1]}')
             else:
                 pics.append(item.a.get('href'))
         return pics
