@@ -28,8 +28,7 @@ async def lifespan(app: FastAPI):
         await bot.session.close()
 
 
-# add lifespan !!!
-app = FastAPI(docs_url=settings.api.docs_url)
+app = FastAPI(lifespan=lifespan, docs_url=settings.api.docs_url)
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors,
                    allow_methods=["*"],
                    allow_headers=["*"],
@@ -44,5 +43,5 @@ app.include_router(general_router)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
     uvicorn.run("main:app", host='0.0.0.0', port=5000)
