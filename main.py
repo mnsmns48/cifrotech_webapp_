@@ -43,5 +43,5 @@ app.include_router(general_router)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
     uvicorn.run("main:app", host='0.0.0.0', port=5000)
