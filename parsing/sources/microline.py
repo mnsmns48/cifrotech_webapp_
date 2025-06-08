@@ -1,4 +1,3 @@
-import pytz
 import json
 import os
 from datetime import datetime
@@ -9,7 +8,9 @@ from playwright_stealth import stealth_async
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api_service.crud import save_harvest, truncate_harvest, get_range_rewards
+from api_service.crud import delete_harvest_strings_by_vsl_id, get_range_rewards, store_harvest, \
+    store_harvest_line
+from api_service.schemas import ParsingRequest
 from config import BROWSER_HEADERS, BASE_DIR
 from models import Vendor
 from parsing.browser import create_browser, open_page
@@ -21,17 +22,14 @@ cookie_file = f"{BASE_DIR}/parsing/sources/{this_file_name}.json"
 
 class FetchParse:
     def __init__(self,
-                 progress_channel: str,
                  redis: Redis,
-                 url: str,
+                 data: ParsingRequest,
                  vendor: Vendor,
                  session: AsyncSession):
         self.page, self.browser, self.playwright = None, None, None
         self.pages = list()
-        self.category = list()
-        self.progress_channel = progress_channel
         self.redis = redis
-        self.url = url
+        self.data = data
         self.vendor = vendor
         self.session = session
 
@@ -50,33 +48,33 @@ class FetchParse:
 
     async def authorization(self):
         await self.page.goto('https://technosuccess.ru/login')
-        await self.redis.publish(self.progress_channel, f"Авторизируюсь")
+        await self.redis.publish(self.data.progress, f"Авторизируюсь")
         await self.page.fill("#login_main_login", self.vendor.login)
         await self.page.fill("#psw_main_login", self.vendor.password)
         await self.page.check("#remember_me_main_login")
         buttons = await self.page.locator('button[name="dispatch[auth.login]"]').all()
         await buttons[1].click()
         await self.page.wait_for_load_state("domcontentloaded")
-        await self.page.goto(self.url + '&sort_by=price&sort_order=asc&items_per_page=120')
+        await self.page.goto(self.data.vsl_url + '&sort_by=price&sort_order=asc&items_per_page=120')
         storage_state = await self.page.context.storage_state()
         with open(f"{BASE_DIR}/parsing/sources/{this_file_name}.json", "w") as file:
             json.dump(storage_state, file)
-        await self.redis.publish(self.progress_channel, f"Авторизция прошла успешно")
+        await self.redis.publish(self.data.progress, f"Авторизция прошла успешно")
 
     async def run(self):
         self.playwright = await async_playwright().start()
         self.browser = await create_browser(self.playwright)
-        await self.redis.publish(self.progress_channel, "data: COUNT=30")
-        await self.redis.publish(self.progress_channel, f"Браузер запущен")
+        await self.redis.publish(self.data.progress, "data: COUNT=30")
+        await self.redis.publish(self.data.progress, f"Браузер запущен")
         context = await self.browser.new_context()
         await context.set_extra_http_headers(BROWSER_HEADERS)
         if not os.path.exists(cookie_file):
             self.page = await context.new_page()
-            await self.redis.publish(self.progress_channel, f"Нет COOKIE файла")
+            await self.redis.publish(self.data.progress, f"Нет COOKIE файла")
             await self.authorization()
             await self.page.close()
         else:
-            await self.redis.publish(self.progress_channel, f"COOKIE файл присутствует")
+            await self.redis.publish(self.data.progress, f"COOKIE файл присутствует")
         with open(cookie_file, "r") as file:
             storage_state = json.load(file)
         await context.add_cookies(storage_state["cookies"])
@@ -101,11 +99,12 @@ class FetchParse:
         return pics
 
     @staticmethod
-    async def store_results(soup: BeautifulSoup, session: AsyncSession) -> list:
+    async def store_results(soup: BeautifulSoup, session: AsyncSession, harvest_id: int) -> list:
         result = list()
         content_list = soup.find_all("div", class_="ty-product-block ty-compact-list__content")
         for line in content_list:
-            keys = ["origin", "title", "link", "shipment", "warranty", "input_price", "pics", "preview", "optional"]
+            keys = ["origin", "title", "link", "shipment", "warranty", "input_price", "pics", "preview", "optional",
+                    "harvest_id"]
             data_item = dict.fromkeys(keys, '')
             if (code_block := line.find("div", class_="code")) and (span_element := code_block.find("span")):
                 data_item["origin"] = span_element.get_text().strip() or None
@@ -123,9 +122,10 @@ class FetchParse:
                 data_item["preview"] = code_block.find('a').get('href')
             if (code_block := line.find("div", class_="code")) and (sub_div := code_block.find_next_sibling("div")):
                 data_item["optional"] = sub_div.get_text().strip() or ''
+            data_item["harvest_id"] = harvest_id
             result.append(data_item)
         ranges = await get_range_rewards(session=session)
-        await save_harvest(session=session, data=cost_value_update(result, list(ranges)))
+        await store_harvest_line(session=session, data=cost_value_update(result, list(ranges)))
         return result
 
     @staticmethod
@@ -142,16 +142,21 @@ class FetchParse:
         return pages
 
     async def process(self) -> dict:
-        opened_page = await open_page(page=self.page, url=self.url)
+        opened_page = await open_page(page=self.page, url=self.data.vsl_url)
         self.pages = self.actual_pagination(opened_page['soup'])
-        if code_block := opened_page['soup'].find("div",
-                                                  class_="ty-breadcrumbs clearfix breadcrumb user-logged-margin"):
+        category = ['Категория не определена']
+        if code_block := (opened_page['soup']
+                .find("div", class_="ty-breadcrumbs clearfix breadcrumb user-logged-margin")):
             span = code_block.find_all('span')
-            self.category = [s.get_text().strip() for s in span[1:] if s.find('a')]
-        await self.redis.publish(self.progress_channel, f"{len(self.pages) - 1} страниц для сбора информации")
+            category.clear()
+            category = [s.get_text().strip() for s in span[1:] if s.find('a')]
+        harvest_data = {'vendor_search_line_id': self.data.vsl_id, 'category': category}
+        harvest_id = await store_harvest(data=harvest_data, session=self.session)
+        await self.redis.publish(self.data.progress, f"Данные о парсинге сохранены")
+        await self.redis.publish(self.data.progress, f"{len(self.pages) - 1} страниц для сбора информации")
         if not await self.check_auth(text=opened_page['soup']):
             context = await self.browser.new_context()
-            await self.redis.publish(self.progress_channel, "Авторизация не пройдена")
+            await self.redis.publish(self.data.progress, "Авторизация не пройдена")
             await self.authorization()
             await self.page.close()
             with open(cookie_file, "r") as file:
@@ -159,35 +164,34 @@ class FetchParse:
             await context.add_cookies(storage_state["cookies"])
             self.page = await context.new_page()
             await stealth_async(self.page)
-            opened_page = await open_page(page=self.page, url=self.url)
-        result = await self.store_results(soup=opened_page['soup'], session=self.session)
-        await self.redis.publish(self.progress_channel, f"Страница 1 из {len(self.pages) + 1} сохранена")
+            opened_page = await open_page(page=self.page, url=self.data.vsl_url)
+        result = await self.store_results(soup=opened_page['soup'], session=self.session, harvest_id=harvest_id)
+        await self.redis.publish(self.data.progress, f"Страница 1 из {len(self.pages) + 1} сохранена")
         page_counter = 0
         while page_counter < len(self.pages):
-            await self.redis.publish(self.progress_channel, f"data: COUNT={len(self.pages) + 5}")
+            await self.redis.publish(self.data.progress, f"data: COUNT={len(self.pages) + 5}")
             page_item = self.pages[page_counter]
             next_url = page_item.a.get('href')
             opened_page = await open_page(page=self.page, url=next_url)
-            result += await self.store_results(soup=opened_page['soup'], session=self.session)
+            result += await self.store_results(soup=opened_page['soup'], session=self.session, harvest_id=harvest_id)
             page_counter += 1
-            await self.redis.publish(self.progress_channel,
+            await self.redis.publish(self.data.progress,
                                      f"Страница {page_counter} из {len(self.pages) + 1} сохранена")
             new_pages = self.actual_pagination(opened_page['soup'])
             if len(new_pages) > len(self.pages):
                 self.pages = new_pages
-                await self.redis.publish(self.progress_channel, f"data: COUNT={len(self.pages) + 5}")
-        return {'category': self.category, 'datetime_now': datetime.now(pytz.timezone('Europe/Moscow')), 'data': result}
+                await self.redis.publish(self.data.progress, f"data: COUNT={len(self.pages) + 5}")
+        return {'category': category, 'datestamp': datetime.now(), 'data': result}
 
 
-async def parsing_logic(progress_channel: str,
-                        redis: Redis,
-                        url: str,
+async def parsing_logic(redis: Redis,
+                        data: ParsingRequest,
                         vendor: Vendor,
                         session: AsyncSession) -> dict:
-    pars_obj = FetchParse(progress_channel, redis, url, vendor, session)
+    pars_obj = FetchParse(redis, data, vendor, session)
     await pars_obj.run()
     try:
-        await truncate_harvest(session=session)
+        await delete_harvest_strings_by_vsl_id(session=session, vsl_id=data.vsl_id)
         data: dict = await pars_obj.process()
 
     finally:

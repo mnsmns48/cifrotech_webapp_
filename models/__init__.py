@@ -8,13 +8,15 @@ __all__ = (
     "TgBotOptions",
     "User",
     "AccessToken",
-    "Harvest"
-
+    "Harvest",
+    "HarvestLine",
+    "RewardRange",
+    "RewardRangeLine"
 )
 
 from .base import Base
 from .api_v1 import Activity, StockTable, Guests, Sellers
 from .telegram_bot import TgBotOptions
-from .vendor import Vendor, Harvest
+from .vendor import Vendor, Harvest, HarvestLine, RewardRange, RewardRangeLine
 from .user import User
 from .access_token import AccessToken

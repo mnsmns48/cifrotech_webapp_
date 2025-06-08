@@ -13,5 +13,4 @@ service_router.include_router(vendor_search_line_router)
 
 service_router.include_router(parsing_router)
 
-
 service_router.include_router(reward_range_router)

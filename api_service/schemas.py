@@ -64,7 +64,8 @@ class VendorSearchLineSchema(BaseModel):
 
 class ParsingRequest(BaseModel):
     progress: str
-    url: str
+    vsl_id: int
+    vsl_url: str
 
 
 class RewardRangeLineSchema(BaseModel):
