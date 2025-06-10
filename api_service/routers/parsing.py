@@ -13,7 +13,7 @@ from engine import db
 import importlib
 
 from models import Harvest
-from models.vendor import VendorSearchLine
+from models.vendor import VendorSearchLine, HarvestLine
 
 parsing_router = APIRouter(tags=['Service-Parsing'])
 
@@ -45,10 +45,11 @@ async def get_previous_results(vsl_id: int, session: AsyncSession = Depends(db.s
     vsl_exists_result = await session.execute(vsl_exists_query)
     if not vsl_exists_result.scalars().first():
         raise HTTPException(status_code=404, detail="Vendor_search_line с таким ID не найден")
-    query = select(Harvest).where(Harvest.vendor_search_line_id == vsl_id).order_by(Harvest.input_price)
-    results = await session.execute(query)
-    return {
-        'category': ['Данные не актуальны, перенесение в приложение невозможно'],
-        'datetime_now': datetime(1988, 2, 18, 8, 15, 0),
-        'data': results.scalars().all()
-    }
+    harvest_query = select(Harvest).where(Harvest.vendor_search_line_id == vsl_id)
+    harvest_result = await session.execute(harvest_query)
+    harvest_id = harvest_result.scalars().first()
+    harvest_line_query = (select(HarvestLine).where(HarvestLine.harvest_id == harvest_id.id)
+                          .order_by(HarvestLine.input_price))
+    harvest_line_result = await session.execute(harvest_line_query)
+    harvest_lines = harvest_line_result.scalars().all()
+    return {'category': harvest_id.category, 'datestamp': harvest_id.datestamp, 'data': harvest_lines}

@@ -30,9 +30,15 @@ async def store_harvest_line(data: list, session: AsyncSession):
     await session.commit()
 
 
-async def delete_harvest_strings_by_vsl_id(session: AsyncSession, vsl_id: int) -> None:
-    await session.execute(delete(Harvest).where(Harvest.vendor_search_line_id == vsl_id))
+async def delete_harvest_strings_by_vsl_id(session: AsyncSession, vsl_id: int):
+    harvest_query = select(Harvest).where(Harvest.vendor_search_line_id == vsl_id)
+    harvest_result = await session.execute(harvest_query)
+    harvest = harvest_result.scalars().first()
+    if not harvest:
+        return "Запросов парсинга для этого URL нет"
+    await session.delete(harvest)
     await session.commit()
+    return "Записи для этого запроса удалены"
 
 
 async def get_range_rewards(session: AsyncSession, range_id: int = None) -> Sequence[Row[tuple[int, int, bool, int]]]:
