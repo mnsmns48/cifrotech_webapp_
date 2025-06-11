@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, String, DateTime, func
+from sqlalchemy import ForeignKey, String, DateTime, func, JSON
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -31,6 +31,13 @@ class HarvestLine(Base):
     harvest: Mapped["Harvest"] = relationship("Harvest", back_populates="harvest_lines")
 
 
+class DetailDependencies(Base):
+    __tablename__ = "detail_dependencies"
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
+    origin: Mapped[str] = mapped_column(unique=True, nullable=False)
+    info: Mapped[dict | None] = mapped_column(type_=JSON)
+
+
 class Vendor(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
     name: Mapped[str] = mapped_column(nullable=False, primary_key=False)
@@ -51,7 +58,7 @@ class VendorSearchLine(Base):
     url: Mapped[str] = mapped_column(nullable=False)
     vendor: Mapped["Vendor"] = relationship("Vendor", back_populates="search_lines")
     harvests: Mapped[list["Harvest"]] = relationship("Harvest", back_populates="vendor_search_line",
-                                                                  cascade="all, delete")
+                                                     cascade="all, delete")
 
 
 class RewardRange(Base):

@@ -2,14 +2,16 @@ import json
 import os
 from datetime import datetime
 
+from aiohttp import ClientSession
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
 from playwright_stealth import stealth_async
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api_service.api_req import get_one_by_dtube
 from api_service.crud import delete_harvest_strings_by_vsl_id, get_range_rewards, store_harvest, \
-    store_harvest_line
+    store_harvest_line, get_info_by_origins
 from api_service.schemas import ParsingRequest
 from config import BROWSER_HEADERS, BASE_DIR
 from models import Vendor
@@ -183,6 +185,28 @@ class FetchParse:
                 await self.redis.publish(self.data.progress, f"data: COUNT={len(self.pages) + 5}")
         return {'category': category, 'datestamp': datetime.now(), 'data': result}
 
+    async def append_info(self, data: dict) -> dict:
+        origins = [item['origin'] for item in data['data']]
+        info: dict = await get_info_by_origins(self.session, origins)
+        async with ClientSession() as aio_session:
+            for line in data['data']:
+                if line['origin'] in info.keys():
+                    line['detail_dependencies'] = info.get(line['origin'])
+                else:
+                    result = await get_one_by_dtube(session=aio_session, title=line['title'])
+                    if result:
+                        if result.get('items') and result.get('items').get('result'):
+                            print('title', line['title'], '-----------')
+                            [print(f"     {item.get('title')} ") for item in result.get('items').get('result')]
+                        if result.get('title'):
+                            print('title', line['title'], '-----------')
+                            print('     ', result.get('title'))
+                        print('\n')
+                    else:
+                        print(line['title'], 'Нет')
+                        print('\n')
+        return data
+
 
 async def parsing_logic(redis: Redis,
                         data: ParsingRequest,
@@ -193,8 +217,9 @@ async def parsing_logic(redis: Redis,
     try:
         await delete_harvest_strings_by_vsl_id(session=session, vsl_id=data.vsl_id)
         data: dict = await pars_obj.process()
-
     finally:
         await pars_obj.browser.close()
         await pars_obj.playwright.stop()
+    if len(data['data']) > 0:
+        await pars_obj.append_info(data)
     return data

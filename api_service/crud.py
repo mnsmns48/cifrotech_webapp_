@@ -5,7 +5,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import Vendor
-from models.vendor import VendorSearchLine, Harvest, RewardRangeLine, RewardRange, HarvestLine
+from models.vendor import VendorSearchLine, Harvest, RewardRangeLine, RewardRange, HarvestLine, DetailDependencies
 
 
 async def get_vendor_by_url(url: str, session: AsyncSession):
@@ -53,3 +53,10 @@ async def get_range_rewards(session: AsyncSession, range_id: int = None) -> Sequ
     ).where(RewardRangeLine.range_id == range_id)
     result = await session.execute(query)
     return result.all()
+
+
+async def get_info_by_origins(session: AsyncSession, origins: list[str]) -> dict:
+    query = select(DetailDependencies).where(DetailDependencies.origin.in_(origins))
+    result = await session.execute(query)
+    details = result.scalars().all()
+    return {detail.origin: detail.id for detail in details}

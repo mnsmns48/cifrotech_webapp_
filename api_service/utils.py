@@ -17,4 +17,3 @@ async def event_stream(coroutine_funcs: list):
             result = await coro_fn(*args)
             yield f"data: {result.get('msg')}\n\n"
     yield "data: END\n\n"
-

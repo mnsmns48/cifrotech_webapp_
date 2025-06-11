@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.crud import get_vendor_by_url
-from api_service.schemas import ParsingRequest, VendorSearchLineSchema
+from api_service.schemas import ParsingRequest
 from config import redis_session
 from engine import db
 import importlib
@@ -39,7 +39,7 @@ async def go_parsing(data: ParsingRequest,
     return parsing_data
 
 
-@parsing_router.get("/previous_parsing_results{vsl_id}")
+@parsing_router.get("/previous_parsing_results/{vsl_id}")
 async def get_previous_results(vsl_id: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
     vsl_exists_query = select(VendorSearchLine).where(VendorSearchLine.id == vsl_id)
     vsl_exists_result = await session.execute(vsl_exists_query)
@@ -48,8 +48,11 @@ async def get_previous_results(vsl_id: int, session: AsyncSession = Depends(db.s
     harvest_query = select(Harvest).where(Harvest.vendor_search_line_id == vsl_id)
     harvest_result = await session.execute(harvest_query)
     harvest_id = harvest_result.scalars().first()
+    if not harvest_id:
+        return {"response": "not found", "is_ok": False,
+                "message": "Предыдущих результатов нет, соберите данные заново"}
     harvest_line_query = (select(HarvestLine).where(HarvestLine.harvest_id == harvest_id.id)
                           .order_by(HarvestLine.input_price))
     harvest_line_result = await session.execute(harvest_line_query)
     harvest_lines = harvest_line_result.scalars().all()
-    return {'category': harvest_id.category, 'datestamp': harvest_id.datestamp, 'data': harvest_lines}
+    return {'is_ok': True, 'category': harvest_id.category, 'datestamp': harvest_id.datestamp, 'data': harvest_lines}
