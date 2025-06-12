@@ -28,11 +28,11 @@ def cost_value_update(items: list[dict], ranges: list) -> list:
 
 async def append_info(session: AsyncSession, data: dict) -> dict:
     origins = [item['origin'] for item in data['data']]
-    info: dict = await get_info_by_origins(session, origins)
+    cashed: dict = await get_info_by_origins(session, origins)
     async with ClientSession() as aio_session:
         for line in data['data']:
-            if line['origin'] in info.keys():
-                line['info'] = info.get(line['origin'])
+            if line['origin'] in cashed.keys():
+                line['info'] = cashed.get(line['origin'])
             else:
                 result = await get_one_by_dtube(session=aio_session, title=line['title'])
                 if result:

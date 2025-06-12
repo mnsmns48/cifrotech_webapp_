@@ -182,18 +182,15 @@ class FetchParse:
         return {'category': category, 'datestamp': datetime.now(), 'data': result}
 
 
-async def parsing_logic(redis: Redis,
-                        data: ParsingRequest,
-                        vendor: Vendor,
-                        session: AsyncSession) -> dict:
+async def parsing_logic(redis: Redis, data: ParsingRequest, vendor: Vendor, session: AsyncSession) -> dict:
     pars_obj = FetchParse(redis, data, vendor, session)
     await pars_obj.run()
     try:
         await delete_harvest_strings_by_vsl_id(session=session, vsl_id=data.vsl_id)
-        data: dict = await pars_obj.process()
+        collected_data: dict = await pars_obj.process()
     finally:
         await pars_obj.browser.close()
         await pars_obj.playwright.stop()
-    if len(data['data']) > 0:
-        await append_info(session=session, data=data)
-    return data
+    if len(collected_data['data']) > 0:
+        await append_info(session=session, data=collected_data)
+    return collected_data
