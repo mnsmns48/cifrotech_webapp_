@@ -1,8 +1,8 @@
 import logging
-from typing import List
+from typing import List, Optional, Dict, Any
 
 from fastapi import Form
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 logging.getLogger("python_multipart.multipart").setLevel(logging.WARNING)
 
@@ -81,3 +81,11 @@ class RewardRangeLineSchema(BaseModel):
 
 class RewardRangeSchema(BaseModel):
     title: str
+
+
+class DetailDependenciesUpdate(BaseModel):
+    new_title: Optional[str] = None
+    info: Optional[Dict[str, Any]] = None
+
+    class Config:
+        from_attributes = True

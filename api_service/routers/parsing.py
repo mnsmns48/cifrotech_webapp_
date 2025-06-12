@@ -7,13 +7,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.crud import get_vendor_by_url
-from api_service.schemas import ParsingRequest
+from api_service.schemas import ParsingRequest, DetailDependenciesUpdate
 from config import redis_session
 from engine import db
 import importlib
 
 from models import Harvest
-from models.vendor import VendorSearchLine, HarvestLine
+from models.vendor import VendorSearchLine, HarvestLine, DetailDependencies
+from parsing.utils import append_info
 
 parsing_router = APIRouter(tags=['Service-Parsing'])
 
@@ -55,4 +56,35 @@ async def get_previous_results(vsl_id: int, session: AsyncSession = Depends(db.s
                           .order_by(HarvestLine.input_price))
     harvest_line_result = await session.execute(harvest_line_query)
     harvest_lines = harvest_line_result.scalars().all()
-    return {'is_ok': True, 'category': harvest_id.category, 'datestamp': harvest_id.datestamp, 'data': harvest_lines}
+    result = {'is_ok': True, 'category': harvest_id.category, 'datestamp': harvest_id.datestamp}
+    data = {'data': [line.__dict__ for line in harvest_lines]}
+    data = await append_info(session=session, data=data)
+    result.update(data)
+    return result
+
+
+@parsing_router.put("/update_parsing_item/{origin}")
+async def update_parsing_item(
+    origin: str,
+    data: DetailDependenciesUpdate,
+    session: AsyncSession = Depends(db.scoped_session_dependency)
+):
+    stmt   = select(DetailDependencies).where(DetailDependencies.origin == origin)
+    result = await session.execute(stmt)
+    item   = result.scalars().first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Запись с таким origin не найдена")
+    payload = data.model_dump(exclude_unset=True)
+    if not payload:
+        return {"is_ok": False, "message": "Ничего не передано"}
+    updates = dict()
+    for k, v in payload.items():
+        current_value = getattr(item, k, None)
+        if current_value != v:
+            updates[k] = v
+    if not updates:
+        return {"is_ok": False, "message": "Нет изменений"}
+    for k, v in updates.items():
+        setattr(item, k, v)
+    await session.commit()
+    return {"is_ok": True, "updated_fields": list(updates.keys())}
