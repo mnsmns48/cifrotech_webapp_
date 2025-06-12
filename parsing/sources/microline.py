@@ -7,18 +7,18 @@ from playwright_stealth import stealth_async
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api_service.crud import delete_harvest_strings_by_vsl_id, get_range_rewards, store_harvest, store_harvest_line
+from api_service.crud import get_range_rewards, store_harvest, store_harvest_line
 from api_service.schemas import ParsingRequest
 from config import BROWSER_HEADERS, BASE_DIR
 from models import Vendor
 from parsing.browser import create_browser, open_page
-from parsing.utils import cost_value_update, append_info
+from parsing.utils import cost_value_update
 
 this_file_name = os.path.basename(__file__).rsplit('.', 1)[0]
 cookie_file = f"{BASE_DIR}/parsing/sources/{this_file_name}.json"
 
 
-class FetchParse:
+class BaseParser:
     def __init__(self,
                  redis: Redis,
                  data: ParsingRequest,
@@ -116,7 +116,7 @@ class FetchParse:
             if code_block := line.find("span", class_="ty-price-num", id=lambda x: x and "sec_discounted_price" in x):
                 data_item["input_price"] = float(code_block.get_text().replace("\xa0", "")) or 0
             if code_block := line.find("div", class_="swiper-wrapper"):
-                data_item["pics"] = await FetchParse.extract_pic(code_block)
+                data_item["pics"] = await BaseParser.extract_pic(code_block)
                 data_item["preview"] = code_block.find('a').get('href')
             if (code_block := line.find("div", class_="code")) and (sub_div := code_block.find_next_sibling("div")):
                 data_item["optional"] = sub_div.get_text().strip() or ''
@@ -180,17 +180,3 @@ class FetchParse:
                 self.pages = new_pages
                 await self.redis.publish(self.data.progress, f"data: COUNT={len(self.pages) + 5}")
         return {'category': category, 'datestamp': datetime.now(), 'data': result}
-
-
-async def parsing_logic(redis: Redis, data: ParsingRequest, vendor: Vendor, session: AsyncSession) -> dict:
-    pars_obj = FetchParse(redis, data, vendor, session)
-    await pars_obj.run()
-    try:
-        await delete_harvest_strings_by_vsl_id(session=session, vsl_id=data.vsl_id)
-        collected_data: dict = await pars_obj.process()
-    finally:
-        await pars_obj.browser.close()
-        await pars_obj.playwright.stop()
-    if len(collected_data['data']) > 0:
-        await append_info(session=session, data=collected_data)
-    return collected_data

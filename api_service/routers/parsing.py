@@ -1,7 +1,4 @@
 import asyncio
-from datetime import datetime
-
-import pytz
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,10 +7,10 @@ from api_service.crud import get_vendor_by_url
 from api_service.schemas import ParsingRequest, DetailDependenciesUpdate
 from config import redis_session
 from engine import db
-import importlib
 
 from models import Harvest
 from models.vendor import VendorSearchLine, HarvestLine, DetailDependencies
+from parsing.logic import parsing_core
 from parsing.utils import append_info
 
 parsing_router = APIRouter(tags=['Service-Parsing'])
@@ -26,9 +23,7 @@ async def go_parsing(data: ParsingRequest,
     pubsub_obj = redis.pubsub()
     vendor = await get_vendor_by_url(session=session, url=data.vsl_url)
     try:
-        module = importlib.import_module(f"parsing.sources.{vendor.function}")
-        func = getattr(module, "parsing_logic")
-        parsing_data: dict = await func(redis, data, vendor, session)
+        parsing_data: dict = await parsing_core(redis, data, vendor, session, vendor.function)
         if len(parsing_data.get('data')) > 0:
             parsing_data.update({'is_ok': True})
     finally:
@@ -64,27 +59,24 @@ async def get_previous_results(vsl_id: int, session: AsyncSession = Depends(db.s
 
 
 @parsing_router.put("/update_parsing_item/{origin}")
-async def update_parsing_item(
-    origin: str,
-    data: DetailDependenciesUpdate,
-    session: AsyncSession = Depends(db.scoped_session_dependency)
-):
-    stmt   = select(DetailDependencies).where(DetailDependencies.origin == origin)
+async def update_parsing_item(origin: str, data: DetailDependenciesUpdate,
+                              session: AsyncSession = Depends(db.scoped_session_dependency)):
+    stmt = select(DetailDependencies).where(DetailDependencies.origin == origin)
     result = await session.execute(stmt)
-    item   = result.scalars().first()
+    item = result.scalars().first()
     if not item:
         raise HTTPException(status_code=404, detail="Запись с таким origin не найдена")
     payload = data.model_dump(exclude_unset=True)
     if not payload:
-        return {"is_ok": False, "message": "Ничего не передано"}
+        return "Данные для изменения не переданы"
     updates = dict()
     for k, v in payload.items():
         current_value = getattr(item, k, None)
         if current_value != v:
             updates[k] = v
     if not updates:
-        return {"is_ok": False, "message": "Нет изменений"}
+        return "Нет изменений"
     for k, v in updates.items():
         setattr(item, k, v)
     await session.commit()
-    return {"is_ok": True, "updated_fields": list(updates.keys())}
+    return {"Изменены поля записи": list(updates.keys())}
