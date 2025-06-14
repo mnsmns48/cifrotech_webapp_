@@ -69,11 +69,7 @@ async def update_parsing_item(origin: str, data: DetailDependenciesUpdate,
     payload = data.model_dump(exclude_unset=True)
     if not payload:
         return "Данные для изменения не переданы"
-    updates = dict()
-    for k, v in payload.items():
-        current_value = getattr(item, k, None)
-        if current_value != v:
-            updates[k] = v
+    updates = {k: v for k, v in payload.items() if getattr(item, k, None) != v or v is None}
     if not updates:
         return "Нет изменений"
     for k, v in updates.items():

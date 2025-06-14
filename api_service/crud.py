@@ -59,7 +59,13 @@ async def get_info_by_origins(session: AsyncSession, origins: list[str]) -> dict
     query = select(DetailDependencies).where(DetailDependencies.origin.in_(origins))
     result = await session.execute(query)
     details = result.scalars().all()
-    return {detail.origin: detail.info for detail in details}
+    return {
+        detail.origin: {
+            "title": detail.title,
+            "info": detail.info
+        }
+        for detail in details
+    }
 
 
 async def store_detail_dependencies(session: AsyncSession, data: dict):

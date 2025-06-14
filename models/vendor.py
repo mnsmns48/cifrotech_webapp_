@@ -35,7 +35,7 @@ class DetailDependencies(Base):
     __tablename__ = "detail_dependencies"
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
     origin: Mapped[str] = mapped_column(unique=True, nullable=False)
-    new_title: Mapped[str] = mapped_column(nullable=True)
+    title: Mapped[str] = mapped_column(nullable=True)
     info: Mapped[dict | None] = mapped_column(type_=JSON)
 
 

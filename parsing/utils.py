@@ -32,13 +32,14 @@ async def append_info(session: AsyncSession, data: dict) -> dict:
     async with ClientSession() as aio_session:
         for line in data['data']:
             if line['origin'] in cashed.keys():
-                line['info'] = cashed.get(line['origin'])
+                line['info'] = cashed.get(line['origin']).get('info')
+                line['title'] = cashed.get(line['origin']).get('title')
             else:
                 result = await get_one_by_dtube(session=aio_session, title=line['title'])
                 if result:
                     data_to_store = {
                         'origin': line['origin'],
-                        'new_title': line['title']
+                        'title': line['title']
                     }
                     if 'result' in result.keys():
                         line['info'] = result['result']

@@ -134,8 +134,8 @@ class BaseParser:
             return pages
         for li in pagination.find_all('li'):
             link = li.find('a')
-            if link and link.getText().strip() not in ["Предыдущая", "Следующая"] and "active" not in li.get("class",
-                                                                                                             []):
+            if (link and link.getText().strip() not in
+                    ["Предыдущая", "Следующая"] and "active" not in li.get("class", [])):
                 pages.append(li)
         return pages
 

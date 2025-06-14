@@ -84,7 +84,7 @@ class RewardRangeSchema(BaseModel):
 
 
 class DetailDependenciesUpdate(BaseModel):
-    new_title: Optional[str] = None
+    title: Optional[str] = None
     info: Optional[Dict[str, Any]] = None
 
     class Config:
