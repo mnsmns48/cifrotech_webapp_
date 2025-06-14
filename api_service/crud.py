@@ -55,7 +55,7 @@ async def get_range_rewards(session: AsyncSession, range_id: int = None) -> Sequ
     return result.all()
 
 
-async def get_info_by_origins(session: AsyncSession, origins: list[str]) -> dict:
+async def get_info_by_detail_dependencies(session: AsyncSession, origins: list[str]) -> dict:
     query = select(DetailDependencies).where(DetailDependencies.origin.in_(origins))
     result = await session.execute(query)
     details = result.scalars().all()
