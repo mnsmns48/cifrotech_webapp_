@@ -31,14 +31,6 @@ class HarvestLine(Base):
     harvest: Mapped["Harvest"] = relationship("Harvest", back_populates="harvest_lines")
 
 
-class DetailDependencies(Base):
-    __tablename__ = "detail_dependencies"
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
-    origin: Mapped[str] = mapped_column(unique=True, nullable=False)
-    title: Mapped[str] = mapped_column(nullable=True)
-    info: Mapped[dict | None] = mapped_column(type_=JSON)
-
-
 class Vendor(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
     name: Mapped[str] = mapped_column(nullable=False, primary_key=False)
