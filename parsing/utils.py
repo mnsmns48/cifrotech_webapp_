@@ -40,15 +40,13 @@ async def append_info(session: AsyncSession, data: dict):
             return
         cached = cashed.get(origin)
         if cached:
-            line["info"] = cached["info"]
             line["title"] = cached["title"]
+            line["info"] = cached["info"]
             return
         result = await get_one_by_dtube(session=aio, title=line["title"])
         if not result:
             brand_resp = await get_items_by_brand(session=aio, title=line["title"])
-            result = brand_resp.get("result") if brand_resp else {}
-        if 'result' in result.keys():
-            line["info"] = result
+            line["info"] = {'result': brand_resp}
         else:
             line["info"] = {'result': result}
         to_store = {
