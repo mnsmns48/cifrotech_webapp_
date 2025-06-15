@@ -4,14 +4,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.crud import get_vendor_by_url
-from api_service.schemas import ParsingRequest, DetailDependenciesUpdate
+from api_service.schemas import ParsingRequest
 from config import redis_session
 from engine import db
 
-from models import Harvest
-from models.vendor import VendorSearchLine, HarvestLine, DetailDependencies
+from models import Harvest, HarvestLine
+from models.vendor import VendorSearchLine
 from parsing.logic import parsing_core
-from parsing.utils import append_info
+
 
 parsing_router = APIRouter(tags=['Service-Parsing'])
 
@@ -58,21 +58,21 @@ async def get_previous_results(vsl_id: int, session: AsyncSession = Depends(db.s
     return result
 
 
-@parsing_router.put("/update_parsing_item/{origin}")
-async def update_parsing_item(origin: str, data: DetailDependenciesUpdate,
-                              session: AsyncSession = Depends(db.scoped_session_dependency)):
-    stmt = select(DetailDependencies).where(DetailDependencies.origin == origin)
-    result = await session.execute(stmt)
-    item = result.scalars().first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Запись с таким origin не найдена")
-    payload = data.model_dump(exclude_unset=True)
-    if not payload:
-        return "Данные для изменения не переданы"
-    updates = {k: v for k, v in payload.items() if getattr(item, k, None) != v or v is None}
-    if not updates:
-        return "Нет изменений"
-    for k, v in updates.items():
-        setattr(item, k, v)
-    await session.commit()
-    return {"Изменены поля записи": list(updates.keys())}
+# @parsing_router.put("/update_parsing_item/{origin}")
+# async def update_parsing_item(origin: str, data: DetailDependenciesUpdate,
+#                               session: AsyncSession = Depends(db.scoped_session_dependency)):
+#     stmt = select(DetailDependencies).where(DetailDependencies.origin == origin)
+#     result = await session.execute(stmt)
+#     item = result.scalars().first()
+#     if not item:
+#         raise HTTPException(status_code=404, detail="Запись с таким origin не найдена")
+#     payload = data.model_dump(exclude_unset=True)
+#     if not payload:
+#         return "Данные для изменения не переданы"
+#     updates = {k: v for k, v in payload.items() if getattr(item, k, None) != v or v is None}
+#     if not updates:
+#         return "Нет изменений"
+#     for k, v in updates.items():
+#         setattr(item, k, v)
+#     await session.commit()
+#     return {"Изменены поля записи": list(updates.keys())}

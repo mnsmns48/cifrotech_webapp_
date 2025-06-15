@@ -9,7 +9,7 @@ from api_service.crud import delete_harvest_strings_by_vsl_id
 from api_service.schemas import ParsingRequest
 from config import BASE_DIR
 from models import Vendor
-from parsing.utils import append_info
+
 
 
 async def parsing_core(redis: Redis,
@@ -22,8 +22,8 @@ async def parsing_core(redis: Redis,
         raise FileNotFoundError(f"Функция {module_path} не найдена")
     module_name = f"parsing.sources.{function_name}"
     module = importlib.import_module(module_name)
-    BaseParser = getattr(module, "BaseParser")
-    pars_obj = BaseParser(redis, data, vendor, session)
+    parser_class = getattr(module, "BaseParser")
+    pars_obj = parser_class(redis, data, vendor, session)
     await pars_obj.run()
     try:
         await delete_harvest_strings_by_vsl_id(session=session, vsl_id=data.vsl_id)
@@ -31,6 +31,6 @@ async def parsing_core(redis: Redis,
     finally:
         await pars_obj.browser.close()
         await pars_obj.playwright.stop()
-    if len(collected_data['data']) > 0:
-        await append_info(session=session, data=collected_data)
+    # if len(collected_data['data']) > 0:
+    #     await append_info(session=session, data=collected_data)
     return collected_data

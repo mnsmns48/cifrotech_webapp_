@@ -1,4 +1,7 @@
 import asyncio
+import re
+from typing import Optional
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -17,3 +20,11 @@ async def event_stream(coroutine_funcs: list):
             result = await coro_fn(*args)
             yield f"data: {result.get('msg')}\n\n"
     yield "data: END\n\n"
+
+
+def normalize_origin(raw_number: str | int) -> Optional[int]:
+    only_digits = re.compile(r"\D+")
+    if isinstance(raw_number, int):
+        return raw_number
+    parsed = only_digits.sub("", raw_number)
+    return int(parsed) if parsed else None

@@ -11,3 +11,4 @@ def responses(response: str, is_ok: bool, message: str = '') -> dict:
             'is_ok': is_ok,
             'msg': message,
             'soup': BeautifulSoup(markup=response, features='lxml')}
+

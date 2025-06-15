@@ -2,7 +2,7 @@ import logging
 from typing import List, Optional, Dict, Any
 
 from fastapi import Form
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, confloat, HttpUrl, conint
 
 logging.getLogger("python_multipart.multipart").setLevel(logging.WARNING)
 
@@ -83,9 +83,17 @@ class RewardRangeSchema(BaseModel):
     title: str
 
 
-class DetailDependenciesUpdate(BaseModel):
-    title: Optional[str] = None
-    info: Optional[Dict[str, Any]] = None
+class HarvestLineIn(BaseModel):
+    origin: conint(ge=0)
+    title: str
+    link: Optional[str] = None
+    shipment: Optional[str] = None
+    warranty: Optional[str] = None
+    input_price: Optional[confloat(ge=0)] = None
+    output_price: Optional[confloat(ge=0)] = None
+    pics: Optional[List[str]] = None
+    preview: Optional[str] = None
+    optional: Optional[str] = None
+    harvest_id: conint(ge=1)
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True, "extra": "ignore"}

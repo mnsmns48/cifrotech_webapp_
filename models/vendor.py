@@ -1,34 +1,13 @@
-from sqlalchemy import ForeignKey, String, DateTime, func, JSON
-from sqlalchemy.dialects.postgresql import ARRAY
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+from sqlalchemy import ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.base import Base
 
-
-class Harvest(Base):
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
-    vendor_search_line_id: Mapped[int] = mapped_column(ForeignKey("vendor_search_line.id"), nullable=False)
-    datestamp: Mapped[DateTime] = mapped_column(DateTime(timezone=True), default=func.now())
-    category: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=True)
-    vendor_search_line: Mapped["VendorSearchLine"] = relationship("VendorSearchLine", back_populates="harvests")
-    harvest_lines: Mapped[list["HarvestLine"]] = relationship("HarvestLine", back_populates="harvest",
-                                                              cascade="all, delete")
-
-
-class HarvestLine(Base):
-    __tablename__ = "harvest_line"
-    harvest_id: Mapped[int] = mapped_column(ForeignKey("harvest.id", ondelete="CASCADE"), nullable=False)
-    origin: Mapped[str] = mapped_column(primary_key=True, unique=True, nullable=False)
-    title: Mapped[str] = mapped_column(nullable=False)
-    link: Mapped[str] = mapped_column(nullable=True)
-    shipment: Mapped[str] = mapped_column(nullable=True)
-    warranty: Mapped[str] = mapped_column(nullable=True)
-    input_price: Mapped[float] = mapped_column(nullable=True)
-    output_price: Mapped[float] = mapped_column(nullable=True)
-    pics: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=True)
-    preview: Mapped[str] = mapped_column(nullable=True)
-    optional: Mapped[str] = mapped_column(nullable=True)
-    harvest: Mapped["Harvest"] = relationship("Harvest", back_populates="harvest_lines")
+if TYPE_CHECKING:
+    from .harvest import Harvest
 
 
 class Vendor(Base):

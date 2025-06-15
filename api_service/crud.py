@@ -4,8 +4,11 @@ from sqlalchemy import select, delete, Row
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import Vendor
-from models.vendor import VendorSearchLine, Harvest, RewardRangeLine, RewardRange, HarvestLine, DetailDependencies
+from api_service.schemas import HarvestLineIn
+from api_service.utils import normalize_origin
+from models import Vendor, Harvest, HarvestLine, ProductOrigin
+from models.vendor import VendorSearchLine, RewardRangeLine, RewardRange
+
 
 
 async def get_vendor_by_url(url: str, session: AsyncSession):
@@ -24,9 +27,37 @@ async def store_harvest(data: dict, session: AsyncSession) -> int:
     return harvest_id
 
 
-async def store_harvest_line(data: list, session: AsyncSession):
-    stmt = insert(HarvestLine).values(data).on_conflict_do_nothing()
-    await session.execute(stmt)
+async def store_harvest_line(items: Sequence[HarvestLineIn], session: AsyncSession):
+    if not items:
+        return
+    product_origin_value, harvest_line_value = list(), list()
+    for line in items:
+        origin = normalize_origin(line.origin)
+        if not origin:
+            continue
+        product_origin_value.append(
+            {"origin": origin,
+             "title": line.title,
+             "link": line.link,
+             "pics": line.pics,
+             "preview": line.preview,
+             "is_deleted": False}
+        )
+        harvest_line_value.append(
+            {"harvest_id": line.harvest_id,
+             "origin": origin,
+             "shipment": line.shipment,
+             "warranty": line.warranty,
+             "input_price": line.input_price,
+             "output_price": line.output_price,
+             "optional": line.optional}
+        )
+    stmt_product_origin = insert(ProductOrigin).values(product_origin_value).on_conflict_do_nothing(
+        index_elements=["origin"])
+    stmt_harvest_line = insert(HarvestLine).values(harvest_line_value).on_conflict_do_nothing(
+        index_elements=["harvest_id", "origin"])
+    await session.execute(stmt_product_origin)
+    await session.execute(stmt_harvest_line)
     await session.commit()
 
 
@@ -55,20 +86,20 @@ async def get_range_rewards(session: AsyncSession, range_id: int = None) -> Sequ
     return result.all()
 
 
-async def get_info_by_detail_dependencies(session: AsyncSession, origins: list[str]) -> dict:
-    query = select(DetailDependencies).where(DetailDependencies.origin.in_(origins))
-    result = await session.execute(query)
-    details = result.scalars().all()
-    return {
-        detail.origin: {
-            "title": detail.title,
-            "info": detail.info
-        }
-        for detail in details
-    }
-
-
-async def store_detail_dependencies(session: AsyncSession, data: dict):
-    stmt = insert(DetailDependencies).values(**data)
-    await session.execute(stmt)
-    await session.commit()
+# async def get_info_by_detail_dependencies(session: AsyncSession, origins: list[str]) -> dict:
+#     query = select(DetailDependencies).where(DetailDependencies.origin.in_(origins))
+#     result = await session.execute(query)
+#     details = result.scalars().all()
+#     return {
+#         detail.origin: {
+#             "title": detail.title,
+#             "info": detail.info
+#         }
+#         for detail in details
+#     }
+#
+#
+# async def store_detail_dependencies(session: AsyncSession, data: dict):
+#     stmt = insert(DetailDependencies).values(**data)
+#     await session.execute(stmt)
+#     await session.commit()

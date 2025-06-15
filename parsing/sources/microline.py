@@ -8,7 +8,7 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.crud import get_range_rewards, store_harvest, store_harvest_line
-from api_service.schemas import ParsingRequest
+from api_service.schemas import ParsingRequest, HarvestLineIn
 from config import BROWSER_HEADERS, BASE_DIR
 from models import Vendor
 from parsing.browser import create_browser, open_page
@@ -98,7 +98,7 @@ class BaseParser:
 
     @staticmethod
     async def store_results(soup: BeautifulSoup, session: AsyncSession, harvest_id: int) -> list:
-        result = list()
+        parsing_lines_result = list()
         content_list = soup.find_all("div", class_="ty-product-block ty-compact-list__content")
         for line in content_list:
             keys = ["origin", "title", "link", "shipment", "warranty", "input_price", "pics", "preview", "optional",
@@ -121,10 +121,12 @@ class BaseParser:
             if (code_block := line.find("div", class_="code")) and (sub_div := code_block.find_next_sibling("div")):
                 data_item["optional"] = sub_div.get_text().strip() or ''
             data_item["harvest_id"] = harvest_id
-            result.append(data_item)
+            parsing_lines_result.append(data_item)
         ranges = await get_range_rewards(session=session)
-        await store_harvest_line(session=session, data=cost_value_update(result, list(ranges)))
-        return result
+        raw_items = cost_value_update(parsing_lines_result, list(ranges))
+        items = [HarvestLineIn.model_validate(d) for d in raw_items]
+        await store_harvest_line(session=session, items=items)
+        return parsing_lines_result
 
     @staticmethod
     def actual_pagination(soup: BeautifulSoup) -> list:
