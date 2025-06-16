@@ -1,14 +1,15 @@
 from typing import Tuple, Sequence
 
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy import select, delete, Row
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.schemas import HarvestLineIn
 from api_service.utils import normalize_origin
-from models import Vendor, Harvest, HarvestLine, ProductOrigin
+from models import Vendor, Harvest, HarvestLine, ProductOrigin, ProductType, ProductBrand, ProductFeaturesGlobal, \
+    ProductFeaturesLink
 from models.vendor import VendorSearchLine, RewardRangeLine, RewardRange
-
 
 
 async def get_vendor_by_url(url: str, session: AsyncSession):
@@ -103,3 +104,44 @@ async def get_range_rewards(session: AsyncSession, range_id: int = None) -> Sequ
 #     stmt = insert(DetailDependencies).values(**data)
 #     await session.execute(stmt)
 #     await session.commit()
+
+
+async def store_one_item(session: AsyncSession, origin: int, data: dict):
+    stmt_type = select(ProductType).where(ProductType.type == data["product_type"])
+    product_type = (await session.execute(stmt_type)).scalar()
+
+    if not product_type:
+        stmt_type_insert = (insert(ProductType).values(type=data["product_type"]).on_conflict_do_nothing(index_elements=["type"]))
+        await session.execute(stmt_type_insert)
+        product_type = (await session.execute(stmt_type)).scalar()
+
+    stmt_brand = select(ProductBrand).where(ProductBrand.brand == data["brand"])
+    product_brand = (await session.execute(stmt_brand)).scalar()
+
+    if not product_brand:
+        stmt_brand_insert = (insert(ProductBrand).values(brand=data["brand"]).on_conflict_do_nothing(index_elements=["brand"]))
+        await session.execute(stmt_brand_insert)
+        product_brand = (await session.execute(stmt_brand)).scalar()
+
+    stmt_existing_feature = select(ProductFeaturesGlobal.id).where(ProductFeaturesGlobal.title == data["title"])
+    existing_feature_row = await session.execute(stmt_existing_feature)
+    feature_id = existing_feature_row.scalar()
+
+    if not feature_id:
+        stmt_features = (insert(ProductFeaturesGlobal).values(
+            title=data["title"],
+            type_id=product_type.id,
+            brand_id=product_brand.id,
+            info=data["info"],
+            pros_cons=data["pros_cons"]
+        ).on_conflict_do_nothing(index_elements=["title"]).returning(ProductFeaturesGlobal.id))
+
+        feature_row = await session.execute(stmt_features)
+        feature_id = feature_row.scalar()
+
+    if feature_id:
+        stmt_feature_link = (insert(ProductFeaturesLink).values(origin=origin, feature_id=feature_id)
+                             .on_conflict_do_nothing(index_elements=["origin", "feature_id"]))
+        await session.execute(stmt_feature_link)
+
+    await session.flush()

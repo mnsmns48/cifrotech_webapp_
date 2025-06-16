@@ -14,24 +14,25 @@ if TYPE_CHECKING:
 class ProductType(Base):
     __tablename__ = "product_type"
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
-    type: Mapped[str] = mapped_column(nullable=False)
+    type: Mapped[str] = mapped_column(nullable=False, unique=True)
     features: Mapped[list["ProductFeaturesGlobal"]] = relationship(back_populates="type")
 
 
 class ProductBrand(Base):
     __tablename__ = "product_brand"
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
-    brand: Mapped[str] = mapped_column(nullable=False)
+    brand: Mapped[str] = mapped_column(nullable=False, unique=True)
     features: Mapped[list["ProductFeaturesGlobal"]] = relationship(back_populates="brand")
 
 
 class ProductFeaturesGlobal(Base):
     __tablename__ = "product_features_global"
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
-    title: Mapped[str] = mapped_column(nullable=False)
+    title: Mapped[str] = mapped_column(nullable=False, unique=True)
     type_id: Mapped[int] = mapped_column(ForeignKey("product_type.id"), nullable=False)
     brand_id: Mapped[int] = mapped_column(ForeignKey("product_brand.id"), nullable=False)
     info: Mapped[dict | None] = mapped_column(JSONB)
+    pros_cons: Mapped[dict | None] = mapped_column(JSONB)
     type: Mapped["ProductType"] = relationship(back_populates="features")
     brand: Mapped["ProductBrand"] = relationship(back_populates="features")
 

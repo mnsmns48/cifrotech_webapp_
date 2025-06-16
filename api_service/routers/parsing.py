@@ -1,5 +1,6 @@
 import asyncio
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,10 +9,9 @@ from api_service.schemas import ParsingRequest
 from config import redis_session
 from engine import db
 
-from models import Harvest, HarvestLine
+from models import Harvest, HarvestLine, ProductOrigin
 from models.vendor import VendorSearchLine
-from parsing.logic import parsing_core
-
+from parsing.logic import parsing_core, append_info
 
 parsing_router = APIRouter(tags=['Service-Parsing'])
 
@@ -47,32 +47,20 @@ async def get_previous_results(vsl_id: int, session: AsyncSession = Depends(db.s
     if not harvest_id:
         return {"response": "not found", "is_ok": False,
                 "message": "Предыдущих результатов нет, соберите данные заново"}
-    harvest_line_query = (select(HarvestLine).where(HarvestLine.harvest_id == harvest_id.id)
-                          .order_by(HarvestLine.input_price))
+    harvest_line_query = (
+        select(HarvestLine, ProductOrigin)
+        .join(ProductOrigin, HarvestLine.origin == ProductOrigin.origin)
+        .where(HarvestLine.harvest_id == harvest_id.id)
+        .order_by(HarvestLine.input_price)
+    )
     harvest_line_result = await session.execute(harvest_line_query)
-    harvest_lines = harvest_line_result.scalars().all()
+    harvest_lines = harvest_line_result.all()
     result = {'is_ok': True, 'category': harvest_id.category, 'datestamp': harvest_id.datestamp}
-    data = {'data': [line.__dict__ for line in harvest_lines]}
-    data = await append_info(session=session, data=data)
-    result.update(data)
+    joined_data = list()
+    for harvest_line, product_origin in harvest_lines:
+        combined_dict = jsonable_encoder(harvest_line)
+        combined_dict.update(jsonable_encoder(product_origin))
+        joined_data.append(combined_dict)
+    result['data'] = await append_info(session=session, data={'data': joined_data})
     return result
 
-
-# @parsing_router.put("/update_parsing_item/{origin}")
-# async def update_parsing_item(origin: str, data: DetailDependenciesUpdate,
-#                               session: AsyncSession = Depends(db.scoped_session_dependency)):
-#     stmt = select(DetailDependencies).where(DetailDependencies.origin == origin)
-#     result = await session.execute(stmt)
-#     item = result.scalars().first()
-#     if not item:
-#         raise HTTPException(status_code=404, detail="Запись с таким origin не найдена")
-#     payload = data.model_dump(exclude_unset=True)
-#     if not payload:
-#         return "Данные для изменения не переданы"
-#     updates = {k: v for k, v in payload.items() if getattr(item, k, None) != v or v is None}
-#     if not updates:
-#         return "Нет изменений"
-#     for k, v in updates.items():
-#         setattr(item, k, v)
-#     await session.commit()
-#     return {"Изменены поля записи": list(updates.keys())}

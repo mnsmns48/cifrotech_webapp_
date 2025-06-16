@@ -1,11 +1,4 @@
-import asyncio
 import math
-
-from aiohttp import ClientSession
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from api_service.api_req import get_one_by_dtube, get_items_by_brand
-
 
 
 def cost_process(n, reward_ranges):
@@ -27,33 +20,22 @@ def cost_value_update(items: list[dict], ranges: list) -> list:
     return items
 
 
-# async def append_info(session: AsyncSession, data: dict):
-#     lines: list[dict] = data["data"]
-#     origins: list[str] = [line["origin"] for line in lines]
-#     cashed: dict[str, dict] = await get_info_by_detail_dependencies(session, origins)
-#
-#     async def process_line(line: dict, aio: ClientSession):
-#         origin = line.get("origin")
-#         if not origin:
-#             return
-#         cached = cashed.get(origin)
-#         if cached:
-#             line["title"] = cached["title"]
-#             line["info"] = cached["info"]
-#             return
-#         result = await get_one_by_dtube(session=aio, title=line["title"])
-#         if not result:
-#             brand_resp = await get_items_by_brand(session=aio, title=line["title"])
-#             line["info"] = {'result': brand_resp}
-#         else:
-#             line["info"] = {'result': result}
-#         to_store = {
-#             "origin": origin,
-#             "title": line["title"],
-#             "info": line["info"],
-#         }
-#         await store_detail_dependencies(session=session, data=to_store)
-#
-#     async with ClientSession() as client_session:
-#         await asyncio.gather(*(process_line(line, client_session) for line in lines))
-#     return data
+
+# @parsing_router.put("/update_parsing_item/{origin}")
+# async def update_parsing_item(origin: str, data: DetailDependenciesUpdate,
+#                               session: AsyncSession = Depends(db.scoped_session_dependency)):
+#     stmt = select(DetailDependencies).where(DetailDependencies.origin == origin)
+#     result = await session.execute(stmt)
+#     item = result.scalars().first()
+#     if not item:
+#         raise HTTPException(status_code=404, detail="Запись с таким origin не найдена")
+#     payload = data.model_dump(exclude_unset=True)
+#     if not payload:
+#         return "Данные для изменения не переданы"
+#     updates = {k: v for k, v in payload.items() if getattr(item, k, None) != v or v is None}
+#     if not updates:
+#         return "Нет изменений"
+#     for k, v in updates.items():
+#         setattr(item, k, v)
+#     await session.commit()
+#     return {"Изменены поля записи": list(updates.keys())}
