@@ -1,7 +1,7 @@
-from typing import Tuple, Sequence
+from collections import defaultdict
+from typing import Sequence
 
-from fastapi.encoders import jsonable_encoder
-from sqlalchemy import select, delete, Row
+from sqlalchemy import select, Row
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -87,31 +87,24 @@ async def get_range_rewards(session: AsyncSession, range_id: int = None) -> Sequ
     return result.all()
 
 
-# async def get_info_by_detail_dependencies(session: AsyncSession, origins: list[str]) -> dict:
-#     query = select(DetailDependencies).where(DetailDependencies.origin.in_(origins))
-#     result = await session.execute(query)
-#     details = result.scalars().all()
-#     return {
-#         detail.origin: {
-#             "title": detail.title,
-#             "info": detail.info
-#         }
-#         for detail in details
-#     }
-#
-#
-# async def store_detail_dependencies(session: AsyncSession, data: dict):
-#     stmt = insert(DetailDependencies).values(**data)
-#     await session.execute(stmt)
-#     await session.commit()
+async def get_info_by_caching(session: AsyncSession, origins: list[int]) -> dict:
+    stmt = (select(ProductFeaturesLink.origin, ProductFeaturesGlobal.title)
+            .join(ProductFeaturesGlobal, ProductFeaturesLink.feature_id == ProductFeaturesGlobal.id)
+            .where(ProductFeaturesLink.origin.in_(origins)))
+    rows = (await session.execute(stmt)).all()
+    result = defaultdict(list)
+    for origin, title in rows:
+        result[origin].append(title)
+    return dict(result)
 
 
-async def store_one_item(session: AsyncSession, origin: int, data: dict):
+async def store_one_item(session: AsyncSession, data: dict):
     stmt_type = select(ProductType).where(ProductType.type == data["product_type"])
     product_type = (await session.execute(stmt_type)).scalar()
 
     if not product_type:
-        stmt_type_insert = (insert(ProductType).values(type=data["product_type"]).on_conflict_do_nothing(index_elements=["type"]))
+        stmt_type_insert = (
+            insert(ProductType).values(type=data["product_type"]).on_conflict_do_nothing(index_elements=["type"]))
         await session.execute(stmt_type_insert)
         product_type = (await session.execute(stmt_type)).scalar()
 
@@ -119,7 +112,8 @@ async def store_one_item(session: AsyncSession, origin: int, data: dict):
     product_brand = (await session.execute(stmt_brand)).scalar()
 
     if not product_brand:
-        stmt_brand_insert = (insert(ProductBrand).values(brand=data["brand"]).on_conflict_do_nothing(index_elements=["brand"]))
+        stmt_brand_insert = (
+            insert(ProductBrand).values(brand=data["brand"]).on_conflict_do_nothing(index_elements=["brand"]))
         await session.execute(stmt_brand_insert)
         product_brand = (await session.execute(stmt_brand)).scalar()
 
@@ -139,9 +133,12 @@ async def store_one_item(session: AsyncSession, origin: int, data: dict):
         feature_row = await session.execute(stmt_features)
         feature_id = feature_row.scalar()
 
-    if feature_id:
-        stmt_feature_link = (insert(ProductFeaturesLink).values(origin=origin, feature_id=feature_id)
-                             .on_conflict_do_nothing(index_elements=["origin", "feature_id"]))
-        await session.execute(stmt_feature_link)
+    await session.commit()
+    return feature_id
 
-    await session.flush()
+
+async def add_dependencies_link(session: AsyncSession, origin: int, feature_id: int):
+    stmt_feature_link = (insert(ProductFeaturesLink).values(origin=origin, feature_id=feature_id)
+                         .on_conflict_do_nothing(index_elements=["origin", "feature_id"]))
+    await session.execute(stmt_feature_link)
+    await session.commit()
