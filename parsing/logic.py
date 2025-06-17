@@ -6,6 +6,7 @@ from pathlib import Path
 from aiohttp import ClientSession
 from pyexpat import features
 from redis.asyncio import Redis
+from sqlalchemy import delete
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -55,10 +56,21 @@ async def parsing_core(redis: Redis,
 #     return titles
 
 
-async def append_info(session: AsyncSession, data_lines: list):
+async def append_info(session: AsyncSession, data_lines: list, is_again: bool = False):
     async with ClientSession() as client_session:
         origins = [normalize_origin(item.get("origin")) for item in data_lines]
         cached: dict[int, list[str]] = await get_info_by_caching(session, origins)
+        if is_again:
+            origins_to_delete = list()
+            for origin, lst in cached.items():
+                if len(lst) > 1:
+                    origins_to_delete.append(origin)
+            for origin in origins_to_delete:
+                cached.pop(origin, None)
+            if origins_to_delete:
+                stmt = delete(ProductFeaturesLink).where(ProductFeaturesLink.origin.in_(origins_to_delete))
+                await session.execute(stmt)
+                await session.commit()
         missing_elements = set(origins) - set(cached.keys())
         if missing_elements:
             for line in data_lines:
@@ -70,15 +82,18 @@ async def append_info(session: AsyncSession, data_lines: list):
                     if one_item:
                         feature_id = await store_one_item(session=session, data=one_item)
                         await add_dependencies_link(session=session, origin=origin, feature_id=feature_id)
-                        cached[origin] = [feature_id]
+                        cached[origin] = [one_item['title']]
                     else:
                         all_brand_items = await get_items_by_brand(session=client_session, title=line['title'])
-                        feature_ids = list()
-                        for line_item in all_brand_items:
-                            feature_id = await store_one_item(session=session, data=line_item)
-                            await add_dependencies_link(session=session, origin=origin, feature_id=feature_id)
-                            feature_ids.append(feature_id)
-                        cached[origin] = [feature_id]
+                        if all_brand_items:
+                            feature_ids = list()
+                            for line_item in all_brand_items:
+                                feature_id = await store_one_item(session=session, data=line_item)
+                                await add_dependencies_link(session=session, origin=origin, feature_id=feature_id)
+                                feature_ids.append(line_item['title'])
+                            cached[origin] = feature_ids
+                        else:
+                            cached[origin] = []
         if len(cached.keys()) == len(origins):
             for line in data_lines:
                 origin = normalize_origin(line.get("origin"))

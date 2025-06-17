@@ -61,5 +61,5 @@ async def get_previous_results(vsl_id: int, session: AsyncSession = Depends(db.s
         combined_dict = jsonable_encoder(harvest_line)
         combined_dict.update(jsonable_encoder(product_origin))
         joined_data.append(combined_dict)
-    result['data'] = await append_info(session=session, data_lines=joined_data)
+    result['data'] = await append_info(session=session, data_lines=joined_data, is_again=True)
     return result
