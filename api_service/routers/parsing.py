@@ -1,9 +1,12 @@
 import asyncio
+
+from aiohttp import ClientSession
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import select, and_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api_service.api_req import get_items_by_brand
 from api_service.crud import get_vendor_by_url
 from api_service.schemas import ParsingRequest, ProductOriginUpdate
 from config import redis_session
@@ -36,7 +39,8 @@ async def go_parsing(data: ParsingRequest,
 
 
 @parsing_router.get("/previous_parsing_results/{vsl_id}")
-async def get_previous_results(vsl_id: int, redis=Depends(redis_session), session: AsyncSession = Depends(db.scoped_session_dependency)):
+async def get_previous_results(vsl_id: int, redis=Depends(redis_session),
+                               session: AsyncSession = Depends(db.scoped_session_dependency)):
     vsl_exists_query = select(VendorSearchLine).where(VendorSearchLine.id == vsl_id)
     vsl_exists_result = await session.execute(vsl_exists_query)
     if not vsl_exists_result.scalars().first():
@@ -95,3 +99,18 @@ async def delete_parsing_items(origins: list[int], session: AsyncSession = Depen
     stmt = update(ProductOrigin).where(ProductOrigin.origin.in_(result)).values(is_deleted=True)
     await session.execute(stmt)
     await session.commit()
+
+
+@parsing_router.get("/update_parsing_item_dependency/{origin}")
+async def update_parsing_item_dependency(origin: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    stmt = select(ProductOrigin.title).where(ProductOrigin.origin == origin)
+    result = await session.execute(stmt)
+    title = result.scalar_one_or_none()
+    if not title:
+        raise HTTPException(status_code=404, detail="origin не найден")
+    async with ClientSession() as client_session:
+        data = await get_items_by_brand(client_session, title)
+    if data is None:
+        raise HTTPException(status_code=502, detail="Нет данных")
+
+    return {"items": data}
