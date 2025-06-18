@@ -13,9 +13,7 @@ from models.vendor import VendorSearchLine, RewardRangeLine, RewardRange
 
 
 async def get_vendor_by_url(url: str, session: AsyncSession):
-    result = await session.execute(select(Vendor)
-                                   .join(Vendor.search_lines)
-                                   .where(VendorSearchLine.url == url))
+    result = await session.execute(select(Vendor).join(Vendor.search_lines).where(VendorSearchLine.url == url))
     vendor = result.scalars().first()
     return vendor
 
@@ -28,38 +26,71 @@ async def store_harvest(data: dict, session: AsyncSession) -> int:
     return harvest_id
 
 
-async def store_harvest_line(items: Sequence[HarvestLineIn], session: AsyncSession):
+async def store_harvest_line(items: Sequence[HarvestLineIn], session: AsyncSession) -> list[dict]:
+    items = [line for line in items if not getattr(line, "is_deleted", False)]
     if not items:
-        return
-    product_origin_value, harvest_line_value = list(), list()
+        return []
+
+    normalized_map: dict[int, HarvestLineIn] = dict()
     for line in items:
         origin = normalize_origin(line.origin)
         if not origin:
             continue
-        product_origin_value.append(
-            {"origin": origin,
-             "title": line.title,
-             "link": line.link,
-             "pics": line.pics,
-             "preview": line.preview,
-             "is_deleted": False}
-        )
-        harvest_line_value.append(
-            {"harvest_id": line.harvest_id,
-             "origin": origin,
-             "shipment": line.shipment,
-             "warranty": line.warranty,
-             "input_price": line.input_price,
-             "output_price": line.output_price,
-             "optional": line.optional}
-        )
-    stmt_product_origin = insert(ProductOrigin).values(product_origin_value).on_conflict_do_nothing(
-        index_elements=["origin"])
-    stmt_harvest_line = insert(HarvestLine).values(harvest_line_value).on_conflict_do_nothing(
-        index_elements=["harvest_id", "origin"])
+        normalized_map[origin] = line
+
+    origins = normalized_map.keys()
+
+    existing_stmt = select(ProductOrigin).where(ProductOrigin.origin.in_(origins))
+    existing_rows = await session.execute(existing_stmt)
+    scalars_result = existing_rows.scalars()
+    existing_map: dict[int, ProductOrigin] = dict()
+
+    for product_line in scalars_result:
+        existing_map[product_line.origin] = product_line
+
+    product_origin_value, harvest_line_value, return_list = list(), list(), list()
+
+    for origin, line in normalized_map.items():
+        db_row = existing_map.get(origin)
+        if db_row and db_row.is_deleted:
+            continue
+        product_origin_value.append({"origin": origin,
+                                     "title": line.title,
+                                     "link": line.link,
+                                     "pics": line.pics,
+                                     "preview": line.preview,
+                                     "is_deleted": False})
+        harvest_line_value.append({"harvest_id": line.harvest_id,
+                                   "origin": origin,
+                                   "shipment": line.shipment,
+                                   "warranty": line.warranty,
+                                   "input_price": line.input_price,
+                                   "output_price": line.output_price,
+                                   "optional": line.optional})
+        if db_row:
+            return_list.append(
+                line.model_copy(update={"title": db_row.title, "is_deleted": db_row.is_deleted})
+            )
+        else:
+            return_list.append(line)
+
+    if not product_origin_value:
+        return [data_obj.model_dump() for data_obj in return_list]
+
+    insert_stmt = insert(ProductOrigin).values(product_origin_value)
+    stmt_product_origin = insert_stmt.on_conflict_do_update(index_elements=["origin"],
+                                                            set_={"link": insert_stmt.excluded.link,
+                                                                  "pics": insert_stmt.excluded.pics,
+                                                                  "preview": insert_stmt.excluded.preview})
+
+    stmt_harvest_line = (insert(HarvestLine).values(harvest_line_value)
+                         .on_conflict_do_nothing(index_elements=["harvest_id", "origin"]))
+
     await session.execute(stmt_product_origin)
     await session.execute(stmt_harvest_line)
     await session.commit()
+
+    return [data_obj.model_dump() for data_obj in return_list]
 
 
 async def delete_harvest_strings_by_vsl_id(session: AsyncSession, vsl_id: int):

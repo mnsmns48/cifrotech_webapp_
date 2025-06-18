@@ -125,7 +125,7 @@ class BaseParser:
         ranges = await get_range_rewards(session=session)
         raw_items = cost_value_update(parsing_lines_result, list(ranges))
         items = [HarvestLineIn.model_validate(d) for d in raw_items]
-        await store_harvest_line(session=session, items=items)
+        parsing_lines_result = await store_harvest_line(session=session, items=items)
         return parsing_lines_result
 
     @staticmethod

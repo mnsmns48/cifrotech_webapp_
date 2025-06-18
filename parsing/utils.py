@@ -21,21 +21,4 @@ def cost_value_update(items: list[dict], ranges: list) -> list:
 
 
 
-# @parsing_router.put("/update_parsing_item/{origin}")
-# async def update_parsing_item(origin: str, data: DetailDependenciesUpdate,
-#                               session: AsyncSession = Depends(db.scoped_session_dependency)):
-#     stmt = select(DetailDependencies).where(DetailDependencies.origin == origin)
-#     result = await session.execute(stmt)
-#     item = result.scalars().first()
-#     if not item:
-#         raise HTTPException(status_code=404, detail="Запись с таким origin не найдена")
-#     payload = data.model_dump(exclude_unset=True)
-#     if not payload:
-#         return "Данные для изменения не переданы"
-#     updates = {k: v for k, v in payload.items() if getattr(item, k, None) != v or v is None}
-#     if not updates:
-#         return "Нет изменений"
-#     for k, v in updates.items():
-#         setattr(item, k, v)
-#     await session.commit()
-#     return {"Изменены поля записи": list(updates.keys())}
+

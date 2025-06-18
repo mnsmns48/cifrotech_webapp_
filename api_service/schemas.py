@@ -97,3 +97,7 @@ class HarvestLineIn(BaseModel):
     harvest_id: conint(ge=1)
 
     model_config = {"from_attributes": True, "extra": "ignore"}
+
+
+class ProductOriginUpdate(BaseModel):
+    title: str
