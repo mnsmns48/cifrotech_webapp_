@@ -7,7 +7,7 @@ from sqlalchemy import select, and_, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api_service.api_req import get_items_by_brand
+from api_service.api_req import get_items_by_brand, get_one_by_dtube
 from api_service.crud import get_vendor_by_url
 from api_service.schemas import ParsingRequest, ProductOriginUpdate, ProductDependencyUpdate
 from config import redis_session
@@ -171,3 +171,12 @@ async def update_parsing_item_dependency(
         raise HTTPException(status_code=500, detail="Ошибка добавления зависимости")
 
     return {"result": f"{data.origin} - {feature.id}"}
+
+
+@parsing_router.get("/load_dependency_details/{title}")
+async def update_parsing_item_dependency(title: str):
+    async with ClientSession() as session:
+        data = await get_one_by_dtube(session, title=title)
+        if not data:
+            return {"detail": "Dependency not found"}
+        return data
