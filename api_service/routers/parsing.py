@@ -4,6 +4,7 @@ from aiohttp import ClientSession
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import select, and_, update
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.api_req import get_items_by_brand
@@ -165,7 +166,7 @@ async def update_parsing_item_dependency(
 
     try:
         await session.commit()
-    except Exception as e:
+    except SQLAlchemyError as e:
         await session.rollback()
         raise HTTPException(status_code=500, detail="Ошибка добавления зависимости")
 
