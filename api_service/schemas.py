@@ -1,10 +1,9 @@
 import logging
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Union
 
 from fastapi import Form
-from pydantic import BaseModel, Field, ConfigDict, confloat, HttpUrl, conint
-
-logging.getLogger("python_multipart.multipart").setLevel(logging.WARNING)
+from pydantic import BaseModel, Field, confloat, conint
+from pydantic_core.core_schema import FieldValidationInfo
 
 
 class ReceiptForm(BaseModel):
@@ -101,3 +100,32 @@ class HarvestLineIn(BaseModel):
 
 class ProductOriginUpdate(BaseModel):
     title: str
+
+
+from typing import Any
+from pydantic import BaseModel, field_validator
+import json
+
+
+class ProductDependencyUpdate(BaseModel):
+    origin: int
+    title: str
+    brand: str
+    product_type: str
+    info: Union[List[Dict[str, Any]], str]
+    pros_cons: Optional[Union[Dict[str, List[str]], str]] = Field(default_factory=dict)
+
+    @field_validator("info", "pros_cons", mode="before")
+    @classmethod
+    def parse_json_fields(cls, v: Any, field_info: FieldValidationInfo) -> Any:
+        dict_stub = dict()
+        if field_info.field_name == "pros_cons" and v is None:
+            return dict_stub
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                if field_info.field_name == "pros_cons":
+                    return dict_stub
+                return v
+        return v

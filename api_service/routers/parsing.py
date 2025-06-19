@@ -8,11 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.api_req import get_items_by_brand
 from api_service.crud import get_vendor_by_url
-from api_service.schemas import ParsingRequest, ProductOriginUpdate
+from api_service.schemas import ParsingRequest, ProductOriginUpdate, ProductDependencyUpdate
 from config import redis_session
 from engine import db
 
-from models import Harvest, HarvestLine, ProductOrigin
+from models import Harvest, HarvestLine, ProductOrigin, ProductType, ProductBrand, ProductFeaturesGlobal, \
+    ProductFeaturesLink
 from models.vendor import VendorSearchLine
 from parsing.logic import parsing_core, append_info
 
@@ -101,8 +102,8 @@ async def delete_parsing_items(origins: list[int], session: AsyncSession = Depen
     await session.commit()
 
 
-@parsing_router.get("/update_parsing_item_dependency/{origin}")
-async def update_parsing_item_dependency(origin: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
+@parsing_router.get("/get_parsing_items_dependency_list/{origin}")
+async def get_parsing_items_dependency_list(origin: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
     stmt = select(ProductOrigin.title).where(ProductOrigin.origin == origin)
     result = await session.execute(stmt)
     title = result.scalar_one_or_none()
@@ -112,5 +113,60 @@ async def update_parsing_item_dependency(origin: int, session: AsyncSession = De
         data = await get_items_by_brand(client_session, title)
     if data is None:
         raise HTTPException(status_code=502, detail="Нет данных")
-
     return {"items": data}
+
+
+@parsing_router.post("/update_parsing_item_dependency/")
+async def update_parsing_item_dependency(
+        data: ProductDependencyUpdate,
+        session: AsyncSession = Depends(db.scoped_session_dependency)):
+    result_type = await session.execute(
+        select(ProductType).where(ProductType.type == data.product_type)
+    )
+    prod_type = result_type.scalar_one_or_none()
+    if not prod_type:
+        prod_type = ProductType(type=data.product_type)
+        session.add(prod_type)
+        await session.flush()
+
+    result_brand = await session.execute(
+        select(ProductBrand).where(ProductBrand.brand == data.brand)
+    )
+    prod_brand = result_brand.scalar_one_or_none()
+    if not prod_brand:
+        prod_brand = ProductBrand(brand=data.brand)
+        session.add(prod_brand)
+        await session.flush()
+
+    result_feature = await session.execute(
+        select(ProductFeaturesGlobal).where(ProductFeaturesGlobal.title == data.title)
+    )
+    feature = result_feature.scalar_one_or_none()
+    if not feature:
+        feature = ProductFeaturesGlobal(
+            title=data.title,
+            type_id=prod_type.id,
+            brand_id=prod_brand.id,
+            info=data.info if isinstance(data.info, dict) else None,
+            pros_cons=data.pros_cons if isinstance(data.pros_cons, dict) else None,
+        )
+        session.add(feature)
+        await session.flush()
+
+    result_link = await session.execute(
+        select(ProductFeaturesLink).where(ProductFeaturesLink.origin == data.origin)
+    )
+    existing_link = result_link.scalar_one_or_none()
+    if existing_link:
+        existing_link.feature_id = feature.id
+    else:
+        link = ProductFeaturesLink(origin=data.origin, feature_id=feature.id)
+        session.add(link)
+
+    try:
+        await session.commit()
+    except Exception as e:
+        await session.rollback()
+        raise HTTPException(status_code=500, detail="Ошибка добавления зависимости")
+
+    return {"result": f"{data.origin} - {feature.id}"}
