@@ -1,15 +1,16 @@
 import asyncio
-
+from typing import Any, Dict
 from aiohttp import ClientSession
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import select, and_, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.responses import JSONResponse
 
 from api_service.api_req import get_items_by_brand, get_one_by_dtube
 from api_service.crud import get_vendor_by_url
-from api_service.schemas import ParsingRequest, ProductOriginUpdate, ProductDependencyUpdate
+from api_service.schemas import ParsingRequest, ProductOriginUpdate, ProductDependencyUpdate, ProductResponse
 from config import redis_session
 from engine import db
 
@@ -173,10 +174,10 @@ async def update_parsing_item_dependency(
     return {"result": f"{data.origin} - {feature.id}"}
 
 
-@parsing_router.get("/load_dependency_details/{title}")
+@parsing_router.get("/load_dependency_details/{title}", response_model=ProductResponse)
 async def update_parsing_item_dependency(title: str):
     async with ClientSession() as session:
         data = await get_one_by_dtube(session, title=title)
         if not data:
-            return {"detail": "Dependency not found"}
-        return data
+            return JSONResponse(status_code=404, content={"detail": "Dependency not found"})
+        return JSONResponse(content=data, media_type="application/json; charset=utf-8")

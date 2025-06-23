@@ -129,3 +129,12 @@ class ProductDependencyUpdate(BaseModel):
                     return dict_stub
                 return v
         return v
+
+
+class ProductResponse(BaseModel):
+    title: str
+    brand: str
+    product_type: str
+    info: Dict[str, Dict[str, Any]]
+    pros_cons: Optional[dict]
+    source: str
