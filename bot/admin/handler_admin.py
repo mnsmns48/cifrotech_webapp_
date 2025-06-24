@@ -6,10 +6,10 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery
 from aiohttp import ClientSession
 from bot.admin.keyboards_admin import admin_basic_choice_kb, admin_basic_kb
-from bot.bot_settings import bot_conf
 # from bot.core import parse_product_message, working_under_product_list
 from bot.crud_bot import show_day_sales
 from bot.utils import filter_keys
+from config import settings
 from engine import db
 from utils import sanitize_emoji
 
@@ -20,7 +20,7 @@ class AdminFilter(BaseFilter):
     is_admin: bool = True
 
     async def __call__(self, obj: Message):
-        return (obj.from_user.id in bot_conf.TELEGRAM_ADMIN_ID) == self.is_admin
+        return (obj.from_user.id in settings.bot.telegram_admin_id) == self.is_admin
 
 
 tg_admin_router.message.filter(AdminFilter())

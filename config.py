@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import List, Union
 import redis.asyncio as redis
 
-from pydantic import PostgresDsn, field_validator, Field
+from pydantic import PostgresDsn, field_validator, Field, SecretStr
 
 from pydantic_settings import BaseSettings
 
@@ -56,12 +56,19 @@ class ParsingSettings(CustomConfigSettings):
     browser_headless: bool
 
 
+class BotSettings(CustomConfigSettings):
+    bot_token: SecretStr
+    telegram_admin_id: List[int]
+    webhook_url: SecretStr
+
+
 class Settings(CustomConfigSettings):
     db: DBSettings = DBSettings()
     api: APISettings = APISettings()
     token: Token = Token()
     redis: RedisSettings = RedisSettings()
     parsing: ParsingSettings = ParsingSettings()
+    bot: BotSettings = BotSettings()
 
 
 settings = Settings()

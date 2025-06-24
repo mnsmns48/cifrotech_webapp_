@@ -186,7 +186,7 @@ async def update_parsing_item_dependency(title: str):
         return JSONResponse(content=data, media_type="application/json; charset=utf-8")
 
 
-@parsing_router.get("/fetch_images_62701/{origin}")
+@parsing_router.get("/fetch_images/{origin}")
 async def fetch_images_in_origin(origin: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
     folder_path = os.path.join(settings.api.hub_photo_path, str(origin))
     folder_exists = os.path.exists(folder_path)
