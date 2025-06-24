@@ -1,8 +1,10 @@
 import asyncio
 import os
-from asyncio import TimeoutError
-import aiofiles
-from aiofiles.os import listdir
+from aiohttp import ClientSession, ClientTimeout, ClientError as AiohttpClientError
+import aioboto3
+from botocore import UNSIGNED
+from botocore.config import Config
+from botocore.exceptions import ClientError as BotoClientError
 from aiohttp import ClientSession, ClientTimeout, ClientError
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.encoders import jsonable_encoder
@@ -188,42 +190,67 @@ async def update_parsing_item_dependency(title: str):
 
 @parsing_router.get("/fetch_images/{origin}")
 async def fetch_images_in_origin(origin: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
-    folder_path = os.path.join(settings.api.hub_photo_path, str(origin))
-    folder_exists = os.path.exists(folder_path)
-    if not folder_exists:
-        os.makedirs(folder_path, exist_ok=True)
-
+    s3_prefix = f"{origin}/"
     result = await session.execute(
         select(ProductOrigin).where(ProductOrigin.origin == origin)
     )
     product = result.scalar_one_or_none()
     if not product:
         raise HTTPException(status_code=404, detail="Товар не найден")
+
     pics = product.pics or []
-    failed = list()
-    if pics:
-        timeout = ClientTimeout(total=10)
+    failed = []
+    available_files = []
+
+    timeout = ClientTimeout(total=10)
+
+    s3_session = aioboto3.Session(
+        aws_access_key_id=settings.s3.s3_access_key,
+        aws_secret_access_key=settings.s3.s3_secret_access_key,
+        region_name=settings.s3.region,
+    )
+
+    config = Config(
+        signature_version=UNSIGNED,
+        s3={'addressing_style': 'path'}
+    )
+    async with s3_session.client(
+            's3',
+            endpoint_url=settings.s3.s3_url,
+            config=config,
+            aws_access_key_id=settings.s3.s3_access_key,
+            aws_secret_access_key=settings.s3.s3_secret_access_key
+    ) as s3_client:
+        s3_client.meta.events.register(
+            'before-sign.s3.PutObject',
+            lambda request, **kwargs: request.headers.update({'x-amz-content-sha256': 'UNSIGNED-PAYLOAD'})
+        )
         async with ClientSession(timeout=timeout) as client_session:
             for url in pics:
                 filename = os.path.basename(url.split("?")[0])
-                local_path = os.path.join(folder_path, filename)
-                if os.path.exists(local_path):
+                key = f"{s3_prefix}{filename}"
+                try:
+                    await s3_client.head_object(Bucket=settings.s3.bucket_name, Key=key)
+
+                    available_files.append(filename)
                     continue
-                for attempt in range(1, 3 + 1):
+                except BotoClientError as e:
+                    error_code = e.response['Error'].get('Code')
+                    if error_code != '404':
+                        raise
+
+                for attempt in range(1, 4):
                     try:
-                        async with client_session.get(url) as resp:
-                            if resp.status != 200:
-                                raise HTTPException(status_code=resp.status, detail=f"Ошибка загрузки: {url}")
-                            async with aiofiles.open(local_path, "wb") as f:
-                                await f.write(await resp.read())
+                        async with client_session.get(url) as response:
+                            if response.status != 200:
+                                raise HTTPException(status_code=response.status, detail=f"Ошибка загрузки: {url}")
+                            data = await response.read()
+                            await s3_client.put_object(Bucket=settings.s3.bucket_name, Key=key, Body=data)
+                        available_files.append(filename)
                         break
-                    except (ClientError, TimeoutError, HTTPException):
+                    except (AiohttpClientError, asyncio.TimeoutError, HTTPException) as e:
                         if attempt == 3:
                             failed.append(filename)
                         continue
-    try:
-        all_files = await listdir(folder_path)
-        image_files = [f for f in all_files if f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp'))]
-    except OSError as read_err:
-        raise HTTPException(status_code=500, detail=f"Ошибка при чтении папки: {read_err}")
-    return {"origin": origin, "available": image_files, "failed_downloads": failed}
+
+    return {"origin": origin, "available": available_files, "failed_downloads": failed}

@@ -71,6 +71,14 @@ class BotSettings(CustomConfigSettings):
     webhook_url: SecretStr
 
 
+class S3Settings(CustomConfigSettings):
+    s3_url: str
+    bucket_name: str
+    s3_access_key: str
+    s3_secret_access_key: str
+    region: str
+
+
 class Settings(CustomConfigSettings):
     db: DBSettings = DBSettings()
     api: APISettings = APISettings()
@@ -78,6 +86,7 @@ class Settings(CustomConfigSettings):
     redis: RedisSettings = RedisSettings()
     parsing: ParsingSettings = ParsingSettings()
     bot: BotSettings = BotSettings()
+    s3: S3Settings = S3Settings()
 
 
 settings = Settings()
