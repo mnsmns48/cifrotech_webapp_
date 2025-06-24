@@ -1,6 +1,9 @@
 import asyncio
-from typing import Any, Dict
-from aiohttp import ClientSession
+import os
+from asyncio import TimeoutError
+import aiofiles
+from aiofiles.os import listdir
+from aiohttp import ClientSession, ClientTimeout, ClientError
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import select, and_, update
@@ -11,7 +14,7 @@ from starlette.responses import JSONResponse
 from api_service.api_req import get_items_by_brand, get_one_by_dtube
 from api_service.crud import get_vendor_by_url
 from api_service.schemas import ParsingRequest, ProductOriginUpdate, ProductDependencyUpdate, ProductResponse
-from config import redis_session
+from config import redis_session, settings
 from engine import db
 
 from models import Harvest, HarvestLine, ProductOrigin, ProductType, ProductBrand, ProductFeaturesGlobal, \
@@ -181,3 +184,48 @@ async def update_parsing_item_dependency(title: str):
         if not data:
             return JSONResponse(status_code=404, content={"detail": "Dependency not found"})
         return JSONResponse(content=data, media_type="application/json; charset=utf-8")
+
+
+@parsing_router.get("/fetch_images_62701/{origin}")
+async def fetch_images_in_origin(origin: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    folder_path = os.path.join(settings.api.hub_photo_path, str(origin))
+    folder_exists = os.path.exists(folder_path)
+    if not folder_exists:
+        os.makedirs(folder_path, exist_ok=True)
+
+    result = await session.execute(
+        select(ProductOrigin).where(ProductOrigin.origin == origin)
+    )
+    product = result.scalar_one_or_none()
+    if not product:
+        raise HTTPException(status_code=404, detail="Товар не найден")
+    pics = product.pics or []
+    failed = list()
+    if pics:
+        timeout = ClientTimeout(total=10)
+        async with ClientSession(timeout=timeout) as client_session:
+            for url in pics:
+                filename = os.path.basename(url.split("?")[0])
+                local_path = os.path.join(folder_path, filename)
+                if os.path.exists(local_path):
+                    continue
+                for attempt in range(1, 3 + 1):
+                    try:
+                        async with client_session.get(url) as resp:
+                            if resp.status != 200:
+                                raise HTTPException(status_code=resp.status, detail=f"Ошибка загрузки: {url}")
+                            async with aiofiles.open(local_path, "wb") as f:
+                                await f.write(await resp.read())
+                        break
+                    except (ClientError, TimeoutError, HTTPException):
+                        if attempt == 3:
+                            failed.append(filename)
+                        continue
+    try:
+        all_files = await listdir(folder_path)
+        image_files = [f for f in all_files if f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp'))]
+    except OSError as read_err:
+        raise HTTPException(status_code=500, detail=f"Ошибка при чтении папки: {read_err}")
+    return {"origin": origin, "available": image_files, "failed_downloads": failed}
+
+
