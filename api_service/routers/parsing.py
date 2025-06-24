@@ -227,5 +227,3 @@ async def fetch_images_in_origin(origin: int, session: AsyncSession = Depends(db
     except OSError as read_err:
         raise HTTPException(status_code=500, detail=f"Ошибка при чтении папки: {read_err}")
     return {"origin": origin, "available": image_files, "failed_downloads": failed}
-
-

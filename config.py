@@ -1,6 +1,8 @@
+import os
 from pathlib import Path
 from typing import List, Union
 import redis.asyncio as redis
+from dotenv import load_dotenv
 
 from pydantic import PostgresDsn, field_validator, Field, SecretStr
 
@@ -14,10 +16,17 @@ BROWSER_HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "Accept-Language": "en-US,en;q=0.9",
                    "Referer": "https://google.com"}
 
+load_dotenv(dotenv_path=BASE_DIR / ".env")
+secret_env_path = os.getenv("SP")
+if secret_env_path:
+    load_dotenv(dotenv_path=secret_env_path)
+else:
+    raise RuntimeError("Не указана переменная SP с путём до файла .env с ключами")
+
 
 class CustomConfigSettings(BaseSettings):
     class Config:
-        env_file = BASE_DIR / ".env"
+        env_file = secret_env_path
         case_sensitive = False
         extra = "allow"
 
