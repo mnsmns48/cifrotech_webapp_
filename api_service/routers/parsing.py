@@ -154,7 +154,7 @@ async def update_parsing_item_dependency(
             title=data.title,
             type_id=prod_type.id,
             brand_id=prod_brand.id,
-            info=data.info if isinstance(data.info, dict) else None,
+            info=data.info,
             pros_cons=data.pros_cons if isinstance(data.pros_cons, dict) else None,
         )
         session.add(feature)

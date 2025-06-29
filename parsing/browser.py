@@ -1,8 +1,9 @@
 from playwright.async_api import Playwright, Browser, async_playwright, Page
 from playwright_stealth import stealth_async
 
+from app_utils import responses
 from config import settings, BROWSER_HEADERS
-from utils import responses
+
 
 
 async def create_browser(playwright: Playwright) -> Browser:

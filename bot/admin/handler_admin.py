@@ -11,7 +11,7 @@ from bot.crud_bot import show_day_sales
 from bot.utils import filter_keys
 from config import settings
 from engine import db
-from utils import sanitize_emoji
+from app_utils import sanitize_emoji
 
 tg_admin_router = Router()
 
