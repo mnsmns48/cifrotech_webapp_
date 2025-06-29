@@ -46,14 +46,14 @@ async def go_parsing(data: ParsingRequest,
     return parsing_data
 
 
-@parsing_router.get("/previous_parsing_results/{vsl_id}")
-async def get_previous_results(vsl_id: int, redis=Depends(redis_session),
+@parsing_router.post("/previous_parsing_results")
+async def get_previous_results(data: ParsingRequest, redis=Depends(redis_session),
                                session: AsyncSession = Depends(db.scoped_session_dependency)):
-    vsl_exists_query = select(VendorSearchLine).where(VendorSearchLine.id == vsl_id)
+    vsl_exists_query = select(VendorSearchLine).where(VendorSearchLine.id == data.vsl_id)
     vsl_exists_result = await session.execute(vsl_exists_query)
     if not vsl_exists_result.scalars().first():
         raise HTTPException(status_code=404, detail="Vendor_search_line с таким ID не найден")
-    harvest_query = select(Harvest).where(Harvest.vendor_search_line_id == vsl_id)
+    harvest_query = select(Harvest).where(Harvest.vendor_search_line_id == data.vsl_id)
     harvest_result = await session.execute(harvest_query)
     harvest_id = harvest_result.scalars().first()
     if not harvest_id:
@@ -76,7 +76,8 @@ async def get_previous_results(vsl_id: int, redis=Depends(redis_session),
         combined_dict = jsonable_encoder(harvest_line)
         combined_dict.update(jsonable_encoder(product_origin))
         joined_data.append(combined_dict)
-    result['data'] = await append_info(session=session, data_lines=joined_data)
+    result['data'] = await append_info(session=session, data_lines=joined_data, redis=redis, channel=data.progress)
+    await redis.publish(data.progress, "END")
     return result
 
 

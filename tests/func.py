@@ -54,7 +54,6 @@ async def check_s3_connection():
     async with session.client('s3', endpoint_url=settings.s3.s3_url) as s3_client:
         try:
             response = await s3_client.list_buckets()
-            print("Подключение к S3 успешно. Бакеты:", response.get('Buckets', []))
             return response
         except Exception as e:
             print("Ошибка подключения к S3:", e)

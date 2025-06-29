@@ -92,7 +92,6 @@ async def add_reward_title(data: RewardRangeLineSchema, session: AsyncSession = 
 async def delete_range_reward_line(line_id: int,
                                    session: AsyncSession = Depends(db.scoped_session_dependency)):
     query = await session.get(RewardRangeLine, line_id)
-    print(query)
     if not query:
         raise HTTPException(status_code=404, detail="Нельзя удалить то, чего нет")
     await session.delete(query)
