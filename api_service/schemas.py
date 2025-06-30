@@ -65,6 +65,7 @@ class ParsingRequest(BaseModel):
     progress: str
     vsl_id: int
     vsl_url: str
+    sync_features: bool
 
 
 class RewardRangeLineSchema(BaseModel):

@@ -34,34 +34,43 @@ async def parsing_core(redis: Redis,
     finally:
         await pars_obj.browser.close()
         await pars_obj.playwright.stop()
-    result['data'] = await append_info(session=session, data_lines=result['data'], redis=redis, channel=data.progress)
+    result['data'] = await append_info(session=session,
+                                       data_lines=result['data'],
+                                       redis=redis,
+                                       channel=data.progress,
+                                       sync_features=data.sync_features)
     return result
 
 
-async def append_info(session: AsyncSession, data_lines: list, redis: Redis = None, channel: str = None):
+async def append_info(session: AsyncSession,
+                      data_lines: list,
+                      sync_features: bool,
+                      redis: Redis = None,
+                      channel: str = None):
     async with ClientSession() as client_session:
         origins = [normalize_origin(item.get("origin")) for item in data_lines]
         cached: dict[int, list[str]] = await get_info_by_caching(session, origins)
-        missing_elements = set(origins) - set(cached.keys())
-        if missing_elements:
+        missing = set(origins) - set(cached.keys())
+        if sync_features and missing:
             if redis and channel:
-                await redis.publish(channel, f"data: COUNT={len(missing_elements)}")
+                await redis.publish(channel, f"data: COUNT={len(missing)}")
             for line in data_lines:
-                if 'origin' not in line:
+                origin = normalize_origin(line.get("origin"))
+                if origin not in missing:
                     continue
-                origin = normalize_origin(line.get("origin"))
-                if origin in missing_elements:
-                    one_item = await get_one_by_dtube(session=client_session, title=line['title'])
-                    if one_item:
-                        feature_id = await store_one_item(session=session, data=one_item)
-                        await add_dependencies_link(session=session, origin=origin, feature_id=feature_id)
-                        cached[origin] = [one_item['title']]
-                        if redis and channel:
-                            await redis.publish(channel, f"Добавление {one_item['title']}")
-                    else:
-                        cached[origin] = []
-        if len(cached.keys()) == len(origins):
-            for line in data_lines:
-                origin = normalize_origin(line.get("origin"))
-                line["features_title"] = cached.get(origin)
+                one_item = await get_one_by_dtube(session=client_session, title=line["title"])
+                if one_item:
+                    feature_id = await store_one_item(session=session, data=one_item)
+                    await add_dependencies_link(session=session, origin=origin, feature_id=feature_id)
+                    cached[origin] = [one_item["title"]]
+                    if redis and channel:
+                        await redis.publish(channel, f"Добавление {one_item['title']}")
+                else:
+                    cached[origin] = []
+        if not sync_features:
+            for origin in missing:
+                cached[origin] = []
+        for line in data_lines:
+            origin = normalize_origin(line.get("origin"))
+            line["features_title"] = cached.get(origin, [])
     return data_lines

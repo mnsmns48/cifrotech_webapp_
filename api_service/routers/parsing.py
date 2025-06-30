@@ -76,7 +76,11 @@ async def get_previous_results(data: ParsingRequest, redis=Depends(redis_session
         combined_dict = jsonable_encoder(harvest_line)
         combined_dict.update(jsonable_encoder(product_origin))
         joined_data.append(combined_dict)
-    result['data'] = await append_info(session=session, data_lines=joined_data, redis=redis, channel=data.progress)
+    result['data'] = await append_info(session=session,
+                                       data_lines=joined_data,
+                                       redis=redis,
+                                       channel=data.progress,
+                                       sync_features=data.sync_features)
     await redis.publish(data.progress, "END")
     return result
 
