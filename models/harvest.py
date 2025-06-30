@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 class Harvest(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
     vendor_search_line_id: Mapped[int] = mapped_column(ForeignKey("vendor_search_line.id"), nullable=False)
+    range_id: Mapped[int] = mapped_column(ForeignKey("rewardrange.id", ondelete="SET NULL"), nullable=True)
     datestamp: Mapped[DateTime] = mapped_column(DateTime(timezone=True), default=func.now())
     category: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=True)
     vendor_search_line: Mapped["VendorSearchLine"] = relationship("VendorSearchLine", back_populates="harvests")

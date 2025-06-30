@@ -104,7 +104,8 @@ async def delete_harvest_strings_by_vsl_id(session: AsyncSession, vsl_id: int):
     return "Записи для этого запроса удалены"
 
 
-async def get_range_rewards(session: AsyncSession, range_id: int = None) -> Sequence[Row[tuple[int, int, bool, int]]]:
+async def get_range_rewards_list(session: AsyncSession, range_id: int = None) -> Sequence[
+    Row[tuple[int, int, bool, int]]]:
     if range_id is None:
         default_range_query = select(RewardRange.id).where(RewardRange.is_default == True)
         default_range = await session.execute(default_range_query)
@@ -116,6 +117,12 @@ async def get_range_rewards(session: AsyncSession, range_id: int = None) -> Sequ
     ).where(RewardRangeLine.range_id == range_id)
     result = await session.execute(query)
     return result.all()
+
+
+async def get_rr_obj_id(session: AsyncSession):
+    query = select(RewardRange.id).where(RewardRange.is_default == True)
+    result = await session.execute(query)
+    return result.scalar()
 
 
 async def get_info_by_caching(session: AsyncSession, origins: list[int]) -> dict:
