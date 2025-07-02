@@ -119,10 +119,12 @@ async def get_range_rewards_list(session: AsyncSession, range_id: int = None) ->
     return result.all()
 
 
-async def get_rr_obj_id(session: AsyncSession):
-    query = select(RewardRange.id).where(RewardRange.is_default == True)
+async def get_rr_obj(session: AsyncSession) -> dict[str, int | str] | None:
+    query = select(RewardRange.id, RewardRange.title).where(RewardRange.is_default.is_(True))
     result = await session.execute(query)
-    return result.scalar()
+    row = result.first()
+    if row:
+        return {"id": row.id, "title": row.title}
 
 
 async def get_info_by_caching(session: AsyncSession, origins: list[int]) -> dict:

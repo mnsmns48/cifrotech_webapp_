@@ -7,7 +7,7 @@ from playwright_stealth import stealth_async
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api_service.crud import get_range_rewards_list, store_harvest, store_harvest_line, get_rr_obj_id
+from api_service.crud import get_range_rewards_list, store_harvest, store_harvest_line, get_rr_obj
 from api_service.schemas import ParsingRequest, HarvestLineIn
 from config import BROWSER_HEADERS, BASE_DIR
 from models import Vendor
@@ -30,7 +30,7 @@ class BaseParser:
         self.data = data
         self.vendor = vendor
         self.session = session
-        self.range_id = int()
+        self.range_reward = dict()
 
     @staticmethod
     async def check_auth(text: BeautifulSoup) -> bool:
@@ -98,7 +98,7 @@ class BaseParser:
         return pics
 
     @staticmethod
-    async def store_results(soup: BeautifulSoup, session: AsyncSession, harvest_id: int, range_id: int) -> list:
+    async def store_results(soup: BeautifulSoup, session: AsyncSession, harvest_id: int, range_reward_id: int) -> list:
         parsing_lines_result = list()
         content_list = soup.find_all("div", class_="ty-product-block ty-compact-list__content")
         for line in content_list:
@@ -123,7 +123,7 @@ class BaseParser:
                 data_item["optional"] = sub_div.get_text().strip() or ''
             data_item["harvest_id"] = harvest_id
             parsing_lines_result.append(data_item)
-        ranges = await get_range_rewards_list(session=session, range_id=range_id)
+        ranges = await get_range_rewards_list(session=session, range_id=range_reward_id)
         raw_items = cost_value_update(parsing_lines_result, list(ranges))
         items = [HarvestLineIn.model_validate(d) for d in raw_items]
         parsing_lines_result = await store_harvest_line(session=session, items=items)
@@ -151,8 +151,8 @@ class BaseParser:
             span = code_block.find_all('span')
             category.clear()
             category = [s.get_text().strip() for s in span[1:] if s.find('a')]
-        self.range_id: int = await get_rr_obj_id(session=self.session)
-        harvest_data = {'vendor_search_line_id': self.data.vsl_id, 'category': category, 'range_id': self.range_id}
+        self.range_reward: dict = await get_rr_obj(session=self.session)
+        harvest_data = {'vendor_search_line_id': self.data.vsl_id, 'category': category, 'range_id': self.range_reward.get('id')}
         harvest_id = await store_harvest(data=harvest_data, session=self.session)
         await self.redis.publish(self.data.progress, f"Данные о парсинге сохранены")
         await self.redis.publish(self.data.progress, f"{len(self.pages) - 1} страниц для сбора информации")
@@ -170,7 +170,7 @@ class BaseParser:
         result = await self.store_results(soup=opened_page['soup'],
                                           session=self.session,
                                           harvest_id=harvest_id,
-                                          range_id=self.range_id)
+                                          range_reward_id=self.range_reward.get('id'))
         await self.redis.publish(self.data.progress, f"Страница 1 из {len(self.pages) + 1} сохранена")
         page_counter = 0
         while page_counter < len(self.pages):
@@ -181,7 +181,7 @@ class BaseParser:
             result += await self.store_results(soup=opened_page['soup'],
                                                session=self.session,
                                                harvest_id=harvest_id,
-                                               range_id=self.range_id)
+                                               range_reward_id=self.range_reward.get('id'))
             page_counter += 1
             await self.redis.publish(self.data.progress,
                                      f"Страница {page_counter} из {len(self.pages) + 1} сохранена")
@@ -189,5 +189,4 @@ class BaseParser:
             if len(new_pages) > len(self.pages):
                 self.pages = new_pages
                 await self.redis.publish(self.data.progress, f"data: COUNT={len(self.pages) + 5}")
-        return {'category': category, 'datestamp': datetime.now(), 'data': result, 'range_id': self.range_id}
-                                                #нужно range отдавать как словарь из id и названия
+        return {'category': category, 'datestamp': datetime.now(), 'data': result, 'range_reward': self.range_reward}
