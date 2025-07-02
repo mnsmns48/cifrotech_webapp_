@@ -1,16 +1,17 @@
 import asyncio
 import os
-from aiohttp import ClientSession, ClientTimeout, ClientError as AiohttpClientError
+from aiohttp import ClientError as AiohttpClientError
 import aioboto3
 from botocore import UNSIGNED
 from botocore.config import Config
 from botocore.exceptions import ClientError as BotoClientError
-from aiohttp import ClientSession, ClientTimeout, ClientError
+from aiohttp import ClientSession, ClientTimeout
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import select, and_, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 from starlette.responses import JSONResponse
 
 from api_service.api_req import get_items_by_brand, get_one_by_dtube
@@ -21,7 +22,7 @@ from engine import db
 
 from models import Harvest, HarvestLine, ProductOrigin, ProductType, ProductBrand, ProductFeaturesGlobal, \
     ProductFeaturesLink
-from models.vendor import VendorSearchLine
+from models.vendor import VendorSearchLine, RewardRange
 from parsing.logic import parsing_core, append_info
 
 parsing_router = APIRouter(tags=['Service-Parsing'])
@@ -53,9 +54,13 @@ async def get_previous_results(data: ParsingRequest, redis=Depends(redis_session
     vsl_exists_result = await session.execute(vsl_exists_query)
     if not vsl_exists_result.scalars().first():
         raise HTTPException(status_code=404, detail="Vendor_search_line с таким ID не найден")
-    harvest_query = select(Harvest).where(Harvest.vendor_search_line_id == data.vsl_id)
+    harvest_query = (
+        select(Harvest, RewardRange)
+        .join(RewardRange, Harvest.range_id == RewardRange.id)
+        .where(Harvest.vendor_search_line_id == data.vsl_id)
+    )
     harvest_result = await session.execute(harvest_query)
-    harvest_id = harvest_result.scalars().first()
+    harvest_id, reward_obj = harvest_result.first()
     if not harvest_id:
         return {"response": "not found", "is_ok": False,
                 "message": "Предыдущих результатов нет, соберите данные заново"}
@@ -70,7 +75,8 @@ async def get_previous_results(data: ParsingRequest, redis=Depends(redis_session
     )
     harvest_line_result = await session.execute(harvest_line_query)
     harvest_lines = harvest_line_result.all()
-    result = {'is_ok': True, 'category': harvest_id.category, 'datestamp': harvest_id.datestamp}
+    result = {'is_ok': True, 'category': harvest_id.category, 'datestamp': harvest_id.datestamp,
+              "range_reward": {"id": reward_obj.id, "title": reward_obj.title}}
     joined_data = list()
     for harvest_line, product_origin in harvest_lines:
         combined_dict = jsonable_encoder(harvest_line)
