@@ -1,5 +1,7 @@
 import asyncio
 import os
+from typing import Any
+
 from aiohttp import ClientError as AiohttpClientError
 import aioboto3
 from botocore import UNSIGNED
@@ -15,8 +17,9 @@ from sqlalchemy.orm import joinedload
 from starlette.responses import JSONResponse
 
 from api_service.api_req import get_items_by_brand, get_one_by_dtube
-from api_service.crud import get_vendor_by_url
-from api_service.schemas import ParsingRequest, ProductOriginUpdate, ProductDependencyUpdate, ProductResponse
+from api_service.crud import get_vendor_by_url, get_range_rewards_list, get_rr_obj
+from api_service.schemas import ParsingRequest, ProductOriginUpdate, ProductDependencyUpdate, ProductResponse, \
+    RecalcPricesResponse, RecalcPricesRequest
 from config import redis_session, settings
 from engine import db
 
@@ -24,6 +27,7 @@ from models import Harvest, HarvestLine, ProductOrigin, ProductType, ProductBran
     ProductFeaturesLink
 from models.vendor import VendorSearchLine, RewardRange
 from parsing.logic import parsing_core, append_info
+from parsing.utils import cost_process
 
 parsing_router = APIRouter(tags=['Service-Parsing'])
 
@@ -265,3 +269,51 @@ async def fetch_images_in_origin(origin: int, session: AsyncSession = Depends(db
                         continue
 
     return {"origin": origin, "available": available_files, "failed_downloads": failed}
+
+
+@parsing_router.post("/recalculate_output_prices", response_model=RecalcPricesResponse)
+async def recalculate_reward(recalc_req: RecalcPricesRequest, redis=Depends(redis_session),
+                             session: AsyncSession = Depends(db.scoped_session_dependency)):
+    vsl = await session.get(VendorSearchLine, recalc_req.vsl_id)
+    if not vsl:
+        raise HTTPException(status_code=404, detail="VendorSearchLine не найден")
+
+    harvest_stmt = select(Harvest).where(Harvest.vendor_search_line_id == recalc_req.vsl_id)
+    harvest_res = await session.execute(harvest_stmt)
+    harvest: Harvest | None = harvest_res.scalars().first()
+    if not harvest:
+        raise HTTPException(status_code=404, detail="Harvest не найден")
+
+    harvest.range_id = recalc_req.range_id
+    await session.flush()
+
+    ranges = await get_range_rewards_list(session=session, range_id=recalc_req.range_id)
+
+    hl_stmt = select(HarvestLine).where(HarvestLine.harvest_id == harvest.id)
+    hl_res = await session.execute(hl_stmt)
+    lines = hl_res.scalars().all()
+
+    for line in lines:
+        inp = line.input_price or 0
+        line.output_price = cost_process(inp, ranges)
+    await session.commit()
+
+    join_stmt = (
+        select(HarvestLine, ProductOrigin)
+        .join(ProductOrigin, HarvestLine.origin == ProductOrigin.origin)
+        .where(HarvestLine.harvest_id == harvest.id, ProductOrigin.is_deleted.is_(False))
+        .order_by(HarvestLine.input_price)
+    )
+    result = await session.execute(join_stmt)
+    rows = result.all()
+    raw = list()
+    for row in rows:
+        line_obj = row[0]
+        line_dict = dict()
+        for key, val in line_obj.__dict__.items():
+            if not key.startswith("_sa_"):
+                line_dict[key] = val
+                raw.append(line_dict)
+    with_info = await append_info(session=session, data_lines=raw, redis=redis, sync_features=False)
+    return {"is_ok": True, "category": harvest.category, "datestamp": harvest.datestamp,
+            "range_reward": recalc_req.range_id, "data": with_info}

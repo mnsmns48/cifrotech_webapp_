@@ -18,7 +18,3 @@ def cost_value_update(items: list[dict], ranges: list) -> list:
         if item['origin'] and item['input_price']:
             item['output_price'] = cost_process(item['input_price'], ranges)
     return items
-
-
-
-

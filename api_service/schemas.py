@@ -1,8 +1,9 @@
-import logging
-from typing import List, Optional, Dict, Union
+import json
+from datetime import datetime
+from typing import List, Optional, Dict, Union, Any
 
 from fastapi import Form
-from pydantic import BaseModel, Field, confloat, conint
+from pydantic import BaseModel, Field, confloat, conint, field_validator
 from pydantic_core.core_schema import FieldValidationInfo
 
 
@@ -103,11 +104,6 @@ class ProductOriginUpdate(BaseModel):
     title: str
 
 
-from typing import Any
-from pydantic import BaseModel, field_validator
-import json
-
-
 class ProductDependencyUpdate(BaseModel):
     origin: int
     title: str
@@ -139,3 +135,16 @@ class ProductResponse(BaseModel):
     info: Dict[str, Dict[str, Any]]
     pros_cons: Optional[dict]
     source: str
+
+
+class RecalcPricesRequest(BaseModel):
+    vsl_id: int
+    range_id: int
+
+
+class RecalcPricesResponse(BaseModel):
+    is_ok: bool
+    category: list[str]
+    datestamp: datetime
+    range_reward: int
+    data: list
