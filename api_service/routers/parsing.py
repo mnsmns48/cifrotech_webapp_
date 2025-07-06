@@ -298,12 +298,10 @@ async def recalculate_reward(recalc_req: RecalcPricesRequest, redis=Depends(redi
         line.output_price = cost_process(inp, ranges)
     await session.commit()
 
-    join_stmt = (
-        select(HarvestLine, ProductOrigin)
-        .join(ProductOrigin, HarvestLine.origin == ProductOrigin.origin)
-        .where(HarvestLine.harvest_id == harvest.id, ProductOrigin.is_deleted.is_(False))
-        .order_by(HarvestLine.input_price)
-    )
+    join_stmt = (select(HarvestLine, ProductOrigin)
+                 .join(ProductOrigin, HarvestLine.origin == ProductOrigin.origin)
+                 .where(HarvestLine.harvest_id == harvest.id, ProductOrigin.is_deleted.is_(False))
+                 .order_by(HarvestLine.input_price))
     result = await session.execute(join_stmt)
     rows = result.all()
     raw = list()
