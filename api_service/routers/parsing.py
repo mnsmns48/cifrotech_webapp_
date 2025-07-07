@@ -1,6 +1,5 @@
 import asyncio
 import os
-from typing import Any
 
 from aiohttp import ClientError as AiohttpClientError
 import aioboto3
@@ -9,15 +8,14 @@ from botocore.config import Config
 from botocore.exceptions import ClientError as BotoClientError
 from aiohttp import ClientSession, ClientTimeout
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.encoders import jsonable_encoder
-from sqlalchemy import select, and_, update
+from sqlalchemy import select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
 from starlette.responses import JSONResponse
 
 from api_service.api_req import get_items_by_brand, get_one_by_dtube
 from api_service.crud import get_vendor_by_url, get_range_rewards_list, get_rr_obj
+from api_service.routers.process_helper import _prepare_harvest_response
 from api_service.schemas import ParsingRequest, ProductOriginUpdate, ProductDependencyUpdate, ProductResponse, \
     RecalcPricesResponse, RecalcPricesRequest
 from config import redis_session, settings
@@ -26,7 +24,7 @@ from engine import db
 from models import Harvest, HarvestLine, ProductOrigin, ProductType, ProductBrand, ProductFeaturesGlobal, \
     ProductFeaturesLink
 from models.vendor import VendorSearchLine, RewardRange
-from parsing.logic import parsing_core, append_info
+from parsing.logic import parsing_core
 from parsing.utils import cost_process
 
 parsing_router = APIRouter(tags=['Service-Parsing'])
@@ -52,47 +50,35 @@ async def go_parsing(data: ParsingRequest,
 
 
 @parsing_router.post("/previous_parsing_results")
-async def get_previous_results(data: ParsingRequest, redis=Depends(redis_session),
-                               session: AsyncSession = Depends(db.scoped_session_dependency)):
-    vsl_exists_query = select(VendorSearchLine).where(VendorSearchLine.id == data.vsl_id)
-    vsl_exists_result = await session.execute(vsl_exists_query)
-    if not vsl_exists_result.scalars().first():
-        raise HTTPException(status_code=404, detail="Vendor_search_line с таким ID не найден")
-    harvest_query = (
+async def get_previous_results(
+        data: ParsingRequest, redis=Depends(redis_session),
+        session: AsyncSession = Depends(db.scoped_session_dependency)):
+    vsl_exists = await session.get(VendorSearchLine, data.vsl_id)
+    if not vsl_exists:
+        raise HTTPException(404, "Vendor_search_line с таким ID не найден")
+    harvest = await session.execute(
         select(Harvest, RewardRange)
         .join(RewardRange, Harvest.range_id == RewardRange.id)
         .where(Harvest.vendor_search_line_id == data.vsl_id)
     )
-    harvest_result = await session.execute(harvest_query)
-    harvest_id, reward_obj = harvest_result.first()
-    if not harvest_id:
-        return {"response": "not found", "is_ok": False,
-                "message": "Предыдущих результатов нет, соберите данные заново"}
-    harvest_line_query = (
-        select(HarvestLine, ProductOrigin)
-        .join(ProductOrigin, HarvestLine.origin == ProductOrigin.origin)
-        .where(and_(
-            HarvestLine.harvest_id == harvest_id.id,
-            ProductOrigin.is_deleted.is_(False)),
-        )
-        .order_by(HarvestLine.input_price)
-    )
-    harvest_line_result = await session.execute(harvest_line_query)
-    harvest_lines = harvest_line_result.all()
-    result = {'is_ok': True, 'category': harvest_id.category, 'datestamp': harvest_id.datestamp,
-              "range_reward": {"id": reward_obj.id, "title": reward_obj.title}}
-    joined_data = list()
-    for harvest_line, product_origin in harvest_lines:
-        combined_dict = jsonable_encoder(harvest_line)
-        combined_dict.update(jsonable_encoder(product_origin))
-        joined_data.append(combined_dict)
-    result['data'] = await append_info(session=session,
-                                       data_lines=joined_data,
-                                       redis=redis,
-                                       channel=data.progress,
-                                       sync_features=data.sync_features)
-    await redis.publish(data.progress, "END")
-    return result
+    harvest, reward = harvest.first() or (None, None)
+    if not harvest:
+        return {
+            "response": "not found",
+            "is_ok": False,
+            "message": "Предыдущих результатов нет, соберите данные заново"
+        }
+
+    data_with_info = await _prepare_harvest_response(session=session,
+                                                     redis=redis,
+                                                     harvest_id=harvest.id,
+                                                     sync_features=False)
+    return {"is_ok": True,
+            "category": harvest.category,
+            "datestamp": harvest.datestamp,
+            "range_reward": {"id": reward.id,
+                             "title": reward.title},
+            "data": data_with_info}
 
 
 @parsing_router.put("/update_parsing_item/{origin}")
@@ -272,46 +258,33 @@ async def fetch_images_in_origin(origin: int, session: AsyncSession = Depends(db
 
 
 @parsing_router.post("/recalculate_output_prices", response_model=RecalcPricesResponse)
-async def recalculate_reward(recalc_req: RecalcPricesRequest, redis=Depends(redis_session),
+async def recalculate_reward(recalc_req: RecalcPricesRequest,
+                             redis=Depends(redis_session),
                              session: AsyncSession = Depends(db.scoped_session_dependency)):
     vsl = await session.get(VendorSearchLine, recalc_req.vsl_id)
     if not vsl:
-        raise HTTPException(status_code=404, detail="VendorSearchLine не найден")
-
-    harvest_stmt = select(Harvest).where(Harvest.vendor_search_line_id == recalc_req.vsl_id)
-    harvest_res = await session.execute(harvest_stmt)
-    harvest: Harvest | None = harvest_res.scalars().first()
+        raise HTTPException(404, "VendorSearchLine не найден")
+    harvest = (await session.execute(
+        select(Harvest).where(Harvest.vendor_search_line_id == recalc_req.vsl_id)
+    )).scalars().first()
     if not harvest:
-        raise HTTPException(status_code=404, detail="Harvest не найден")
-
+        raise HTTPException(404, "Harvest не найден")
     harvest.range_id = recalc_req.range_id
     await session.flush()
-
     ranges = await get_range_rewards_list(session=session, range_id=recalc_req.range_id)
-
-    hl_stmt = select(HarvestLine).where(HarvestLine.harvest_id == harvest.id)
-    hl_res = await session.execute(hl_stmt)
-    lines = hl_res.scalars().all()
-
+    lines = (await session.execute(
+        select(HarvestLine).where(HarvestLine.harvest_id == harvest.id)
+    )).scalars().all()
     for line in lines:
         inp = line.input_price or 0
         line.output_price = cost_process(inp, ranges)
     await session.commit()
-
-    join_stmt = (select(HarvestLine, ProductOrigin)
-                 .join(ProductOrigin, HarvestLine.origin == ProductOrigin.origin)
-                 .where(HarvestLine.harvest_id == harvest.id, ProductOrigin.is_deleted.is_(False))
-                 .order_by(HarvestLine.input_price))
-    result = await session.execute(join_stmt)
-    rows = result.all()
-    raw = list()
-    for row in rows:
-        line_obj = row[0]
-        line_dict = dict()
-        for key, val in line_obj.__dict__.items():
-            if not key.startswith("_sa_"):
-                line_dict[key] = val
-                raw.append(line_dict)
-    with_info = await append_info(session=session, data_lines=raw, redis=redis, sync_features=False)
-    return {"is_ok": True, "category": harvest.category, "datestamp": harvest.datestamp,
-            "range_reward": recalc_req.range_id, "data": with_info}
+    data_with_info = await _prepare_harvest_response(session=session,
+                                                     redis=redis,
+                                                     harvest_id=harvest.id,
+                                                     sync_features=False)
+    return {"is_ok": True,
+            "category": harvest.category,
+            "datestamp": harvest.datestamp,
+            "range_reward": recalc_req.range_id,
+            "data": data_with_info}
