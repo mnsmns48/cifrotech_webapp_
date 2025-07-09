@@ -7,7 +7,7 @@ import aioboto3
 from botocore.config import Config
 from botocore.exceptions import ClientError, BotoCoreError
 from aiohttp import ClientSession, ClientTimeout
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Path
 from sqlalchemy import select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -290,13 +290,9 @@ async def upload_image_to_origin(origin: int,
     session_s3 = aioboto3.Session()
 
     try:
-        async with session_s3.client(
-            service_name="s3",
-            endpoint_url=endpoint,
+        async with session_s3.client(service_name="s3", endpoint_url=endpoint,
             aws_access_key_id=settings.s3.s3_access_key.strip(),
-            aws_secret_access_key=settings.s3.s3_secret_access_key.strip(),
-            config=cfg,
-        ) as s3_client:
+            aws_secret_access_key=settings.s3.s3_secret_access_key.strip(), config=cfg) as s3_client:
             try:
                 put_url = await s3_client.generate_presigned_url(ClientMethod="put_object",
                                                                  Params={"Bucket": bucket, "Key": key},
@@ -327,3 +323,39 @@ async def upload_image_to_origin(origin: int,
         raise HTTPException(500, f"Ошибка сохранения данных в базе: {e}")
     return JSONResponse({"origin": origin, "uploaded": file.filename, "preview": first_url, "images": images})
 
+
+
+@parsing_router.delete("/delete_images/{origin}/{filename}")
+async def delete_image(origin: int,
+                       filename: str,
+                       session: AsyncSession = Depends(db.scoped_session_dependency), s3_client=Depends(get_s3_client)):
+    result = await session.execute(select(ProductOrigin).where(ProductOrigin.origin == origin))
+    product = result.scalar_one_or_none()
+    if not product:
+        raise HTTPException(404, "Товар не найден")
+
+    bucket = settings.s3.bucket_name
+    prefix = f"{settings.s3.s3_hub_prefix}/{origin}/"
+    key = prefix + filename
+    try:
+        await s3_client.delete_object(Bucket=bucket, Key=key)
+    except (ClientError, BotoCoreError) as e:
+        raise HTTPException(502, f"Не удалось удалить файл из S3: {e}")
+    kept = [
+        pic for pic in (product.pics or [])
+        if os.path.basename(urlparse(pic).path) != filename
+    ]
+    product.pics = kept
+    try:
+        keys = await scan_s3_images(s3_client, bucket, prefix)
+        images = await generate_presigned_image_urls(keys, prefix, bucket, s3_client)
+    except (ClientError, BotoCoreError) as e:
+        images = []
+    new_preview = images[0]["url"] if images else None
+    product.preview = new_preview
+    session.add(product)
+    try:
+        await session.commit()
+    except SQLAlchemyError:
+        raise HTTPException(500, "Ошибка при сохранении данных")
+    return {"origin": origin, "preview": new_preview, "images": images}
