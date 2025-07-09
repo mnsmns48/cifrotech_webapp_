@@ -359,3 +359,5 @@ async def delete_image(origin: int,
     except SQLAlchemyError:
         raise HTTPException(500, "Ошибка при сохранении данных")
     return {"origin": origin, "preview": new_preview, "images": images}
+
+
