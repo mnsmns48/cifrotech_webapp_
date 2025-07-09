@@ -2,8 +2,10 @@ import asyncio
 from datetime import datetime
 
 import aiohttp
+import boto3
 from aioboto3 import Session
 from aiohttp import ClientSession
+from botocore.exceptions import NoCredentialsError, EndpointConnectionError, ClientError
 
 from bot.crud_bot import show_day_sales
 from config import Settings, settings
@@ -42,19 +44,50 @@ async def download_image(session, url, save_path):
 
 
 async def callable_func_():
-    await check_s3_connection()
+    list_objects("")
 
 
 async def check_s3_connection():
-    session = Session(
-        aws_access_key_id=settings.s3.s3_access_key,
-        aws_secret_access_key=settings.s3.s3_secret_access_key,
+    print(repr(settings.s3.s3_access_key))
+    try:
+        session = boto3.session.Session(
+            aws_access_key_id=settings.s3.s3_access_key,
+            aws_secret_access_key=settings.s3.s3_secret_access_key,
+            region_name=settings.s3.region,
+        )
+        s3 = session.resource('s3', endpoint_url=settings.s3.s3_url)
+        bucket = s3.Bucket(settings.s3.bucket_name)
+        objects = list(bucket.objects.limit(1))
+        print(f"✅ Успешное подключение к S3 bucket: {settings.s3.bucket_name}")
+        return True
+    except (NoCredentialsError, EndpointConnectionError):
+        print("❌ Ошибка авторизации или подключения к S3")
+        return False
+    except ClientError as e:
+        print(f"❌ Ошибка клиента: {e}")
+        return False
+
+
+def list_objects(prefix: str):
+    s3 = boto3.client(
+        "s3",
+        endpoint_url=settings.s3.s3_url.rstrip("/"),
+        aws_access_key_id=settings.s3.s3_access_key.strip(),
+        aws_secret_access_key=settings.s3.s3_secret_access_key.strip(),
         region_name=settings.s3.region
     )
-    async with session.client('s3', endpoint_url=settings.s3.s3_url) as s3_client:
-        try:
-            response = await s3_client.list_buckets()
-            return response
-        except Exception as e:
-            print("Ошибка подключения к S3:", e)
-            raise e
+
+    try:
+        resp = s3.list_objects_v2(
+            Bucket=settings.s3.bucket_name,
+            Prefix=prefix
+        )
+        contents = resp.get("Contents", [])
+        keys = [obj["Key"] for obj in contents]
+        print("Found keys:", keys)
+        return keys
+
+    except ClientError as e:
+        code = e.response["Error"].get("Code")
+        print(f"❌ list_objects_v2 failed: {code}")
+        return []

@@ -77,7 +77,7 @@ class S3Settings(CustomConfigSettings):
     s3_access_key: str
     s3_secret_access_key: str
     region: str
-
+    s3_hub_prefix: str
 
 class Settings(CustomConfigSettings):
     db: DBSettings = DBSettings()

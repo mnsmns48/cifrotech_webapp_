@@ -44,4 +44,8 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
+    logging.getLogger("botocore").setLevel(logging.WARNING)
+    logging.getLogger("aiobotocore").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("python_multipart.multipart").setLevel(logging.WARNING)
     uvicorn.run("main:app", host='0.0.0.0', port=5000)
