@@ -1,27 +1,22 @@
 import asyncio
 import os
-from typing import List
 from urllib.parse import urlparse
 from aiohttp import ClientConnectionError, ClientResponseError
-import aioboto3
-from botocore.config import Config
 from botocore.exceptions import ClientError, BotoCoreError
-from aiohttp import ClientSession, ClientTimeout
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Path, Form
+from aiohttp import ClientSession
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy import select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.responses import JSONResponse
-from typing_extensions import Dict
-
 from api_service.api_req import get_items_by_brand, get_one_by_dtube
 from api_service.crud import get_vendor_by_url, get_range_rewards_list
 from api_service.routers.process_helper import _prepare_harvest_response
-from api_service.routers.s3_helper import scan_s3_images, generate_presigned_image_urls, upload_missing_images, \
-    get_s3_client, get_http_client_session, ALLOWED_EXTENSIONS, sync_images_from_pics, sync_images_by_origin
-from api_service.schemas import ParsingRequest, ProductOriginUpdate, ProductDependencyUpdate, ProductResponse, \
-    RecalcPricesResponse, RecalcPricesRequest
+from api_service.routers.s3_helper import (scan_s3_images, generate_presigned_image_urls, get_s3_client,
+                                           get_http_client_session, sync_images_by_origin)
+from api_service.schemas import (ParsingRequest, ProductOriginUpdate, ProductDependencyUpdate, ProductResponse,
+                                 RecalcPricesResponse, RecalcPricesRequest)
 from config import redis_session, settings
 from engine import db
 

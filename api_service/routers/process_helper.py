@@ -1,11 +1,7 @@
-from botocore.exceptions import BotoCoreError, ClientError
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
 from api_service.routers.s3_helper import build_with_preview
-from config import settings
 from models import HarvestLine, ProductOrigin
 from parsing.logic import append_info
 
