@@ -7,10 +7,11 @@ import aioboto3
 from botocore.config import Config
 from botocore.exceptions import ClientError, BotoCoreError
 from aiohttp import ClientSession, ClientTimeout
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Path
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Path, Form
 from sqlalchemy import select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from starlette.responses import JSONResponse
 from typing_extensions import Dict
 
@@ -18,7 +19,7 @@ from api_service.api_req import get_items_by_brand, get_one_by_dtube
 from api_service.crud import get_vendor_by_url, get_range_rewards_list
 from api_service.routers.process_helper import _prepare_harvest_response
 from api_service.routers.s3_helper import scan_s3_images, generate_presigned_image_urls, upload_missing_images, \
-    get_s3_client, get_http_client_session, ALLOWED_EXTENSIONS
+    get_s3_client, get_http_client_session, ALLOWED_EXTENSIONS, sync_images_from_pics, sync_images_by_origin
 from api_service.schemas import ParsingRequest, ProductOriginUpdate, ProductDependencyUpdate, ProductResponse, \
     RecalcPricesResponse, RecalcPricesRequest
 from config import redis_session, settings
@@ -26,6 +27,7 @@ from engine import db
 
 from models import Harvest, HarvestLine, ProductOrigin, ProductType, ProductBrand, ProductFeaturesGlobal, \
     ProductFeaturesLink
+from models.product_dependencies import ProductImage
 from models.vendor import VendorSearchLine, RewardRange
 from parsing.logic import parsing_core
 from parsing.utils import cost_process
@@ -36,11 +38,12 @@ parsing_router = APIRouter(tags=['Service-Parsing'])
 @parsing_router.post("/start_parsing")
 async def go_parsing(data: ParsingRequest,
                      redis=Depends(redis_session),
-                     session: AsyncSession = Depends(db.scoped_session_dependency)):
+                     session: AsyncSession = Depends(db.scoped_session_dependency),
+                     s3_client=Depends(get_s3_client)):
     pubsub_obj = redis.pubsub()
     vendor = await get_vendor_by_url(session=session, url=data.vsl_url)
     try:
-        parsing_data: dict = await parsing_core(redis, data, vendor, session, vendor.function)
+        parsing_data: dict = await parsing_core(redis, data, vendor, session, vendor.function, s3_client)
         if len(parsing_data.get('data')) > 0:
             parsing_data.update({'is_ok': True})
     finally:
@@ -55,27 +58,22 @@ async def go_parsing(data: ParsingRequest,
 @parsing_router.post("/previous_parsing_results")
 async def get_previous_results(
         data: ParsingRequest, redis=Depends(redis_session),
-        session: AsyncSession = Depends(db.scoped_session_dependency)):
+        session: AsyncSession = Depends(db.scoped_session_dependency),
+        s3_client=Depends(get_s3_client)):
     vsl_exists = await session.get(VendorSearchLine, data.vsl_id)
     if not vsl_exists:
         raise HTTPException(404, "Vendor_search_line с таким ID не найден")
     harvest = await session.execute(
         select(Harvest, RewardRange)
-        .join(RewardRange, Harvest.range_id == RewardRange.id)
-        .where(Harvest.vendor_search_line_id == data.vsl_id)
-    )
+        .join(RewardRange, Harvest.range_id == RewardRange.id).where(Harvest.vendor_search_line_id == data.vsl_id))
     harvest, reward = harvest.first() or (None, None)
     if not harvest:
         return {
-            "response": "not found",
-            "is_ok": False,
-            "message": "Предыдущих результатов нет, соберите данные заново"
+            "response": "not found", "is_ok": False, "message": "Предыдущих результатов нет, соберите данные заново"
         }
-
-    data_with_info = await _prepare_harvest_response(session=session,
-                                                     redis=redis,
+    data_with_info = await _prepare_harvest_response(session=session, redis=redis,
                                                      harvest_id=harvest.id,
-                                                     sync_features=False)
+                                                     sync_features=False, s3_client=s3_client)
     return {"is_ok": True,
             "category": harvest.category,
             "datestamp": harvest.datestamp,
@@ -221,107 +219,72 @@ async def recalculate_reward(recalc_req: RecalcPricesRequest,
             "data": data_with_info}
 
 
+
+
 @parsing_router.get("/fetch_images_62701/{origin}")
-async def fetch_images_in_origin(origin: int,
-                                 session: AsyncSession = Depends(db.scoped_session_dependency),
-                                 s3_client = Depends(get_s3_client),
-                                 cl_session: ClientSession = Depends(get_http_client_session)):
-    try:
-        result = await session.execute(select(ProductOrigin).where(ProductOrigin.origin == origin))
-        product = result.scalar_one_or_none()
-    except SQLAlchemyError as e:
-        raise HTTPException(500, "Ошибка доступа к базе данных")
-    if not product:
-        raise HTTPException(404, "Товар не найден")
-    raw_pics = product.pics or []
-    external_urls = list()
-    local_keys = set()
-
-    for pic in raw_pics:
-        parsed = urlparse(pic)
-        name = os.path.basename(parsed.path)
-        ext = os.path.splitext(name)[1].lower()
-
-        if pic.startswith("http") and ext in ALLOWED_EXTENSIONS:
-            external_urls.append(pic)
-        elif not pic.startswith("http") and name and ext in ALLOWED_EXTENSIONS:
-            local_keys.add(pic)
-
-    bucket = settings.s3.bucket_name
-    prefix = f"{settings.s3.s3_hub_prefix}/{origin}/"
-    try:
-        existing_keys = await scan_s3_images(s3_client, bucket, prefix)
-    except (ClientError, BotoCoreError) as e:
-        raise HTTPException(502, f"Не удалось получить список файлов: {e}")
-    new_keys = set()
-    if external_urls:
-        try:
-            new_keys = await upload_missing_images(external_urls, existing_keys, prefix, bucket, s3_client, cl_session)
-        except (ClientError, BotoCoreError, asyncio.TimeoutError) as e:
-            raise HTTPException(502, f"Ошибка при дозагрузке изображений: {e}")
-    all_keys = existing_keys | new_keys | local_keys
-    if not all_keys:
-        return {"origin": origin, "preview": None, "images": []}
-    try:
-        images = await generate_presigned_image_urls(all_keys, prefix, bucket, s3_client)
-    except (ClientError, BotoCoreError) as e:
-        raise HTTPException(502, f"Не удалось сгенерировать ссылки: {e}")
-    return {"origin": origin, "preview": images[0]["url"], "images": images}
-
+async def fetch_images_in_origin(
+        origin: int,
+        session: AsyncSession = Depends(db.scoped_session_dependency),
+        s3_client = Depends(get_s3_client),
+        cl_session: ClientSession = Depends(get_http_client_session)):
+    return await sync_images_by_origin(origin=origin, session=session, s3_client=s3_client, cl_session=cl_session)
 
 
 @parsing_router.post("/upload_image/{origin}")
-async def upload_image_to_origin(origin: int,
-                                 file: UploadFile = File(...),
-                                 session: AsyncSession = Depends(db.scoped_session_dependency)):
+async def upload_image_to_origin(
+        origin: int, file: UploadFile = File(...), session: AsyncSession = Depends(db.scoped_session_dependency),
+        s3_client=Depends(get_s3_client), cl_session: ClientSession = Depends(get_http_client_session)):
     try:
-        result = await session.execute(select(ProductOrigin).where(ProductOrigin.origin == origin))
-        product: ProductOrigin = result.scalar_one_or_none()
+        result = await session.execute(
+            select(ProductOrigin).options(selectinload(ProductOrigin.images)).where(ProductOrigin.origin == origin))
+        product = result.scalar_one_or_none()
     except SQLAlchemyError as e:
-        raise HTTPException(500, f"Ошибка доступа к базе данных {e}")
+        raise HTTPException(500, f"Ошибка доступа к базе: {e}")
     if not product:
         raise HTTPException(404, "Товар не найден")
-    cfg = Config(signature_version="s3v4", region_name=settings.s3.region, s3={"addressing_style": "path"})
-    endpoint = settings.s3.s3_url.rstrip("/")
     bucket = settings.s3.bucket_name
     prefix = f"{settings.s3.s3_hub_prefix}/{origin}/"
-    key = f"{prefix}{file.filename}"
-    timeout = ClientTimeout(total=30)
-    session_s3 = aioboto3.Session()
+    filename = file.filename
+    key = f"{prefix}{filename}"
+    try:
+        put_url = await s3_client.generate_presigned_url(
+            ClientMethod="put_object", Params={"Bucket": bucket, "Key": key}, ExpiresIn=600)
+        body = await file.read()
+    except Exception as e:
+        raise HTTPException(400, f"Не удалось подготовить загрузку: {e}")
 
     try:
-        async with session_s3.client(service_name="s3", endpoint_url=endpoint,
-            aws_access_key_id=settings.s3.s3_access_key.strip(),
-            aws_secret_access_key=settings.s3.s3_secret_access_key.strip(), config=cfg) as s3_client:
-            try:
-                put_url = await s3_client.generate_presigned_url(ClientMethod="put_object",
-                                                                 Params={"Bucket": bucket, "Key": key},
-                                                                 ExpiresIn=600)
-            except (ClientError, BotoCoreError) as e:
-                raise HTTPException(502, f"Cannot presign upload PUT: {e}")
-            try:
-                body = await file.read()
-            except (OSError, RuntimeError) as e:
-                raise HTTPException(400, f"Cannot read file: {e}")
-            async with ClientSession(timeout=timeout) as http:
-                try:
-                    resp = await http.put(put_url, data=body)
-                    resp.raise_for_status()
-                except (ClientConnectionError, ClientResponseError, asyncio.TimeoutError) as e:
-                    raise HTTPException(502, f"Upload to S3 failed: {e}")
-            all_keys = await scan_s3_images(s3_client, bucket, prefix)
-            images: List[Dict[str, str]] = await generate_presigned_image_urls(all_keys, prefix, bucket, s3_client)
-    except HTTPException:
-        raise HTTPException(500, f"Internal server error: {e}")
-    first_url = images[0]["url"] if images else None
-    if not product.preview and first_url:
-        product.preview = first_url
-    session.add(product)
-    try:
-        await session.commit()
-    except SQLAlchemyError as e:
-        raise HTTPException(500, f"Ошибка сохранения данных в базе: {e}")
-    return JSONResponse({"origin": origin, "uploaded": file.filename, "preview": first_url, "images": images})
+        async with cl_session.put(put_url, data=body) as resp:
+            resp.raise_for_status()
+    except (ClientConnectionError, ClientResponseError, asyncio.TimeoutError) as e:
+        raise HTTPException(502, f"S3 upload failed: {e}")
+
+    has_preview = False
+    for img in product.images:
+        if img.is_preview:
+            has_preview = True
+            break
+    is_preview: bool = not has_preview
+
+    new_img = ProductImage(origin_id=product.origin, key=filename, source_url=None, is_preview=is_preview)
+    session.add(new_img)
+    await session.commit()
+    await session.refresh(product)
+
+    all_keys = await scan_s3_images(s3_client, bucket, prefix)
+    presigned_list = await generate_presigned_image_urls(all_keys, prefix, bucket, s3_client)
+    final_images = list()
+    for item in presigned_list:
+        file_name = item["filename"]
+        url = item["url"]
+        matched_image = None
+        for img in product.images:
+            if img.key == file_name:
+                matched_image = img
+                break
+        is_preview_flag = bool(matched_image and matched_image.is_preview)
+        final_images.append({"filename": file_name, "url": url, "is_preview": is_preview_flag})
+    return {"origin": origin, "uploaded": filename, "images": final_images}
 
 
 

@@ -1,11 +1,13 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, String, BigInteger, Index
+from sqlalchemy import ForeignKey, String, BigInteger, Index, func
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models import Base
+from datetime import datetime
+
 
 if TYPE_CHECKING:
     from .harvest import HarvestLine
@@ -45,7 +47,22 @@ class ProductOrigin(Base):
     pics: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=True)
     preview: Mapped[str] = mapped_column(nullable=True)
     is_deleted: Mapped[bool] = mapped_column(default=False)
+
+    images: Mapped[list["ProductImage"]] = relationship(back_populates="origin", cascade="all, delete-orphan")
     harvest_lines: Mapped[list["HarvestLine"]] = relationship("HarvestLine", back_populates="product_origin")
+
+class ProductImage(Base):
+    __tablename__ = "product_image"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    origin_id: Mapped[int] = mapped_column(ForeignKey("product_origin.origin", ondelete="CASCADE"), index=True)
+    key: Mapped[str] = mapped_column(nullable=False)
+    source_url: Mapped[str | None] = mapped_column(nullable=True)
+    is_preview: Mapped[bool] = mapped_column(default=False)
+    uploaded_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    checksum: Mapped[str | None] = mapped_column(nullable=True)
+
+    origin: Mapped["ProductOrigin"] = relationship(back_populates="images")
 
 
 class ProductFeaturesLink(Base):

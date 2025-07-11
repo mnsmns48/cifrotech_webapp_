@@ -1,6 +1,8 @@
 import importlib.util
 from pathlib import Path
+from typing import Any
 
+from aiobotocore.client import AioBaseClient
 from aiohttp import ClientSession
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +11,8 @@ from sqlalchemy.sql.annotation import Annotated
 from api_service.api_req import get_one_by_dtube
 from api_service.crud import delete_harvest_strings_by_vsl_id, store_one_item, get_info_by_caching, \
     add_dependencies_link
+from api_service.routers.s3_helper import build_with_preview
+
 from api_service.schemas import ParsingRequest
 from api_service.utils import normalize_origin
 from config import BASE_DIR
@@ -19,7 +23,8 @@ async def parsing_core(redis: Redis,
                        data: ParsingRequest,
                        vendor: Vendor,
                        session: AsyncSession,
-                       function_name: str) -> dict:
+                       function_name: str,
+                       s3_client: AioBaseClient) -> dict:
     module_path = Path(f"{BASE_DIR}/parsing/sources/{function_name}.py")
     if not module_path.exists():
         raise FileNotFoundError(f"Функция {module_path} не найдена")
@@ -34,11 +39,9 @@ async def parsing_core(redis: Redis,
     finally:
         await pars_obj.browser.close()
         await pars_obj.playwright.stop()
-    result['data'] = await append_info(session=session,
-                                       data_lines=result['data'],
-                                       redis=redis,
-                                       channel=data.progress,
+    result['data'] = await append_info(session=session, data_lines=result['data'], redis=redis, channel=data.progress,
                                        sync_features=data.sync_features)
+    result['data'] = await build_with_preview(session=session, data_lines=result['data'], s3_client=s3_client)
     return result
 
 
