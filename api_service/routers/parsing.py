@@ -61,7 +61,7 @@ async def get_previous_results(
     harvest = await session.execute(
         select(Harvest, RewardRange)
         .join(RewardRange, Harvest.range_id == RewardRange.id).where(Harvest.vendor_search_line_id == data.vsl_id))
-    harvest, reward = harvest.first() or (None, None)
+    harvest, reward = harvest.first()
     if not harvest:
         return {
             "response": "not found", "is_ok": False, "message": "Предыдущих результатов нет, соберите данные заново"
@@ -284,38 +284,57 @@ async def upload_image_to_origin(
 
 
 @parsing_router.delete("/delete_images/{origin}/{filename}")
-async def delete_image(origin: int,
-                       filename: str,
-                       session: AsyncSession = Depends(db.scoped_session_dependency), s3_client=Depends(get_s3_client)):
-    result = await session.execute(select(ProductOrigin).where(ProductOrigin.origin == origin))
+async def delete_image(
+    origin: int,
+    filename: str,
+    session: AsyncSession = Depends(db.scoped_session_dependency),
+    s3_client=Depends(get_s3_client),
+):
+    result = await session.execute(
+        select(ProductOrigin)
+        .options(selectinload(ProductOrigin.images))
+        .where(ProductOrigin.origin == origin)
+    )
     product = result.scalar_one_or_none()
     if not product:
         raise HTTPException(404, "Товар не найден")
-
     bucket = settings.s3.bucket_name
     prefix = f"{settings.s3.s3_hub_prefix}/{origin}/"
-    key = prefix + filename
+    key = f"{prefix}{filename}"
     try:
         await s3_client.delete_object(Bucket=bucket, Key=key)
     except (ClientError, BotoCoreError) as e:
         raise HTTPException(502, f"Не удалось удалить файл из S3: {e}")
-    kept = [
-        pic for pic in (product.pics or [])
-        if os.path.basename(urlparse(pic).path) != filename
-    ]
-    product.pics = kept
-    try:
-        keys = await scan_s3_images(s3_client, bucket, prefix)
-        images = await generate_presigned_image_urls(keys, prefix, bucket, s3_client)
-    except (ClientError, BotoCoreError) as e:
-        images = []
-    new_preview = images[0]["url"] if images else None
-    product.preview = new_preview
-    session.add(product)
-    try:
-        await session.commit()
-    except SQLAlchemyError:
-        raise HTTPException(500, "Ошибка при сохранении данных")
-    return {"origin": origin, "preview": new_preview, "images": images}
+    to_delete = None
+    for img in product.images:
+        if img.key == filename:
+            to_delete = img
+            break
+    if not to_delete:
+        raise HTTPException(404, "Изображение не найдено в базе")
+    if to_delete.source_url and product.pics:
+        product.pics = [pic for pic in product.pics if pic != to_delete.source_url]
+    if to_delete.is_preview and product.preview == to_delete.source_url:
+        product.preview = None
+        to_delete.is_preview = False
+    product.images.remove(to_delete)
+    await session.flush()
+    all_keys = await scan_s3_images(s3_client, bucket, prefix)
+    presigned_list = await generate_presigned_image_urls(all_keys, prefix, bucket, s3_client)
+    if not product.preview and presigned_list:
+        first_fn = presigned_list[0]["filename"]
+        for img in product.images:
+            img.is_preview = (img.key == first_fn)
+    await session.commit()
+    final_images = []
+    for item in presigned_list:
+        fn = item["filename"]
+        url = item["url"]
+        is_preview_flag = False
+        for img in product.images:
+            if img.key == fn and img.is_preview:
+                is_preview_flag = True
+                break
+        final_images.append({"filename": fn, "url": url, "is_preview": is_preview_flag})
 
-
+    return {"origin": origin, "preview": product.preview, "images": final_images}

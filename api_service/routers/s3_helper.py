@@ -236,3 +236,19 @@ async def sync_images_by_origin(
         preview_url = images[0]["url"]
 
     return {"origin": origin, "preview": preview_url, "images": final_images}
+
+# async def _build_images_response(product: ProductOrigin, s3_client, bucket: str, prefix: str) -> tuple:
+#     all_keys = await scan_s3_images(s3_client, bucket, prefix)
+#     presigned_list = await generate_presigned_image_urls(all_keys, prefix, bucket, s3_client)
+#     if not product.preview and presigned_list:
+#         product.preview = presigned_list[0]["url"]
+#         for img in product.images:
+#             img.is_preview = (img.key == presigned_list[0]["filename"])
+#     final_images = []
+#     for item in presigned_list:
+#         fn = item["filename"]
+#         url = item["url"]
+#         is_prev = any(img.key == fn and img.is_preview for img in product.images)
+#         final_images.append({"filename": fn, "url": url, "is_preview": is_prev})
+#
+#     return product.preview, final_images
