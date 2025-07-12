@@ -285,16 +285,11 @@ async def upload_image_to_origin(
 
 @parsing_router.delete("/delete_images/{origin}/{filename}")
 async def delete_image(
-    origin: int,
-    filename: str,
-    session: AsyncSession = Depends(db.scoped_session_dependency),
-    s3_client=Depends(get_s3_client),
-):
+        origin: int,
+        filename: str, session: AsyncSession = Depends(db.scoped_session_dependency),
+        s3_client=Depends(get_s3_client)):
     result = await session.execute(
-        select(ProductOrigin)
-        .options(selectinload(ProductOrigin.images))
-        .where(ProductOrigin.origin == origin)
-    )
+        select(ProductOrigin).options(selectinload(ProductOrigin.images)).where(ProductOrigin.origin == origin))
     product = result.scalar_one_or_none()
     if not product:
         raise HTTPException(404, "Товар не найден")
@@ -338,3 +333,4 @@ async def delete_image(
         final_images.append({"filename": fn, "url": url, "is_preview": is_preview_flag})
 
     return {"origin": origin, "preview": product.preview, "images": final_images}
+
