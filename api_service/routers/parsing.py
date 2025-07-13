@@ -14,7 +14,7 @@ from api_service.api_req import get_items_by_brand, get_one_by_dtube
 from api_service.crud import get_vendor_by_url, get_range_rewards_list
 from api_service.routers.process_helper import _prepare_harvest_response
 from api_service.routers.s3_helper import (scan_s3_images, generate_presigned_image_urls, get_s3_client,
-                                           get_http_client_session, sync_images_by_origin)
+                                           get_http_client_session, sync_images_by_origin, generate_final_image_payload)
 from api_service.schemas import (ParsingRequest, ProductOriginUpdate, ProductDependencyUpdate, ProductResponse,
                                  RecalcPricesResponse, RecalcPricesRequest)
 from config import redis_session, settings
@@ -184,6 +184,7 @@ async def update_parsing_item_dependency(title: str):
 @parsing_router.post("/recalculate_output_prices", response_model=RecalcPricesResponse)
 async def recalculate_reward(recalc_req: RecalcPricesRequest,
                              redis=Depends(redis_session),
+                             s3_client=Depends(get_s3_client),
                              session: AsyncSession = Depends(db.scoped_session_dependency)):
     vsl = await session.get(VendorSearchLine, recalc_req.vsl_id)
     if not vsl:
@@ -205,6 +206,7 @@ async def recalculate_reward(recalc_req: RecalcPricesRequest,
     await session.commit()
     data_with_info = await _prepare_harvest_response(session=session,
                                                      redis=redis,
+                                                     s3_client=s3_client,
                                                      harvest_id=harvest.id,
                                                      sync_features=False)
     return {"is_ok": True,
@@ -266,28 +268,15 @@ async def upload_image_to_origin(
     await session.commit()
     await session.refresh(product)
 
-    all_keys = await scan_s3_images(s3_client, bucket, prefix)
-    presigned_list = await generate_presigned_image_urls(all_keys, prefix, bucket, s3_client)
-    final_images = list()
-    for item in presigned_list:
-        file_name = item["filename"]
-        url = item["url"]
-        matched_image = None
-        for img in product.images:
-            if img.key == file_name:
-                matched_image = img
-                break
-        is_preview_flag = bool(matched_image and matched_image.is_preview)
-        final_images.append({"filename": file_name, "url": url, "is_preview": is_preview_flag})
-    return {"origin": origin, "uploaded": filename, "images": final_images}
+    payload = await generate_final_image_payload(product, s3_client, bucket, prefix)
+    return {"origin": origin, "preview": payload["preview"], "images": payload["images"]}
 
 
 
 @parsing_router.delete("/delete_images/{origin}/{filename}")
 async def delete_image(
-        origin: int,
-        filename: str, session: AsyncSession = Depends(db.scoped_session_dependency),
-        s3_client=Depends(get_s3_client)):
+        origin: int, filename: str,
+        session: AsyncSession = Depends(db.scoped_session_dependency), s3_client=Depends(get_s3_client)):
     result = await session.execute(
         select(ProductOrigin).options(selectinload(ProductOrigin.images)).where(ProductOrigin.origin == origin))
     product = result.scalar_one_or_none()
@@ -309,28 +298,49 @@ async def delete_image(
         raise HTTPException(404, "Изображение не найдено в базе")
     if to_delete.source_url and product.pics:
         product.pics = [pic for pic in product.pics if pic != to_delete.source_url]
-    if to_delete.is_preview and product.preview == to_delete.source_url:
+    if to_delete.is_preview:
         product.preview = None
         to_delete.is_preview = False
     product.images.remove(to_delete)
     await session.flush()
-    all_keys = await scan_s3_images(s3_client, bucket, prefix)
-    presigned_list = await generate_presigned_image_urls(all_keys, prefix, bucket, s3_client)
-    if not product.preview and presigned_list:
-        first_fn = presigned_list[0]["filename"]
+    if not product.preview and product.images:
+        first_key = product.images[0].key
         for img in product.images:
-            img.is_preview = (img.key == first_fn)
-    await session.commit()
-    final_images = []
-    for item in presigned_list:
-        fn = item["filename"]
-        url = item["url"]
-        is_preview_flag = False
-        for img in product.images:
-            if img.key == fn and img.is_preview:
-                is_preview_flag = True
+            is_first = (img.key == first_key)
+            img.is_preview = is_first
+            if is_first:
+                product.preview = img.source_url if img.source_url else None
                 break
-        final_images.append({"filename": fn, "url": url, "is_preview": is_preview_flag})
+    await session.commit()
+    payload = await generate_final_image_payload(product, s3_client, bucket, prefix)
+    return {"origin": origin, "preview": payload["preview"], "images": payload["images"]}
 
-    return {"origin": origin, "preview": product.preview, "images": final_images}
+@parsing_router.patch("/set_is_preview_image/{origin}/{filename}")
+async def set_preview_image(origin: int, filename: str,
+        session: AsyncSession = Depends(db.scoped_session_dependency),
+        s3_client=Depends(get_s3_client)):
+    result = await session.execute(select(ProductOrigin)
+        .options(selectinload(ProductOrigin.images)).where(ProductOrigin.origin == origin))
+    product = result.scalar_one_or_none()
+    if not product:
+        raise HTTPException(404, "Товар не найден")
 
+    target_image = next((img for img in product.images if img.key == filename), None)
+    if not target_image:
+        raise HTTPException(404, "Изображение не найдено")
+
+    if target_image.is_preview:
+        final_images = await generate_final_image_payload(product, s3_client, settings.s3.bucket_name,
+            f"{settings.s3.s3_hub_prefix}/{origin}/")
+        return {"origin": origin, "preview": product.preview, "images": final_images}
+
+    for img in product.images:
+        img.is_preview = False
+    target_image.is_preview = True
+
+    await session.commit()
+
+    payload = await generate_final_image_payload(
+        product, s3_client, settings.s3.bucket_name, f"{settings.s3.s3_hub_prefix}/{origin}/")
+
+    return {"origin": origin, "preview": payload["preview"], "images": payload["images"]}
