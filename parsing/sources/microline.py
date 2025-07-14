@@ -114,8 +114,15 @@ class BaseParser:
                 data_item["shipment"] = code_block.get_text().strip() or ''
             if (code_block := line.find("div", class_="divisible-block")) and (span_element := code_block.find("span")):
                 data_item["warranty"] = span_element.get_text().strip() or ''
-            if code_block := line.find("span", class_="ty-price-num", id=lambda x: x and "sec_discounted_price" in x):
-                data_item["input_price"] = float(code_block.get_text().replace("\xa0", "")) or 0
+            code_block = line.find("span", class_="ty-price-num", id=lambda x: x and "sec_discounted_price" in x)
+            if code_block:
+                price_text = code_block.get_text().strip().replace("\xa0", "")
+                if price_text.replace(".", "").isdigit():
+                    data_item["input_price"] = float(price_text)
+                else:
+                    continue
+            else:
+                continue
             if code_block := line.find("div", class_="swiper-wrapper"):
                 data_item["pics"] = await BaseParser.extract_pic(code_block)
                 data_item["preview"] = code_block.find('a').get('href')
