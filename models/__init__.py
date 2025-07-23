@@ -17,12 +17,14 @@ __all__ = (
     "TgBotOptions",
     "User",
     "Vendor",
-    "VendorSearchLine"
+    "VendorSearchLine",
+    "HUbMenuLevel"
 )
 
 from .base import Base
 from .api_v1 import Activity, StockTable, Guests, Sellers
 from .harvest import HarvestLine, Harvest
+from .hub import HUbMenuLevel
 from .product_dependencies import (ProductFeaturesLink,
                                    ProductOrigin,
                                    ProductFeaturesGlobal,

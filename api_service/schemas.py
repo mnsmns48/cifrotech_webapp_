@@ -148,3 +148,25 @@ class RecalcPricesResponse(BaseModel):
     datestamp: datetime
     range_reward: int
     data: list
+
+
+class HubMenuLevelSchema(BaseModel):
+    id: int
+    sort_order: int
+    label: str
+    icon: Optional[str]
+    parent_id: int
+
+    class Config:
+        from_attributes = True
+
+
+class RenameRequest(BaseModel):
+    id: int
+    new_label: str
+
+
+class HubPositionPatch(BaseModel):
+    id: int
+    parent_id: int
+    after_id: Optional[int] = None

@@ -1,3 +1,9 @@
 alembic revision --autogenerate -m "message"
 
 alembic upgrade head
+
+    op.execute(
+        sa.text(
+            "INSERT INTO hub_menu_levels (label, sort_order, icon, parent_id) VALUES (:label, :sort_order, :icon, :parent_id)"
+        ).bindparams(label="Главная", sort_order=0, icon=None, parent_id=0)
+    )
