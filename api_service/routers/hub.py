@@ -1,10 +1,12 @@
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api_service.schemas import RenameRequest, HubPositionPatch
+from api_service.schemas import RenameRequest, HubPositionPatch, StockHubItem
 from engine import db
-from models import HUbMenuLevel
+from models import HUbMenuLevel, HUbStock, ProductOrigin, HubLoading
 
 hub_router = APIRouter(tags=['Hub'])
 
@@ -111,3 +113,27 @@ async def delete_hub_level(level_id: int, session: AsyncSession = Depends(db.sco
     )
     await session.commit()
     return {"status": "deleted", "id": level_id}
+
+@hub_router.get("/fetch_stock_hub_items/{path_id}", response_model=List[StockHubItem])
+async def fetch_stock_hub_items(path_id: int,
+                                session: AsyncSession = Depends(db.scoped_session_dependency)) -> List[StockHubItem]:
+    stmt = (
+        select(
+            HUbStock.origin, ProductOrigin.title, HUbStock.warranty, HUbStock.output_price, HubLoading.datestamp, HubLoading.url,
+        )
+        .join(ProductOrigin, HUbStock.origin == ProductOrigin.origin)
+        .outerjoin(HubLoading, HUbStock.loading_id == HubLoading.id)
+        .where(HUbStock.path_id == path_id)
+    )
+    result = await session.execute(stmt)
+    rows = result.all()
+    if not rows:
+        return []
+
+    items = list()
+    for origin, title, warranty, output_price, datestamp, url in rows:
+        items.append(
+            StockHubItem(
+                origin=origin, title=title, warranty=warranty,output_price=output_price, datestamp=datestamp, url=url)
+        )
+    return items

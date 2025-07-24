@@ -18,13 +18,15 @@ __all__ = (
     "User",
     "Vendor",
     "VendorSearchLine",
-    "HUbMenuLevel"
+    "HUbMenuLevel",
+    "HUbStock",
+    "HubLoading"
 )
 
 from .base import Base
 from .api_v1 import Activity, StockTable, Guests, Sellers
 from .harvest import HarvestLine, Harvest
-from .hub import HUbMenuLevel
+from .hub import HUbMenuLevel, HUbStock, HubLoading
 from .product_dependencies import (ProductFeaturesLink,
                                    ProductOrigin,
                                    ProductFeaturesGlobal,

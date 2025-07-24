@@ -1,16 +1,16 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List
 
 from sqlalchemy import ForeignKey, DateTime, func, String, BigInteger
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models import Base
-from models.vendor import VendorSearchLine
+
 
 if TYPE_CHECKING:
-    from .vendor import VendorSearchLine
-    from .product_dependencies import ProductOrigin
+    from models import VendorSearchLine, ProductOrigin
+
 
 
 class Harvest(Base):

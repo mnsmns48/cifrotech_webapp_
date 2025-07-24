@@ -9,8 +9,10 @@ from models import Base
 from datetime import datetime
 
 
+
 if TYPE_CHECKING:
     from .harvest import HarvestLine
+    from .hub import HUbStock
 
 
 class ProductType(Base):
@@ -50,6 +52,8 @@ class ProductOrigin(Base):
 
     images: Mapped[list["ProductImage"]] = relationship(back_populates="origin", cascade="all, delete-orphan")
     harvest_lines: Mapped[list["HarvestLine"]] = relationship("HarvestLine", back_populates="product_origin")
+    stocks: Mapped[list[HUbStock]] = relationship(
+        "HUbStock", back_populates="product_origin",cascade="all, delete-orphan")
 
 class ProductImage(Base):
     __tablename__ = "product_image"

@@ -170,3 +170,16 @@ class HubPositionPatch(BaseModel):
     id: int
     parent_id: int
     after_id: Optional[int] = None
+
+
+
+class StockHubItem(BaseModel):
+    origin: int
+    title: str
+    warranty: str
+    output_price: float
+    datestamp: datetime
+    url: str
+
+    class Config:
+        from_attributes = True

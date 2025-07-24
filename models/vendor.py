@@ -7,7 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from models.base import Base
 
 if TYPE_CHECKING:
-    from .harvest import Harvest
+    from models import Harvest
 
 
 class Vendor(Base):
