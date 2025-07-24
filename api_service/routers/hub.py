@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.schemas import RenameRequest, HubPositionPatch
@@ -43,9 +43,9 @@ async def change_hub_item_position(patch: HubPositionPatch, session: AsyncSessio
         .order_by(HUbMenuLevel.sort_order)
     )
     siblings = list(siblings_result.scalars())
-    new_order = list()
     inserted = False
 
+    new_order = list()
     for sibling in siblings:
         new_order.append(sibling)
         if sibling.id == patch.after_id:
@@ -65,3 +65,49 @@ async def change_hub_item_position(patch: HubPositionPatch, session: AsyncSessio
     await session.refresh(moved)
 
     return {"status": "updated", "id": moved.id, "parent_id": moved.parent_id, "sort_order": moved.sort_order}
+
+
+@hub_router.post("/add_hub_level")
+async def add_hub_level(payload: dict, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    parent_id = payload.get("parent_id")
+    label = payload.get("label", "Новый уровень")
+    if parent_id is None:
+        raise HTTPException(400, "parent_id обязателен")
+    result = await session.execute(
+        select(HUbMenuLevel.sort_order)
+        .where(HUbMenuLevel.parent_id == parent_id)
+        .order_by(HUbMenuLevel.sort_order.desc())
+        .limit(1)
+    )
+    max_order = result.scalar_one_or_none() or 0
+
+    new_level = HUbMenuLevel(parent_id=parent_id, label=label, sort_order=max_order + 1)
+    session.add(new_level)
+    await session.commit()
+
+    return {"status": "created",
+            "id": new_level.id, "label": new_level.label, "parent_id": new_level.parent_id,
+            "sort_order": new_level.sort_order}
+
+@hub_router.delete("/delete_hub_level/{level_id}")
+async def delete_hub_level(level_id: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    level = await session.get(HUbMenuLevel, level_id)
+    if not level:
+        raise HTTPException(status_code=404, detail="Уровень не найден")
+
+    result = await session.execute(select(HUbMenuLevel.id).where(HUbMenuLevel.parent_id == level_id).limit(1))
+    if result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=400,
+            detail="Нельзя удалить уровень с дочерними элементами"
+        )
+    parent_id = level.parent_id
+    old_order = level.sort_order
+    await session.delete(level)
+    await session.execute(
+        update(HUbMenuLevel)
+        .where(HUbMenuLevel.parent_id == parent_id, HUbMenuLevel.sort_order > old_order)
+        .values(sort_order=HUbMenuLevel.sort_order - 1)
+    )
+    await session.commit()
+    return {"status": "deleted", "id": level_id}
