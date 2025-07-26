@@ -2,11 +2,13 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from api_service.schemas import RenameRequest, HubPositionPatch, StockHubItem
+from api_service.schemas import RenameRequest, HubPositionPatch, StockHubItem, HubLoadingResult, HubLoadingData
 from engine import db
-from models import HUbMenuLevel, HUbStock, ProductOrigin, HubLoading
+from models import HUbMenuLevel, HUbStock, ProductOrigin, HubLoading, VendorSearchLine
 
 hub_router = APIRouter(tags=['Hub'])
 
@@ -123,7 +125,8 @@ async def fetch_stock_hub_items(path_id: int,
         )
         .join(ProductOrigin, HUbStock.origin == ProductOrigin.origin)
         .outerjoin(HubLoading, HUbStock.loading_id == HubLoading.id)
-        .where(HUbStock.path_id == path_id)
+        .where(HUbStock.path_id == path_id).
+        order_by(HUbStock.output_price)
     )
     result = await session.execute(stmt)
     rows = result.all()
@@ -137,3 +140,51 @@ async def fetch_stock_hub_items(path_id: int,
                 origin=origin, title=title, warranty=warranty,output_price=output_price, datestamp=datestamp, url=url)
         )
     return items
+
+
+@hub_router.post("/items_to_hub_loadings", response_model=HubLoadingResult)
+async def create_hub_loading(
+    payload: HubLoadingData,
+    session: AsyncSession = Depends(db.scoped_session_dependency)
+):
+    line = await session.get(VendorSearchLine, payload.vsl_id)
+    if not line:
+        raise HTTPException(404, "VendorSearchLine not found")
+    hub = HubLoading(url=str(line.url), datestamp=payload.datestamp)
+    session.add(hub)
+    await session.flush()
+    for s in payload.stocks:
+        origin = s["origin"]
+        existing: HUbStock | None = await session.get(HUbStock, origin)
+        if existing:
+            existing.loading_id = hub.id
+            existing.path_id = s["path_id"]
+            existing.warranty = s.get("warranty")
+            existing.output_price = s.get("output_price")
+        else:
+            session.add(
+                HUbStock(
+                    loading_id = hub.id,
+                    origin = origin,
+                    path_id = s["path_id"],
+                    warranty = s.get("warranty"),
+                    output_price = s.get("output_price"),
+                )
+            )
+
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        raise HTTPException(400, "Ошибка целостности данных при вставке/обновлении stocks")
+    stmt = (
+        select(HubLoading)
+        .options(selectinload(HubLoading.stocks))
+        .filter_by(id=hub.id)
+    )
+    result = await session.execute(stmt)
+    hub_with_stocks = result.scalar_one()
+    return HubLoadingResult.model_validate(
+        hub_with_stocks,
+        from_attributes=True
+    )

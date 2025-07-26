@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import List, Optional, Dict, Union, Any
 
 from fastapi import Form
-from pydantic import BaseModel, Field, confloat, conint, field_validator
+from pydantic import BaseModel, Field, confloat, conint, field_validator, ConfigDict
 from pydantic_core.core_schema import FieldValidationInfo
 
 
@@ -183,3 +183,29 @@ class StockHubItem(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class HubStockResult(BaseModel):
+    origin:     int
+    path_id:    int
+    warranty:   Optional[str]   = None
+    output_price: Optional[float] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class HubLoadingData(BaseModel):
+    vsl_id: int
+    datestamp: datetime
+    stocks: List[dict]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class HubLoadingResult(BaseModel):
+    id: int
+    url: str
+    datestamp: datetime
+    stocks: List[HubStockResult]
+
+    model_config = ConfigDict(from_attributes=True)

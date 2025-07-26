@@ -1,7 +1,8 @@
-from typing import TYPE_CHECKING
+import datetime
+from typing import TYPE_CHECKING, List
 from typing import Optional
 
-from sqlalchemy import BigInteger, ForeignKey, DateTime
+from sqlalchemy import BigInteger, ForeignKey, DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from models import Base
 
@@ -20,13 +21,16 @@ class HUbMenuLevel(Base):
     stocks: Mapped[list["HUbStock"]] = relationship(
         "HUbStock", back_populates="menu_level",cascade="all, delete-orphan")
 
+
 class HubLoading(Base):
     __tablename__ = "hub_loading"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
-    url: Mapped[str]
-    datestamp: Mapped[DateTime]  = mapped_column(DateTime(timezone=True))
-    stocks: Mapped[list["HUbStock"]] = relationship("HUbStock", back_populates="hub_loading")
+    url: Mapped[str] = mapped_column(String(255), nullable=False)
+    datestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    stocks: Mapped[List["HUbStock"]] = relationship(
+        "HUbStock", back_populates="hub_loading", cascade="all, delete-orphan")
+
 
 class HUbStock(Base):
     __tablename__ = "hub_stock"
