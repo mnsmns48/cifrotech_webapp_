@@ -173,39 +173,45 @@ class HubPositionPatch(BaseModel):
 
 
 
-class StockHubItem(BaseModel):
+class StockHubItemResult(BaseModel):
     origin: int
     title: str
     warranty: str
     output_price: float
-    datestamp: datetime
+    updated_at: datetime
+    dt_parsed: datetime
     url: str
 
     class Config:
         from_attributes = True
 
 
-class HubStockResult(BaseModel):
-    origin:     int
-    path_id:    int
-    warranty:   Optional[str]   = None
-    output_price: Optional[float] = None
-
-    model_config = ConfigDict(from_attributes=True)
+# class HubStockResult(BaseModel):
+#     origin:     int
+#     path_id:    int
+#     warranty:   Optional[str]   = None
+#     output_price: Optional[float] = None
+#
+#     model_config = ConfigDict(from_attributes=True)
 
 
 class HubLoadingData(BaseModel):
     vsl_id: int
-    datestamp: datetime
+    dt_parsed: datetime
     stocks: List[dict]
 
     model_config = ConfigDict(from_attributes=True)
 
 
-class HubLoadingResult(BaseModel):
-    id: int
-    url: str
-    datestamp: datetime
-    stocks: List[HubStockResult]
+# class HubLoadingResult(BaseModel):
+#     id: int
+#     url: str
+#     datestamp: datetime
+#     stocks: List[HubStockResult]
+#
+#     model_config = ConfigDict(from_attributes=True)
 
-    model_config = ConfigDict(from_attributes=True)
+class HubItemChangeScheme(BaseModel):
+    origin: int
+    title: str
+    new_price: float

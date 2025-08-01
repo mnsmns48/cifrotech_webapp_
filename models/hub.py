@@ -27,7 +27,7 @@ class HubLoading(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
     url: Mapped[str] = mapped_column(String(255), nullable=False)
-    datestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    dt_parsed: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     stocks: Mapped[List["HUbStock"]] = relationship(
         "HUbStock", back_populates="hub_loading", cascade="all, delete-orphan")
 
@@ -41,6 +41,7 @@ class HUbStock(Base):
     path_id: Mapped[int] = mapped_column(ForeignKey("hub_menu_levels.id"), nullable=False, index=True)
     warranty: Mapped[str] = mapped_column(nullable=True)
     output_price: Mapped[float] = mapped_column(nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     menu_level: Mapped["HUbMenuLevel"] = relationship("HUbMenuLevel", back_populates="stocks")
     product_origin: Mapped["ProductOrigin"] = relationship("ProductOrigin", back_populates="stocks")
