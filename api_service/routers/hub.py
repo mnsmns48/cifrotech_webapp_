@@ -5,9 +5,9 @@ from aiobotocore.client import AioBaseClient
 from aiohttp import ClientSession
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, update
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from sqlalchemy.orm import selectinload
 
 from api_service.routers.s3_helper import get_s3_client, get_http_client_session, sync_images_by_origin
 from api_service.schemas import RenameRequest, HubPositionPatch, StockHubItemResult, HubLoadingData, HubItemChangeScheme
@@ -156,132 +156,72 @@ async def fetch_stock_hub_items(path_id: int,
     return items
 
 
-# @hub_router.post("/items_to_hub_loadings", response_model=HubLoadingResult)
-# async def create_hub_loading(
-#     payload: HubLoadingData,
-#     session: AsyncSession = Depends(db.scoped_session_dependency)
-# ):
-#     line = await session.get(VendorSearchLine, payload.vsl_id)
-#     if not line:
-#         raise HTTPException(404, "VendorSearchLine not found")
-#     hub = HubLoading(url=str(line.url), datestamp=payload.datestamp)
-#     session.add(hub)
-#     await session.flush()
-#     for s in payload.stocks:
-#         origin = s["origin"]
-#         existing: HUbStock | None = await session.get(HUbStock, origin)
-#         if existing:
-#             existing.loading_id = hub.id
-#             existing.path_id = s["path_id"]
-#             existing.warranty = s.get("warranty")
-#             existing.output_price = s.get("output_price")
-#         else:
-#             session.add(
-#                 HUbStock(
-#                     loading_id = hub.id,
-#                     origin = origin,
-#                     path_id = s["path_id"],
-#                     warranty = s.get("warranty"),
-#                     output_price = s.get("output_price"),
-#                 )
-#             )
-#
-#     try:
-#         await session.commit()
-#     except IntegrityError:
-#         await session.rollback()
-#         raise HTTPException(400, "Ошибка целостности данных при вставке/обновлении stocks")
-#     stmt = (
-#         select(HubLoading)
-#         .options(selectinload(HubLoading.stocks))
-#         .filter_by(id=hub.id)
-#     )
-#     result = await session.execute(stmt)
-#     hub_with_stocks = result.scalar_one()
-#     return HubLoadingResult.model_validate(
-#         hub_with_stocks,
-#         from_attributes=True
-#     )
-
 @hub_router.post("/items_to_hub_loadings")
-async def create_hub_loading(
-    payload: HubLoadingData,
-    session: AsyncSession = Depends(db.scoped_session_dependency),
-    s3_client: AioBaseClient = Depends(get_s3_client),
-    cl_session: ClientSession = Depends(get_http_client_session)
-):
-    origins = [s["origin"] for s in payload.stocks]
-    existing_stmt = select(HUbStock).where(HUbStock.origin.in_(origins))
-    existing_result = await session.execute(existing_stmt)
-    existing_stocks = existing_result.scalars().all()
+async def create_hub_loading(payload: HubLoadingData, session: AsyncSession = Depends(db.scoped_session_dependency),
+    s3_client: AioBaseClient = Depends(get_s3_client), cl_session: ClientSession = Depends(get_http_client_session)):
+    origins = [s.get("origin") for s in payload.stocks]
+    stmt = select(HUbStock).options(selectinload(HUbStock.hub_loading)).where(HUbStock.origin.in_(origins))
+    result = await session.execute(stmt)
+    existing_stocks = result.scalars().all()
     existing_map = {stock.origin: stock for stock in existing_stocks}
 
-    async def update_or_create(s: dict, hub_id: int | None):
-        origin = s["origin"]
-        await sync_images_by_origin(origin=origin, session=session, s3_client=s3_client, cl_session=cl_session)
-        existing = existing_map.get(origin)
+    reuse_loading_id = None
+    for stock in existing_stocks:
+        hub = stock.hub_loading
+        if hub and hub.dt_parsed == payload.dt_parsed:
+            reuse_loading_id = hub.id
+            break
 
-        if existing:
-            existing.loading_id = hub_id or existing.loading_id
-            existing.path_id = s.get("path_id", existing.path_id)
-            existing.warranty = s.get("warranty", existing.warranty)
-            existing.output_price = s.get("output_price", existing.output_price)
-            existing.updated_at = payload.dt_parsed
-        else:
-            session.add(HUbStock(
-                loading_id=hub_id,
-                origin=origin,
-                path_id=s["path_id"],
-                warranty=s.get("warranty"),
-                output_price=s.get("output_price"),
-                updated_at=payload.dt_parsed
-            ))
-
-    if len(existing_map) == len(origins):
-        for s in payload.stocks:
-            await update_or_create(s, hub_id=None)
-        try:
-            await session.commit()
-        except IntegrityError:
-            await session.rollback()
-            raise HTTPException(400, "Ошибка при обновлении существующих записей")
-        return {"result": "ok"}
-
-    line = await session.get(VendorSearchLine, payload.vsl_id)
-    if not line:
-        raise HTTPException(404, "VendorSearchLine not found")
-    hub = HubLoading( url=str(line.url), dt_parsed=payload.dt_parsed)
-    session.add(hub)
-    await session.flush()
-    for s in payload.stocks:
-        await update_or_create(s, hub_id=hub.id)
     try:
+        if reuse_loading_id is None:
+            line = await session.get(VendorSearchLine, payload.vsl_id)
+            if line is None:
+                raise HTTPException(404, "VendorSearchLine not found")
+
+            hub = HubLoading(url=str(line.url), dt_parsed=payload.dt_parsed)
+            session.add(hub)
+            await session.flush()
+            reuse_loading_id = hub.id
+
+        for s in payload.stocks:
+            origin = s["origin"]
+            await sync_images_by_origin(origin, session, s3_client, cl_session)
+
+            stock = existing_map.get(origin)
+            if stock:
+                stock.loading_id = reuse_loading_id
+                stock.path_id = s.get("path_id", stock.path_id)
+                stock.warranty = s.get("warranty", stock.warranty)
+                stock.output_price = s.get("output_price", stock.output_price)
+                stock.updated_at = payload.dt_parsed
+            else:
+                session.add(HUbStock(
+                    loading_id=reuse_loading_id,
+                    origin=origin,
+                    path_id=s.get("path_id"),
+                    warranty=s.get("warranty"),
+                    output_price=s.get("output_price"),
+                    updated_at=payload.dt_parsed
+                ))
+
         await session.commit()
-    except IntegrityError:
+    except SQLAlchemyError:
         await session.rollback()
-        raise HTTPException(400, "Ошибка при вставке или обновлении записей")
+        raise HTTPException(400, "Ошибка при создании или обновлении записей")
+
     return {"result": "ok"}
 
 
 
-@hub_router.patch("/rename_or_change_price_stock_item")
-async def rename_or_change_price_stock_item(
-    patch: HubItemChangeScheme,
-    session: AsyncSession = Depends(db.scoped_session_dependency)
-):
-    origin = patch.origin
 
-    # Проверка ProductOrigin
-    result_origin = await session.execute(
-        select(ProductOrigin).where(ProductOrigin.origin == origin)
-    )
+@hub_router.patch("/rename_or_change_price_stock_item")
+async def rename_or_change_price_stock_item(patch: HubItemChangeScheme,session: AsyncSession = Depends(db.scoped_session_dependency)):
+    result_origin = await session.execute(select(ProductOrigin).where(ProductOrigin.origin == patch.origin))
     product = result_origin.scalar_one_or_none()
     if not product:
         raise HTTPException(status_code=404, detail="ProductOrigin не найден")
 
-    result_stock = await session.execute(
-        select(HUbStock).where(HUbStock.origin == origin)
-    )
+    result_stock = await session.execute(select(HUbStock).where(HUbStock.origin == patch.origin))
     stock = result_stock.scalar_one_or_none()
     if not stock:
         raise HTTPException(status_code=404, detail="HUbStock не найден")
@@ -297,14 +237,18 @@ async def rename_or_change_price_stock_item(
         stock.updated_at = datetime.now(timezone.utc)
         price_changed = True
 
-    if title_changed or price_changed:
-        session.add_all([product, stock])
+    to_update = list()
+    if title_changed:
+        to_update.append(product)
+    if price_changed:
+        to_update.append(stock)
+
+    if to_update:
+        session.add_all(to_update)
         await session.commit()
 
-    return {
-        "origin": origin,
-        "updated": price_changed,
-        "new_title": product.title,
-        "new_price": stock.output_price,
-        "updated_at": stock.updated_at if price_changed else None
-    }
+    return {"origin": patch.origin,
+            "updated": price_changed,
+            "new_title": product.title,
+            "new_price": stock.output_price,
+            "updated_at": stock.updated_at if price_changed else None}
