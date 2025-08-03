@@ -181,6 +181,8 @@ class StockHubItemResult(BaseModel):
     updated_at: datetime
     dt_parsed: datetime
     url: str
+    features_title: list
+
 
     class Config:
         from_attributes = True

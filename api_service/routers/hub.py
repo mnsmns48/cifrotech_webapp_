@@ -9,10 +9,11 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from api_service.crud import get_info_by_caching
 from api_service.routers.s3_helper import get_s3_client, get_http_client_session, sync_images_by_origin
 from api_service.schemas import RenameRequest, HubPositionPatch, StockHubItemResult, HubLoadingData, HubItemChangeScheme
 from engine import db
-from models import HUbMenuLevel, HUbStock, ProductOrigin, HubLoading, VendorSearchLine
+from models import HUbMenuLevel, HUbStock, ProductOrigin, HubLoading, VendorSearchLine, ProductFeaturesLink
 
 hub_router = APIRouter(tags=['Hub'])
 
@@ -141,6 +142,9 @@ async def fetch_stock_hub_items(path_id: int,
     if not rows:
         return []
 
+    origin_ids = [row[0] for row in rows]
+    features_map = await get_info_by_caching(session, origin_ids)
+
     items = list()
     for origin, title, warranty, output_price, updated_at, dt_parsed, url in rows:
         items.append(
@@ -151,7 +155,8 @@ async def fetch_stock_hub_items(path_id: int,
                 output_price=output_price,
                 updated_at=updated_at,
                 dt_parsed=dt_parsed,
-                url=url)
+                url=url,
+                features_title=features_map.get(origin, []))
         )
     return items
 
@@ -252,3 +257,5 @@ async def rename_or_change_price_stock_item(patch: HubItemChangeScheme,session: 
             "new_title": product.title,
             "new_price": stock.output_price,
             "updated_at": stock.updated_at if price_changed else None}
+
+# @hub_router.delete("/delete_stock_item/{vendor_id}")
