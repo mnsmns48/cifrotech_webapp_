@@ -3,7 +3,7 @@ import aioboto3
 import os
 
 from asyncio import gather, create_task
-from typing import List, Dict, Iterable, Any, AsyncGenerator
+from typing import List, Dict, Any, AsyncGenerator
 from urllib.parse import urlparse
 from aiobotocore.client import AioBaseClient
 from aiohttp import ClientSession, ClientConnectionError, ClientResponseError, ClientTimeout
@@ -106,20 +106,24 @@ async def scan_s3_images(s3_client, bucket: str, prefix: str) -> set[str]:
     return result
 
 
+async def generate_presigned_for_file(s3_client, bucket: str, key: str, filename: str) -> Dict[str, str]:
+    url = await s3_client.generate_presigned_url(
+        "get_object",
+        Params={"Bucket": bucket, "Key": key},
+        ExpiresIn=300
+    )
+    return {"filename": filename, "url": url}
+
+
 async def generate_presigned_image_urls(
         filenames: set[str], prefix: str, bucket: str, s3_client) -> List[Dict[str, str]]:
-    tasks = list()
-    sorted_filenames: List[str] = sorted(filenames)
-    for name in sorted_filenames:
+    tasks = []
+    for name in sorted(filenames):
         key = prefix + name
-        async def generate_presigned_for_file(filename: str, s3_key: str) -> Dict[str, str]:
-            url = await s3_client.generate_presigned_url(
-                "get_object", Params={"Bucket": bucket, "Key": s3_key}, ExpiresIn=300)
-            return {"filename": filename, "url": url}
-        task = create_task(generate_presigned_for_file(name, key))
+        task = create_task(generate_presigned_for_file(s3_client, bucket, key, name))
         tasks.append(task)
-    results = await gather(*tasks)
-    return results
+
+    return await gather(*tasks)
 
 
 async def sync_images_from_pics(
@@ -146,6 +150,8 @@ async def sync_images_from_pics(
                     async with cl_session.get(url) as resp:
                         resp.raise_for_status()
                         blob = await resp.read()
+                        if not blob or len(blob) < 1024:
+                            return None
                 except (ClientConnectionError, ClientResponseError, asyncio.TimeoutError):
                     return None
 
