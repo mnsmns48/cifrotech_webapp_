@@ -172,29 +172,19 @@ class HubPositionPatch(BaseModel):
     after_id: Optional[int] = None
 
 
-
 class StockHubItemResult(BaseModel):
     origin: int
     title: str
     warranty: str
+    input_price: float
     output_price: float
     updated_at: datetime
     dt_parsed: datetime
     url: str
     features_title: list
 
-
     class Config:
         from_attributes = True
-
-
-# class HubStockResult(BaseModel):
-#     origin:     int
-#     path_id:    int
-#     warranty:   Optional[str]   = None
-#     output_price: Optional[float] = None
-#
-#     model_config = ConfigDict(from_attributes=True)
 
 
 class HubLoadingData(BaseModel):
@@ -205,15 +195,11 @@ class HubLoadingData(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# class HubLoadingResult(BaseModel):
-#     id: int
-#     url: str
-#     datestamp: datetime
-#     stocks: List[HubStockResult]
-#
-#     model_config = ConfigDict(from_attributes=True)
-
 class HubItemChangeScheme(BaseModel):
     origin: int
     title: str
     new_price: float
+
+
+class OriginsPayload(BaseModel):
+    origins: list[int]

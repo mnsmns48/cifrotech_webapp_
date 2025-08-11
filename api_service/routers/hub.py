@@ -9,9 +9,10 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from api_service.crud import get_info_by_caching
+from api_service.crud import get_info_by_caching, delete_product_stock_items
 from api_service.routers.s3_helper import get_s3_client, get_http_client_session, sync_images_by_origin
-from api_service.schemas import RenameRequest, HubPositionPatch, StockHubItemResult, HubLoadingData, HubItemChangeScheme
+from api_service.schemas import RenameRequest, HubPositionPatch, StockHubItemResult, HubLoadingData, \
+    HubItemChangeScheme, OriginsPayload
 from engine import db
 from models import HUbMenuLevel, HUbStock, ProductOrigin, HubLoading, VendorSearchLine, ProductFeaturesLink
 
@@ -23,6 +24,7 @@ async def get_hub_levels(session: AsyncSession = Depends(db.scoped_session_depen
     result = await session.execute(select(HUbMenuLevel))
     items = result.scalars().all()
     return items
+
 
 @hub_router.patch("/rename_hub_level")
 async def rename_hub_level_item(payload: RenameRequest, session: AsyncSession = Depends(db.scoped_session_dependency)):
@@ -39,8 +41,10 @@ async def rename_hub_level_item(payload: RenameRequest, session: AsyncSession = 
     await session.refresh(item)
     return {"status": "renamed", "id": item.id, "new_label": item.label}
 
+
 @hub_router.patch("/change_hub_item_position")
-async def change_hub_item_position(patch: HubPositionPatch, session: AsyncSession = Depends(db.scoped_session_dependency)):
+async def change_hub_item_position(patch: HubPositionPatch,
+                                   session: AsyncSession = Depends(db.scoped_session_dependency)):
     result = await session.execute(select(HUbMenuLevel).where(HUbMenuLevel.id == patch.id))
     moved = result.scalar_one_or_none()
     if not moved:
@@ -98,6 +102,7 @@ async def add_hub_level(payload: dict, session: AsyncSession = Depends(db.scoped
             "id": new_level.id, "label": new_level.label, "parent_id": new_level.parent_id,
             "sort_order": new_level.sort_order}
 
+
 @hub_router.delete("/delete_hub_level/{level_id}")
 async def delete_hub_level(level_id: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
     level = await session.get(HUbMenuLevel, level_id)
@@ -121,22 +126,25 @@ async def delete_hub_level(level_id: int, session: AsyncSession = Depends(db.sco
     await session.commit()
     return {"status": "deleted", "id": level_id}
 
+
 @hub_router.get("/fetch_stock_hub_items/{path_id}", response_model=List[StockHubItemResult])
 async def fetch_stock_hub_items(path_id: int,
-                                session: AsyncSession = Depends(db.scoped_session_dependency)) -> List[StockHubItemResult]:
+                                session: AsyncSession = Depends(db.scoped_session_dependency)) -> List[
+    StockHubItemResult]:
     stmt = (select(
-            HUbStock.origin,
-            ProductOrigin.title,
-            HUbStock.warranty,
-            HUbStock.output_price,
-            HUbStock.updated_at,
-            HubLoading.dt_parsed,
-            HubLoading.url)
-        .join(ProductOrigin, HUbStock.origin == ProductOrigin.origin)
-        .outerjoin(HubLoading, HUbStock.loading_id == HubLoading.id)
-        .where(HUbStock.path_id == path_id).
-        order_by(HUbStock.output_price)
-    )
+        HUbStock.origin,
+        ProductOrigin.title,
+        HUbStock.warranty,
+        HUbStock.input_price,
+        HUbStock.output_price,
+        HUbStock.updated_at,
+        HubLoading.dt_parsed,
+        HubLoading.url)
+            .join(ProductOrigin, HUbStock.origin == ProductOrigin.origin)
+            .outerjoin(HubLoading, HUbStock.loading_id == HubLoading.id)
+            .where(HUbStock.path_id == path_id).
+            order_by(HUbStock.output_price)
+            )
     result = await session.execute(stmt)
     rows = result.all()
     if not rows:
@@ -146,12 +154,13 @@ async def fetch_stock_hub_items(path_id: int,
     features_map = await get_info_by_caching(session, origin_ids)
 
     items = list()
-    for origin, title, warranty, output_price, updated_at, dt_parsed, url in rows:
+    for origin, title, warranty, input_price, output_price, updated_at, dt_parsed, url in rows:
         items.append(
             StockHubItemResult(
                 origin=origin,
                 title=title,
                 warranty=warranty,
+                input_price=input_price,
                 output_price=output_price,
                 updated_at=updated_at,
                 dt_parsed=dt_parsed,
@@ -163,7 +172,8 @@ async def fetch_stock_hub_items(path_id: int,
 
 @hub_router.post("/items_to_hub_loadings")
 async def create_hub_loading(payload: HubLoadingData, session: AsyncSession = Depends(db.scoped_session_dependency),
-    s3_client: AioBaseClient = Depends(get_s3_client), cl_session: ClientSession = Depends(get_http_client_session)):
+                             s3_client: AioBaseClient = Depends(get_s3_client),
+                             cl_session: ClientSession = Depends(get_http_client_session)):
     origins = [s.get("origin") for s in payload.stocks]
     stmt = select(HUbStock).options(selectinload(HUbStock.hub_loading)).where(HUbStock.origin.in_(origins))
     result = await session.execute(stmt)
@@ -189,7 +199,7 @@ async def create_hub_loading(payload: HubLoadingData, session: AsyncSession = De
             reuse_loading_id = hub.id
 
         for s in payload.stocks:
-            origin = s["origin"]
+            origin = s.get("origin")
             await sync_images_by_origin(origin, session, s3_client, cl_session)
 
             stock = existing_map.get(origin)
@@ -197,6 +207,7 @@ async def create_hub_loading(payload: HubLoadingData, session: AsyncSession = De
                 stock.loading_id = reuse_loading_id
                 stock.path_id = s.get("path_id", stock.path_id)
                 stock.warranty = s.get("warranty", stock.warranty)
+                stock.input_price = s.get("input_price", stock.input_price)
                 stock.output_price = s.get("output_price", stock.output_price)
                 stock.updated_at = payload.dt_parsed
             else:
@@ -205,6 +216,7 @@ async def create_hub_loading(payload: HubLoadingData, session: AsyncSession = De
                     origin=origin,
                     path_id=s.get("path_id"),
                     warranty=s.get("warranty"),
+                    input_price=s.get("input_price"),
                     output_price=s.get("output_price"),
                     updated_at=payload.dt_parsed
                 ))
@@ -217,10 +229,9 @@ async def create_hub_loading(payload: HubLoadingData, session: AsyncSession = De
     return {"result": "ok"}
 
 
-
-
 @hub_router.patch("/rename_or_change_price_stock_item")
-async def rename_or_change_price_stock_item(patch: HubItemChangeScheme,session: AsyncSession = Depends(db.scoped_session_dependency)):
+async def rename_or_change_price_stock_item(patch: HubItemChangeScheme,
+                                            session: AsyncSession = Depends(db.scoped_session_dependency)):
     result_origin = await session.execute(select(ProductOrigin).where(ProductOrigin.origin == patch.origin))
     product = result_origin.scalar_one_or_none()
     if not product:
@@ -258,4 +269,14 @@ async def rename_or_change_price_stock_item(patch: HubItemChangeScheme,session: 
             "new_price": stock.output_price,
             "updated_at": stock.updated_at if price_changed else None}
 
-# @hub_router.delete("/delete_stock_item/{vendor_id}")
+
+@hub_router.delete("/delete_stock_items")
+async def delete_stock_items_endpoint(payload: OriginsPayload,
+                                      session: AsyncSession = Depends(db.scoped_session_dependency)) -> bool:
+    try:
+        await delete_product_stock_items(session, payload.origins)
+        return True
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail=f"Ошибка при удалении")
+
+

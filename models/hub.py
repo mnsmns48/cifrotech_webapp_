@@ -40,6 +40,7 @@ class HUbStock(Base):
         BigInteger, ForeignKey("product_origin.origin", ondelete="CASCADE"), primary_key=True)
     path_id: Mapped[int] = mapped_column(ForeignKey("hub_menu_levels.id"), nullable=False, index=True)
     warranty: Mapped[str] = mapped_column(nullable=True)
+    input_price: Mapped[float] = mapped_column(nullable=False)
     output_price: Mapped[float] = mapped_column(nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 

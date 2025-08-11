@@ -1,14 +1,14 @@
 from collections import defaultdict
-from typing import Sequence
+from typing import Sequence, List
 
-from sqlalchemy import select, Row
+from sqlalchemy import select, Row, delete
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.schemas import HarvestLineIn
 from api_service.utils import normalize_origin
 from models import Vendor, Harvest, HarvestLine, ProductOrigin, ProductType, ProductBrand, ProductFeaturesGlobal, \
-    ProductFeaturesLink
+    ProductFeaturesLink, HUbStock
 from models.vendor import VendorSearchLine, RewardRangeLine, RewardRange
 
 
@@ -181,4 +181,12 @@ async def add_dependencies_link(session: AsyncSession, origin: int, feature_id: 
     stmt_feature_link = (insert(ProductFeaturesLink).values(origin=origin, feature_id=feature_id)
                          .on_conflict_do_nothing(index_elements=["origin", "feature_id"]))
     await session.execute(stmt_feature_link)
+    await session.commit()
+
+
+async def delete_product_stock_items(session: AsyncSession, origins: List):
+    if not origins:
+        return
+    stmt = delete(HUbStock).where(HUbStock.origin.in_(origins))
+    await session.execute(stmt)
     await session.commit()
