@@ -1,14 +1,15 @@
 from collections import defaultdict
-from typing import Sequence, List
+from typing import Sequence, List, Optional
 
-from sqlalchemy import select, Row, delete
+from sqlalchemy import select, Row, delete, distinct
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from api_service.schemas import HarvestLineIn
 from api_service.utils import normalize_origin
 from models import Vendor, Harvest, HarvestLine, ProductOrigin, ProductType, ProductBrand, ProductFeaturesGlobal, \
-    ProductFeaturesLink, HUbStock
+    ProductFeaturesLink, HUbStock, HubLoading, HUbMenuLevel
 from models.vendor import VendorSearchLine, RewardRangeLine, RewardRange
 
 
@@ -190,3 +191,26 @@ async def delete_product_stock_items(session: AsyncSession, origins: List):
     stmt = delete(HUbStock).where(HUbStock.origin.in_(origins))
     await session.execute(stmt)
     await session.commit()
+
+
+async def get_urls_by_origins(origins, session: AsyncSession):
+    stmt = (select(distinct(HubLoading.url)).join(HUbStock, HubLoading.id == HUbStock.loading_id)
+            .where(HUbStock.origin.in_(origins)))
+    result = await session.execute(stmt)
+    urls: List[str] = list(result.scalars().all())
+    return urls
+
+async def get_origins_by_path_ids(path_ids: list, session: AsyncSession) -> List[int]:
+    stmt = select(HUbStock.origin).where(HUbStock.path_id.in_(path_ids))
+    result = await session.execute(stmt)
+    return [row[0] for row in result.all()]
+
+
+async def get_all_children_cte(session: AsyncSession, parent_id: int):
+    base = select(HUbMenuLevel).where(HUbMenuLevel.parent_id == parent_id)
+    cte = base.cte(name="menu_cte", recursive=True)
+    recursive = select(HUbMenuLevel).where(HUbMenuLevel.parent_id == cte.c.id)
+    cte = cte.union_all(recursive)
+    query = select(cte)
+    result = await session.execute(query)
+    return result.scalars().all()

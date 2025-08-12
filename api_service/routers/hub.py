@@ -4,15 +4,16 @@ from typing import List
 from aiobotocore.client import AioBaseClient
 from aiohttp import ClientSession
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, update
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy import select, update, distinct
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from api_service.crud import get_info_by_caching, delete_product_stock_items
+from api_service.crud import get_info_by_caching, delete_product_stock_items, get_urls_by_origins, get_all_children_cte, \
+    get_origins_by_path_ids
 from api_service.routers.s3_helper import get_s3_client, get_http_client_session, sync_images_by_origin
 from api_service.schemas import RenameRequest, HubPositionPatch, StockHubItemResult, HubLoadingData, \
-    HubItemChangeScheme, OriginsPayload
+    HubItemChangeScheme, OriginsPayload, ComparisonDataScheme
 from engine import db
 from models import HUbMenuLevel, HUbStock, ProductOrigin, HubLoading, VendorSearchLine, ProductFeaturesLink
 
@@ -279,4 +280,18 @@ async def delete_stock_items_endpoint(payload: OriginsPayload,
     except SQLAlchemyError:
         raise HTTPException(status_code=500, detail=f"Ошибка при удалении")
 
+
+@hub_router.post("/start_comparison_process")
+async def comparison_process(payload: ComparisonDataScheme,
+                             session: AsyncSession = Depends(db.scoped_session_dependency)) -> List[str]:
+    path_ids = await get_all_children_cte(session=session, parent_id=payload.path_id)
+    if payload.origins:
+        print('payload.origins')
+        urls_for_parsing = await get_urls_by_origins(origins=payload.origins, session=session)
+    else:
+        print('!!')
+        origins = await get_origins_by_path_ids(path_ids, session)
+        print('origins', origins)
+        urls_for_parsing = await get_urls_by_origins(origins, session)
+    return urls_for_parsing
 

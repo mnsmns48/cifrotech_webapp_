@@ -203,3 +203,8 @@ class HubItemChangeScheme(BaseModel):
 
 class OriginsPayload(BaseModel):
     origins: list[int]
+
+
+class ComparisonDataScheme(BaseModel):
+    origins: Optional[list[int]] = None
+    path_id: int
