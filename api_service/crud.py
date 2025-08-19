@@ -200,6 +200,7 @@ async def get_urls_by_origins(origins, session: AsyncSession):
     urls: List[str] = list(result.scalars().all())
     return urls
 
+
 async def get_origins_by_path_ids(path_ids: list, session: AsyncSession) -> List[int]:
     stmt = select(HUbStock.origin).where(HUbStock.path_id.in_(path_ids))
     result = await session.execute(stmt)
@@ -207,7 +208,7 @@ async def get_origins_by_path_ids(path_ids: list, session: AsyncSession) -> List
 
 
 async def get_all_children_cte(session: AsyncSession, parent_id: int):
-    base = select(HUbMenuLevel).where(HUbMenuLevel.parent_id == parent_id)
+    base = select(HUbMenuLevel).where(HUbMenuLevel.id == parent_id)
     cte = base.cte(name="menu_cte", recursive=True)
     recursive = select(HUbMenuLevel).where(HUbMenuLevel.parent_id == cte.c.id)
     cte = cte.union_all(recursive)

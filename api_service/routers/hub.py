@@ -286,12 +286,8 @@ async def comparison_process(payload: ComparisonDataScheme,
                              session: AsyncSession = Depends(db.scoped_session_dependency)) -> List[str]:
     path_ids = await get_all_children_cte(session=session, parent_id=payload.path_id)
     if payload.origins:
-        print('payload.origins')
         urls_for_parsing = await get_urls_by_origins(origins=payload.origins, session=session)
     else:
-        print('!!')
         origins = await get_origins_by_path_ids(path_ids, session)
-        print('origins', origins)
         urls_for_parsing = await get_urls_by_origins(origins, session)
     return urls_for_parsing
-
