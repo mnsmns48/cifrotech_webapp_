@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Sequence, List, Optional
+from typing import Sequence, List, Optional, Dict, Any
 
 from sqlalchemy import select, Row, delete, distinct
 from sqlalchemy.dialects.postgresql import insert
@@ -215,3 +215,28 @@ async def get_all_children_cte(session: AsyncSession, parent_id: int):
     query = select(cte)
     result = await session.execute(query)
     return result.scalars().all()
+
+
+async def get_label_and_dt_parsed(urls: List[str], session: AsyncSession) -> Dict[str, Dict[str, Any]]:
+    if not urls:
+        return {}
+
+    stmt_vendor = (select(VendorSearchLine.url, VendorSearchLine.title, Harvest.datestamp)
+        .join(Harvest, Harvest.vendor_search_line_id == VendorSearchLine.id)
+        .where(VendorSearchLine.url.in_(urls)))
+    vendor_result = await session.execute(stmt_vendor)
+    vendor_rows = vendor_result.all()
+
+    result = {url: {"title": title, "dt_parsed": datestamp} for url, title, datestamp in vendor_rows}
+    harvest_urls = set(result.keys())
+    for_hub_loading_search_urls = [url for url in urls if url not in harvest_urls]
+
+    if for_hub_loading_search_urls:
+        stmt_loading = (select(HubLoading.url, HubLoading.dt_parsed).where(HubLoading.url.in_(for_hub_loading_search_urls)))
+        loading_result = await session.execute(stmt_loading)
+        loading_rows = loading_result.all()
+
+        for url, dt_parsed in loading_rows:
+            result[url] = {"title": None, "dt_parsed": dt_parsed}
+
+    return result

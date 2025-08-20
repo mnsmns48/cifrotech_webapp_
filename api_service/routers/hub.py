@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from api_service.crud import get_info_by_caching, delete_product_stock_items, get_urls_by_origins, get_all_children_cte, \
-    get_origins_by_path_ids
+    get_origins_by_path_ids, get_label_and_dt_parsed
 from api_service.routers.s3_helper import get_s3_client, get_http_client_session, sync_images_by_origin
 from api_service.schemas import RenameRequest, HubPositionPatch, StockHubItemResult, HubLoadingData, \
     HubItemChangeScheme, OriginsPayload, ComparisonDataScheme
@@ -283,11 +283,12 @@ async def delete_stock_items_endpoint(payload: OriginsPayload,
 
 @hub_router.post("/start_comparison_process")
 async def comparison_process(payload: ComparisonDataScheme,
-                             session: AsyncSession = Depends(db.scoped_session_dependency)) -> List[str]:
+                             session: AsyncSession = Depends(db.scoped_session_dependency)) -> dict:
     path_ids = await get_all_children_cte(session=session, parent_id=payload.path_id)
     if payload.origins:
         urls_for_parsing = await get_urls_by_origins(origins=payload.origins, session=session)
     else:
         origins = await get_origins_by_path_ids(path_ids, session)
         urls_for_parsing = await get_urls_by_origins(origins, session)
-    return urls_for_parsing
+    urls_with_title_and_dt = await get_label_and_dt_parsed(urls_for_parsing, session)
+    return urls_with_title_and_dt

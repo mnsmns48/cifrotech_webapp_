@@ -10,14 +10,17 @@ from config import redis_session
 
 progress_router = APIRouter()
 
-
-@progress_router.get("/give_progress_line")
-async def create_parsing_id(redis=Depends(redis_session), user=Depends(current_user)):
+async def generate_progress_id(redis, user):
     if not user:
         raise HTTPException(status_code=403, detail="No access")
     progress = str(uuid.uuid4())
     await redis.setex(progress, 60, "")
     return {"result": progress}
+
+
+@progress_router.get("/give_progress_line")
+async def create_parsing_id(redis=Depends(redis_session), user=Depends(current_user)):
+    return await generate_progress_id(redis, user)
 
 
 @progress_router.get("/progress/{progress}")
