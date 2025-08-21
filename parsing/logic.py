@@ -42,6 +42,7 @@ async def parsing_core(redis: Redis,
     result['data'] = await append_info(session=session, data_lines=result['data'], redis=redis, channel=data.progress,
                                        sync_features=data.sync_features)
     result['data'] = await build_with_preview(session=session, data_lines=result['data'], s3_client=s3_client)
+    print(result)
     return result
 
 

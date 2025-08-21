@@ -188,8 +188,7 @@ class StockHubItemResult(BaseModel):
 
 
 class HubLoadingData(BaseModel):
-    vsl_id: int
-    dt_parsed: datetime
+    harvest_id: int
     stocks: List[dict]
 
     model_config = ConfigDict(from_attributes=True)

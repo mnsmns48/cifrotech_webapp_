@@ -159,7 +159,8 @@ class BaseParser:
             category.clear()
             category = [s.get_text().strip() for s in span[1:] if s.find('a')]
         self.range_reward: dict = await get_rr_obj(session=self.session)
-        harvest_data = {'vendor_search_line_id': self.data.vsl_id, 'category': category, 'range_id': self.range_reward.get('id')}
+        harvest_data = {'vendor_search_line_id': self.data.vsl_id, 'category': category,
+                        'range_id': self.range_reward.get('id')}
         harvest_id = await store_harvest(data=harvest_data, session=self.session)
         await self.redis.publish(self.data.progress, f"Данные о парсинге сохранены")
         await self.redis.publish(self.data.progress, f"{len(self.pages) - 1} страниц для сбора информации")
@@ -196,4 +197,8 @@ class BaseParser:
             if len(new_pages) > len(self.pages):
                 self.pages = new_pages
                 await self.redis.publish(self.data.progress, f"data: COUNT={len(self.pages) + 5}")
-        return {'category': category, 'datestamp': datetime.now(), 'data': result, 'range_reward': self.range_reward}
+        return {'harvest_id': harvest_id,
+                'category': category,
+                'datestamp': datetime.now(),
+                'range_reward': self.range_reward,
+                'data': result}

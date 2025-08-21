@@ -7,9 +7,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models import Base
 
-
 if TYPE_CHECKING:
-    from models import VendorSearchLine, ProductOrigin
+    from models import VendorSearchLine, ProductOrigin, HUbStock
 
 
 
@@ -18,10 +17,10 @@ class Harvest(Base):
     vendor_search_line_id: Mapped[int] = mapped_column(ForeignKey("vendor_search_line.id"), nullable=False)
     range_id: Mapped[int] = mapped_column(ForeignKey("rewardrange.id", ondelete="SET NULL"), nullable=True)
     datestamp: Mapped[DateTime] = mapped_column(DateTime(timezone=True), default=func.now())
-    category: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=True)
     vendor_search_line: Mapped["VendorSearchLine"] = relationship("VendorSearchLine", back_populates="harvests")
     harvest_lines: Mapped[list["HarvestLine"]] = relationship("HarvestLine", back_populates="harvest",
                                                               cascade="all, delete")
+    hub_stocks: Mapped[list["HUbStock"]] = relationship("HUbStock", back_populates="harvest")
 
 
 class HarvestLine(Base):

@@ -4,12 +4,12 @@ from typing import Sequence, List, Optional, Dict, Any
 from sqlalchemy import select, Row, delete, distinct
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased
+
 
 from api_service.schemas import HarvestLineIn
 from api_service.utils import normalize_origin
 from models import Vendor, Harvest, HarvestLine, ProductOrigin, ProductType, ProductBrand, ProductFeaturesGlobal, \
-    ProductFeaturesLink, HUbStock, HubLoading, HUbMenuLevel
+    ProductFeaturesLink, HUbStock, HUbMenuLevel
 from models.vendor import VendorSearchLine, RewardRangeLine, RewardRange
 
 

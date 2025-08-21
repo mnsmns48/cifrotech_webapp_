@@ -210,7 +210,6 @@ async def recalculate_reward(recalc_req: RecalcPricesRequest,
                                                      harvest_id=harvest.id,
                                                      sync_features=False)
     return {"is_ok": True,
-            "category": harvest.category,
             "datestamp": harvest.datestamp,
             "range_reward": recalc_req.range_id,
             "data": data_with_info}
