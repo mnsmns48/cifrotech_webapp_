@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import List, Optional, Dict, Union, Any
 
 from fastapi import Form
-from pydantic import BaseModel, Field, confloat, conint, field_validator, ConfigDict
+from pydantic import BaseModel, Field, confloat, conint, field_validator, ConfigDict, HttpUrl
 from pydantic_core.core_schema import FieldValidationInfo
 
 
@@ -208,3 +208,10 @@ class OriginsPayload(BaseModel):
 class ComparisonDataScheme(BaseModel):
     origins: Optional[list[int]] = None
     path_id: int
+
+
+class ParsingLine(BaseModel):
+    key: int
+    url: HttpUrl
+    title: str
+    dt_parsed: datetime

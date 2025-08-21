@@ -10,6 +10,7 @@ from config import redis_session
 
 progress_router = APIRouter()
 
+
 async def generate_progress_id(redis, user):
     if not user:
         raise HTTPException(status_code=403, detail="No access")

@@ -9,11 +9,14 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from api_general.routers.progress import generate_progress_id
 from api_service.crud import get_info_by_caching, delete_product_stock_items, get_urls_by_origins, get_all_children_cte, \
     get_origins_by_path_ids, get_label_and_dt_parsed
 from api_service.routers.s3_helper import get_s3_client, get_http_client_session, sync_images_by_origin
 from api_service.schemas import RenameRequest, HubPositionPatch, StockHubItemResult, HubLoadingData, \
-    HubItemChangeScheme, OriginsPayload, ComparisonDataScheme
+    HubItemChangeScheme, OriginsPayload, ComparisonDataScheme, ParsingLine
+from api_users.dependencies.fastapi_users_dep import current_user
+from config import redis_session
 from engine import db
 from models import HUbMenuLevel, HUbStock, ProductOrigin, HubLoading, VendorSearchLine, ProductFeaturesLink
 
@@ -292,3 +295,9 @@ async def comparison_process(payload: ComparisonDataScheme,
         urls_for_parsing = await get_urls_by_origins(origins, session)
     urls_with_title_and_dt = await get_label_and_dt_parsed(urls_for_parsing, session)
     return urls_with_title_and_dt
+
+
+@hub_router.post("/transfer_parsing_lines")
+async def transfer_parsing_lines(lines: List[ParsingLine], redis=Depends(redis_session), user=Depends(current_user)):
+    urls = [line.url for line in lines]
+    return {"status": "ok", "received": len(urls)}
