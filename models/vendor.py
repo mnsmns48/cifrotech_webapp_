@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey
+from sqlalchemy import ForeignKey, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.base import Base
@@ -28,9 +28,10 @@ class VendorSearchLine(Base):
     vendor_id: Mapped[int] = mapped_column(ForeignKey("vendor.id"), nullable=False)
     title: Mapped[str] = mapped_column(nullable=False)
     url: Mapped[str] = mapped_column(nullable=False)
+    dt_parsed: Mapped[DateTime] = mapped_column(DateTime(timezone=True), nullable=True)
+    profit_range_id: Mapped[int] = mapped_column(ForeignKey("rewardrange.id", ondelete="SET NULL"), nullable=True)
+
     vendor: Mapped["Vendor"] = relationship("Vendor", back_populates="search_lines")
-    harvests: Mapped[list["Harvest"]] = relationship("Harvest", back_populates="vendor_search_line",
-                                                     cascade="all, delete")
 
 
 class RewardRange(Base):
