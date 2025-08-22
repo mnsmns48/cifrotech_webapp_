@@ -80,7 +80,6 @@ async def build_with_preview(session: AsyncSession, data_lines: list[dict], s3_c
         item = origin_to_item_map.get(origin_id)
         if item:
             item["preview"] = preview_url
-
     return data_lines
 
 

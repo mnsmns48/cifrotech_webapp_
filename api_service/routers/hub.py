@@ -7,11 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, update, distinct
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
-from api_general.routers.progress import generate_progress_id
-from api_service.crud import get_info_by_caching, delete_product_stock_items, get_urls_by_origins, get_all_children_cte, \
-    get_origins_by_path_ids, get_label_and_dt_parsed
+from api_service.crud import get_info_by_caching, delete_product_stock_items, get_all_children_cte, get_origins_by_path_ids
 from api_service.routers.s3_helper import get_s3_client, get_http_client_session, sync_images_by_origin
 from api_service.schemas import RenameRequest, HubPositionPatch, StockHubItemResult, HubLoadingData, \
     HubItemChangeScheme, OriginsPayload, ComparisonDataScheme, ParsingLine

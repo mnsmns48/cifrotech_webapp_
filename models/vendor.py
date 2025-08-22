@@ -7,7 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from models.base import Base
 
 if TYPE_CHECKING:
-    from models import Harvest
+    from models import HUbStock, HarvestLine
 
 
 class Vendor(Base):
@@ -31,7 +31,9 @@ class VendorSearchLine(Base):
     dt_parsed: Mapped[DateTime] = mapped_column(DateTime(timezone=True), nullable=True)
     profit_range_id: Mapped[int] = mapped_column(ForeignKey("rewardrange.id", ondelete="SET NULL"), nullable=True)
 
+    harvest_lines: Mapped["HarvestLine"] = relationship("HarvestLine", back_populates="vendor_search_line")
     vendor: Mapped["Vendor"] = relationship("Vendor", back_populates="search_lines")
+    stocks: Mapped["HUbStock"] = relationship("HUbStock", back_populates="search_lines")
 
 
 class RewardRange(Base):

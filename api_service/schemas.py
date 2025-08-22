@@ -65,7 +65,6 @@ class VendorSearchLineSchema(BaseModel):
 class ParsingRequest(BaseModel):
     progress: str
     vsl_id: int
-    vsl_url: str
     sync_features: bool
 
 
@@ -95,7 +94,7 @@ class HarvestLineIn(BaseModel):
     pics: Optional[List[str]] = None
     preview: Optional[str] = None
     optional: Optional[str] = None
-    harvest_id: conint(ge=1)
+    vsl_id: conint(ge=1)
 
     model_config = {"from_attributes": True, "extra": "ignore"}
 

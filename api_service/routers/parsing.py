@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.responses import JSONResponse
 from api_service.api_req import get_items_by_brand, get_one_by_dtube
-from api_service.crud import get_vendor_by_url, get_range_rewards_list
+from api_service.crud import get_vendor_and_vsl, get_range_rewards_list, SourceContext
 from api_service.routers.process_helper import _prepare_harvest_response
 from api_service.routers.s3_helper import (scan_s3_images, generate_presigned_image_urls, get_s3_client,
                                            get_http_client_session, sync_images_by_origin, generate_final_image_payload)
@@ -20,10 +20,10 @@ from api_service.schemas import (ParsingRequest, ProductOriginUpdate, ProductDep
 from config import redis_session, settings
 from engine import db
 
-from models import Harvest, HarvestLine, ProductOrigin, ProductType, ProductBrand, ProductFeaturesGlobal, \
+from models import HarvestLine, ProductOrigin, ProductType, ProductBrand, ProductFeaturesGlobal, \
     ProductFeaturesLink
 from models.product_dependencies import ProductImage
-from models.vendor import VendorSearchLine, RewardRange
+from models.vendor import VendorSearchLine, RewardRange, Vendor
 from parsing.logic import parsing_core
 from parsing.utils import cost_process
 
@@ -36,14 +36,14 @@ async def go_parsing(data: ParsingRequest,
                      session: AsyncSession = Depends(db.scoped_session_dependency),
                      s3_client=Depends(get_s3_client)):
     pubsub_obj = redis.pubsub()
-    vendor = await get_vendor_by_url(session=session, url=data.vsl_url)
+    context: SourceContext = await get_vendor_and_vsl(session=session, vsl_id=data.vsl_id)
     try:
-        parsing_data: dict = await parsing_core(redis, data, vendor, session, vendor.function, s3_client)
-        if len(parsing_data.get('data')) > 0:
+        parsing_data: dict = await parsing_core(redis, session, s3_client, data.progress, context, data.sync_features)
+        if len(parsing_data.get('parsing_result')) > 0:
             parsing_data.update({'is_ok': True})
     finally:
         await redis.publish(data.progress, "data: COUNT=20")
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(0.2)
         await redis.publish(data.progress, "END")
         await pubsub_obj.unsubscribe(data.progress)
         await pubsub_obj.close()

@@ -1,8 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, DateTime, func, String, BigInteger
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy import ForeignKey, BigInteger
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models import Base
@@ -10,17 +9,6 @@ from models import Base
 if TYPE_CHECKING:
     from models import VendorSearchLine, ProductOrigin
 
-
-#
-# class Harvest(Base):
-#     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
-#     vendor_search_line_id: Mapped[int] = mapped_column(ForeignKey("vendor_search_line.id"), nullable=False)
-#     range_id: Mapped[int] = mapped_column(ForeignKey("rewardrange.id", ondelete="SET NULL"), nullable=True)
-#     datestamp: Mapped[DateTime] = mapped_column(DateTime(timezone=True), default=func.now())
-#     vendor_search_line: Mapped["VendorSearchLine"] = relationship("VendorSearchLine", back_populates="harvests")
-#     harvest_lines: Mapped[list["HarvestLine"]] = relationship("HarvestLine", back_populates="harvest",
-#                                                               cascade="all, delete")
-#     hub_stocks: Mapped[list["HUbStock"]] = relationship("HUbStock", back_populates="harvest")
 
 
 class HarvestLine(Base):

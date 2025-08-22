@@ -1,4 +1,5 @@
 from collections import defaultdict
+from dataclasses import dataclass
 from typing import Sequence, List, Optional, Dict, Any
 
 from sqlalchemy import select, Row, delete, distinct
@@ -8,23 +9,38 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.schemas import HarvestLineIn
 from api_service.utils import normalize_origin
-from models import Vendor, Harvest, HarvestLine, ProductOrigin, ProductType, ProductBrand, ProductFeaturesGlobal, \
+from models import Vendor, HarvestLine, ProductOrigin, ProductType, ProductBrand, ProductFeaturesGlobal, \
     ProductFeaturesLink, HUbStock, HUbMenuLevel
 from models.vendor import VendorSearchLine, RewardRangeLine, RewardRange
 
 
-async def get_vendor_by_url(url: str, session: AsyncSession):
-    result = await session.execute(select(Vendor).join(Vendor.search_lines).where(VendorSearchLine.url == url))
-    vendor = result.scalars().first()
-    return vendor
+from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 
 
-async def store_harvest(data: dict, session: AsyncSession) -> int:
-    stmt = insert(Harvest).values(**data).returning(Harvest.id)
-    result = await session.execute(stmt)
-    harvest_id = result.scalar_one()
-    await session.commit()
-    return harvest_id
+@dataclass
+class SourceContext:
+    vendor: Vendor
+    vsl: VendorSearchLine
+
+async def get_vendor_and_vsl(session: AsyncSession, vsl_id: int) -> Optional[SourceContext]:
+    result = await session.execute(
+        select(Vendor, VendorSearchLine).join(VendorSearchLine).where(VendorSearchLine.id == vsl_id)
+    )
+    row = result.first()
+    if row is None:
+        return None
+    vendor, vsl = row
+    return SourceContext(vendor, vsl)
+
+
+
+# async def store_harvest(data: dict, session: AsyncSession) -> int:
+#     stmt = insert(Harvest).values(**data).returning(Harvest.id)
+#     result = await session.execute(stmt)
+#     harvest_id = result.scalar_one()
+#     await session.commit()
+#     return harvest_id
 
 
 async def store_harvest_line(items: Sequence[HarvestLineIn], session: AsyncSession) -> list[dict]:
@@ -61,7 +77,7 @@ async def store_harvest_line(items: Sequence[HarvestLineIn], session: AsyncSessi
                                      "pics": line.pics,
                                      "preview": line.preview,
                                      "is_deleted": False})
-        harvest_line_value.append({"harvest_id": line.harvest_id,
+        harvest_line_value.append({"vsl_id": line.vsl_id,
                                    "origin": origin,
                                    "shipment": line.shipment,
                                    "warranty": line.warranty,
@@ -85,24 +101,13 @@ async def store_harvest_line(items: Sequence[HarvestLineIn], session: AsyncSessi
                                                                   "preview": insert_stmt.excluded.preview})
 
     stmt_harvest_line = (insert(HarvestLine).values(harvest_line_value)
-                         .on_conflict_do_nothing(index_elements=["harvest_id", "origin"]))
+                         .on_conflict_do_nothing(index_elements=["vsl_id", "origin"]))
 
     await session.execute(stmt_product_origin)
     await session.execute(stmt_harvest_line)
     await session.commit()
 
     return [data_obj.model_dump() for data_obj in return_list]
-
-
-async def delete_harvest_strings_by_vsl_id(session: AsyncSession, vsl_id: int):
-    harvest_query = select(Harvest).where(Harvest.vendor_search_line_id == vsl_id)
-    harvest_result = await session.execute(harvest_query)
-    harvest = harvest_result.scalars().first()
-    if not harvest:
-        return "Запросов парсинга для этого URL нет"
-    await session.delete(harvest)
-    await session.commit()
-    return "Записи для этого запроса удалены"
 
 
 async def get_range_rewards_list(session: AsyncSession, range_id: int = None) -> Sequence[
@@ -193,12 +198,12 @@ async def delete_product_stock_items(session: AsyncSession, origins: List):
     await session.commit()
 
 
-async def get_urls_by_origins(origins, session: AsyncSession):
-    stmt = (select(distinct(HubLoading.url)).join(HUbStock, HubLoading.id == HUbStock.loading_id)
-            .where(HUbStock.origin.in_(origins)))
-    result = await session.execute(stmt)
-    urls: List[str] = list(result.scalars().all())
-    return urls
+# async def get_urls_by_origins(origins, session: AsyncSession):
+#     stmt = (select(distinct(HubLoading.url)).join(HUbStock, HubLoading.id == HUbStock.loading_id)
+#             .where(HUbStock.origin.in_(origins)))
+#     result = await session.execute(stmt)
+#     urls: List[str] = list(result.scalars().all())
+#     return urls
 
 
 async def get_origins_by_path_ids(path_ids: list, session: AsyncSession) -> List[int]:
@@ -217,26 +222,26 @@ async def get_all_children_cte(session: AsyncSession, parent_id: int):
     return result.scalars().all()
 
 
-async def get_label_and_dt_parsed(urls: List[str], session: AsyncSession) -> Dict[str, Dict[str, Any]]:
-    if not urls:
-        return {}
-
-    stmt_vendor = (select(VendorSearchLine.url, VendorSearchLine.title, Harvest.datestamp)
-        .join(Harvest, Harvest.vendor_search_line_id == VendorSearchLine.id)
-        .where(VendorSearchLine.url.in_(urls)))
-    vendor_result = await session.execute(stmt_vendor)
-    vendor_rows = vendor_result.all()
-
-    result = {url: {"title": title, "dt_parsed": datestamp} for url, title, datestamp in vendor_rows}
-    harvest_urls = set(result.keys())
-    for_hub_loading_search_urls = [url for url in urls if url not in harvest_urls]
-
-    if for_hub_loading_search_urls:
-        stmt_loading = (select(HubLoading.url, HubLoading.dt_parsed).where(HubLoading.url.in_(for_hub_loading_search_urls)))
-        loading_result = await session.execute(stmt_loading)
-        loading_rows = loading_result.all()
-
-        for url, dt_parsed in loading_rows:
-            result[url] = {"title": None, "dt_parsed": dt_parsed}
-
-    return result
+# async def get_label_and_dt_parsed(urls: List[str], session: AsyncSession) -> Dict[str, Dict[str, Any]]:
+#     if not urls:
+#         return {}
+#
+#     stmt_vendor = (select(VendorSearchLine.url, VendorSearchLine.title, Harvest.datestamp)
+#         .join(Harvest, Harvest.vendor_search_line_id == VendorSearchLine.id)
+#         .where(VendorSearchLine.url.in_(urls)))
+#     vendor_result = await session.execute(stmt_vendor)
+#     vendor_rows = vendor_result.all()
+#
+#     result = {url: {"title": title, "dt_parsed": datestamp} for url, title, datestamp in vendor_rows}
+#     harvest_urls = set(result.keys())
+#     for_hub_loading_search_urls = [url for url in urls if url not in harvest_urls]
+#
+#     if for_hub_loading_search_urls:
+#         stmt_loading = (select(HubLoading.url, HubLoading.dt_parsed).where(HubLoading.url.in_(for_hub_loading_search_urls)))
+#         loading_result = await session.execute(stmt_loading)
+#         loading_rows = loading_result.all()
+#
+#         for url, dt_parsed in loading_rows:
+#             result[url] = {"title": None, "dt_parsed": dt_parsed}
+#
+#     return result

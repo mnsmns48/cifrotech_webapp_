@@ -1,4 +1,7 @@
 import math
+from typing import List
+
+from api_service.schemas import HarvestLineIn
 
 
 def cost_process(n, reward_ranges):
@@ -12,9 +15,8 @@ def cost_process(n, reward_ranges):
             return math.ceil(result / 100) * 100
     return n
 
-
-def cost_value_update(items: list[dict], ranges: list) -> list:
+def cost_value_update(items: List[HarvestLineIn], ranges: list) -> List[HarvestLineIn]:
     for item in items:
-        if item['origin'] and item['input_price']:
-            item['output_price'] = cost_process(item['input_price'], ranges)
+        if item.origin is not None and item.input_price is not None:
+            item.output_price = cost_process(item.input_price, ranges)
     return items

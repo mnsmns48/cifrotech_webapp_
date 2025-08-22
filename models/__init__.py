@@ -24,7 +24,7 @@ __all__ = (
 
 from .base import Base
 from .api_v1 import Activity, StockTable, Guests, Sellers
-from .harvest import HarvestLine, Harvest
+from .harvest import HarvestLine
 from .hub import HUbMenuLevel, HUbStock
 from .product_dependencies import (ProductFeaturesLink,
                                    ProductOrigin,

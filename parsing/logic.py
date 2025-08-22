@@ -9,8 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.annotation import Annotated
 
 from api_service.api_req import get_one_by_dtube
-from api_service.crud import delete_harvest_strings_by_vsl_id, store_one_item, get_info_by_caching, \
-    add_dependencies_link
+from api_service.crud import store_one_item, get_info_by_caching, add_dependencies_link, SourceContext
 from api_service.routers.s3_helper import build_with_preview
 
 from api_service.schemas import ParsingRequest
@@ -20,29 +19,33 @@ from models import Vendor
 
 
 async def parsing_core(redis: Redis,
-                       data: ParsingRequest,
-                       vendor: Vendor,
                        session: AsyncSession,
-                       function_name: str,
-                       s3_client: AioBaseClient) -> dict:
-    module_path = Path(f"{BASE_DIR}/parsing/sources/{function_name}.py")
+                       s3_client: AioBaseClient,
+                       progress: str,
+                       context: SourceContext,
+                       sync_features: bool
+                       ) -> dict:
+    module_path = Path(f"{BASE_DIR}/parsing/sources/{context.vendor.function}.py")
     if not module_path.exists():
         raise FileNotFoundError(f"Функция {module_path} не найдена")
-    module_name = f"parsing.sources.{function_name}"
+    module_name = f"parsing.sources.{context.vendor.function}"
     module = importlib.import_module(module_name)
     parser_class = getattr(module, "BaseParser")
-    pars_obj = parser_class(redis, data, vendor, session)
+    pars_obj = parser_class(redis, progress, context, session)
     await pars_obj.run()
     try:
-        await delete_harvest_strings_by_vsl_id(session=session, vsl_id=data.vsl_id)
         result: dict = await pars_obj.process()
     finally:
         await pars_obj.browser.close()
         await pars_obj.playwright.stop()
-    result['data'] = await append_info(session=session, data_lines=result['data'], redis=redis, channel=data.progress,
-                                       sync_features=data.sync_features)
-    result['data'] = await build_with_preview(session=session, data_lines=result['data'], s3_client=s3_client)
-    print(result)
+    result['parsing_result'] = await append_info(session=session,
+                                                 data_lines=result['parsing_result'],
+                                                 redis=redis,
+                                                 channel=progress,
+                                                 sync_features=sync_features)
+    result['parsing_result'] = await build_with_preview(session=session,
+                                                        data_lines=result['parsing_result'],
+                                                        s3_client=s3_client)
     return result
 
 

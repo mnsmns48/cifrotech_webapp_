@@ -7,7 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from models import Base
 
 if TYPE_CHECKING:
-    from models import ProductOrigin, Harvest
+    from models import ProductOrigin, VendorSearchLine
 
 
 class HUbMenuLevel(Base):
@@ -28,7 +28,7 @@ class HUbStock(Base):
     origin: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("product_origin.origin", ondelete="CASCADE"), primary_key=True)
     path_id: Mapped[int] = mapped_column(ForeignKey("hub_menu_levels.id"), nullable=False, index=True)
-    harvest_id: Mapped[int] = mapped_column(ForeignKey("harvest.id", ondelete="RESTRICT"), nullable=False, index=True)
+    vsl_id: Mapped[int] = mapped_column(ForeignKey("vendor_search_line.id", ondelete="RESTRICT"), nullable=False, index=True)
     warranty: Mapped[str] = mapped_column(nullable=True)
     input_price: Mapped[float] = mapped_column(nullable=False)
     output_price: Mapped[float] = mapped_column(nullable=True)
@@ -36,4 +36,4 @@ class HUbStock(Base):
 
     menu_level: Mapped["HUbMenuLevel"] = relationship("HUbMenuLevel", back_populates="stocks")
     product_origin: Mapped["ProductOrigin"] = relationship("ProductOrigin", back_populates="stocks")
-    harvest: Mapped["Harvest"] = relationship("Harvest", back_populates="hub_stocks")
+    search_lines: Mapped["VendorSearchLine"] = relationship("VendorSearchLine", back_populates="stocks")
