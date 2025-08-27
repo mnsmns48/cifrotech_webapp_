@@ -15,6 +15,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from api_service.schemas import ParsingLinesIn
 from config import settings
 from models import ProductOrigin
 from models.product_dependencies import ProductImage
@@ -27,8 +28,8 @@ async def get_s3_client() -> AsyncGenerator[AioBaseClient, None]:
     endpoint = settings.s3.s3_url.rstrip("/")
     session = aioboto3.Session()
     async with session.client(service_name="s3", endpoint_url=endpoint,
-            aws_access_key_id=settings.s3.s3_access_key.strip(),
-            aws_secret_access_key=settings.s3.s3_secret_access_key.strip(), config=cfg) as client:
+                              aws_access_key_id=settings.s3.s3_access_key.strip(),
+                              aws_secret_access_key=settings.s3.s3_secret_access_key.strip(), config=cfg) as client:
         yield client
 
 
@@ -38,18 +39,19 @@ async def get_http_client_session():
         yield session
 
 
-async def build_with_preview(session: AsyncSession, data_lines: list[dict], s3_client: AioBaseClient) -> list[dict]:
+async def build_with_preview(
+        session: AsyncSession, data_lines: list[ParsingLinesIn], s3_client: AioBaseClient) -> list[ParsingLinesIn]:
     origins_to_process = set()
     origin_to_item_map = dict()
 
     for item in data_lines:
-        origin_id = item.get("origin")
-        if origin_id and not item.get("preview"):
+        origin_id = item.origin
+        if origin_id and not item.preview:
             origins_to_process.add(origin_id)
             origin_to_item_map[origin_id] = item
 
     stmt = (select(ProductImage).where(ProductImage.origin_id.in_(origins_to_process)).order_by(
-            ProductImage.origin_id.asc(), ProductImage.is_preview.desc(), ProductImage.uploaded_at.asc()))
+        ProductImage.origin_id.asc(), ProductImage.is_preview.desc(), ProductImage.uploaded_at.asc()))
     result = await session.execute(stmt)
     images = result.scalars().all()
 
@@ -126,7 +128,7 @@ async def generate_presigned_image_urls(
 
 
 async def sync_images_from_pics(
-        product: ProductOrigin, s3_client, cl_session: ClientSession,session: AsyncSession) -> List[Dict[str, Any]]:
+        product: ProductOrigin, s3_client, cl_session: ClientSession, session: AsyncSession) -> List[Dict[str, Any]]:
     bucket = settings.s3.bucket_name
     prefix = f"{settings.s3.s3_hub_prefix}/{product.origin}/"
 
@@ -198,12 +200,12 @@ async def sync_images_from_pics(
         if img.key:
             keys.add(img.key)
     try:
-         returned_urls = await generate_presigned_image_urls(filenames=keys, prefix=prefix, bucket=bucket, s3_client=s3_client)
+        returned_urls = await generate_presigned_image_urls(filenames=keys, prefix=prefix, bucket=bucket,
+                                                            s3_client=s3_client)
     except (ClientError, BotoCoreError) as e:
         raise HTTPException(502, f"Ошибка генерации ссылок: {e}")
 
     return returned_urls
-
 
 
 async def sync_images_by_origin(

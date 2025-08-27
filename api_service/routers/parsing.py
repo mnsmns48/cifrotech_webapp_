@@ -1,5 +1,6 @@
 import asyncio
 import os
+from typing import Optional, List
 from urllib.parse import urlparse
 from aiohttp import ClientConnectionError, ClientResponseError
 from botocore.exceptions import ClientError, BotoCoreError
@@ -10,71 +11,62 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.responses import JSONResponse
-from api_service.api_req import get_items_by_brand, get_one_by_dtube
-from api_service.crud import get_vendor_and_vsl, get_range_rewards_list, SourceContext
-from api_service.routers.process_helper import _prepare_harvest_response
-from api_service.routers.s3_helper import (scan_s3_images, generate_presigned_image_urls, get_s3_client,
-                                           get_http_client_session, sync_images_by_origin, generate_final_image_payload)
+from api_service.api_connect import get_items_by_brand, get_one_by_dtube
+from api_service.crud import get_vendor_and_vsl, get_rr_obj, _get_parsing_result
+from api_service.s3_helper import (get_s3_client, get_http_client_session, sync_images_by_origin,
+                                   generate_final_image_payload, build_with_preview)
 from api_service.schemas import (ParsingRequest, ProductOriginUpdate, ProductDependencyUpdate, ProductResponse,
                                  RecalcPricesResponse, RecalcPricesRequest)
-from config import redis_session, settings
+from api_service.schemas.parsing_schemas import SourceContext, ParsingResultOut, ParsingLinesIn
+from api_service.schemas.range_reward_schemas import RewardRangeResponseSchema
+from api_service.utils import AppDependencies
+from config import settings, redis_session
 from engine import db
 
-from models import HarvestLine, ProductOrigin, ProductType, ProductBrand, ProductFeaturesGlobal, \
+from models import ParsingLine, ProductOrigin, ProductType, ProductBrand, ProductFeaturesGlobal, \
     ProductFeaturesLink
 from models.product_dependencies import ProductImage
 from models.vendor import VendorSearchLine, RewardRange, Vendor
-from parsing.logic import parsing_core
+from parsing.logic import parsing_core, append_info
 from parsing.utils import cost_process
 
 parsing_router = APIRouter(tags=['Service-Parsing'])
 
 
-@parsing_router.post("/start_parsing")
-async def go_parsing(data: ParsingRequest,
-                     redis=Depends(redis_session),
-                     session: AsyncSession = Depends(db.scoped_session_dependency),
-                     s3_client=Depends(get_s3_client)):
-    pubsub_obj = redis.pubsub()
-    context: SourceContext = await get_vendor_and_vsl(session=session, vsl_id=data.vsl_id)
+@parsing_router.post("/start_parsing", response_model=ParsingResultOut)
+async def go_parsing(data: ParsingRequest, deps: AppDependencies = Depends()) -> Optional[ParsingResultOut]:
+    pubsub_obj = deps.redis.pubsub()
+    context: SourceContext = await get_vendor_and_vsl(session=deps.session, vsl_id=data.vsl_id)
     try:
-        parsing_data: dict = await parsing_core(redis, session, s3_client, data.progress, context, data.sync_features)
-        if len(parsing_data.get('parsing_result')) > 0:
-            parsing_data.update({'is_ok': True})
+        parsing_data: ParsingResultOut = await parsing_core(
+            deps.redis, deps.session, deps.s3_client, data.progress, context, data.sync_features)
     finally:
-        await redis.publish(data.progress, "data: COUNT=20")
-        await asyncio.sleep(0.2)
-        await redis.publish(data.progress, "END")
+        await deps.redis.publish(data.progress, "data: COUNT=20")
+        await asyncio.sleep(0.5)
+        await deps.redis.publish(data.progress, "END")
         await pubsub_obj.unsubscribe(data.progress)
         await pubsub_obj.close()
     return parsing_data
 
 
+async def fetch_previous_parsing_results(data: ParsingRequest, deps: AppDependencies) -> ParsingResultOut:
+    vsl: VendorSearchLine | None = await deps.session.get(VendorSearchLine, data.vsl_id)
+    if not vsl:
+        raise ValueError(f"Ссылка с id: {data.vsl_id} не найдена")
+
+    parsed_lines: List[ParsingLinesIn] = await _get_parsing_result(session=deps.session, vsl_id=data.vsl_id)
+    await append_info(session=deps.session,
+                      data_lines=parsed_lines, redis=deps.redis, channel=data.progress,
+                      sync_features=data.sync_features)
+    await build_with_preview(session=deps.session, data_lines=parsed_lines, s3_client=deps.s3_client)
+
+    return ParsingResultOut(
+        dt_parsed=vsl.dt_parsed, profit_range_id=vsl.profit_range_id, is_ok=True, parsing_result=parsed_lines)
+
+
 @parsing_router.post("/previous_parsing_results")
-async def get_previous_results(
-        data: ParsingRequest, redis=Depends(redis_session),
-        session: AsyncSession = Depends(db.scoped_session_dependency),
-        s3_client=Depends(get_s3_client)):
-    vsl_exists = await session.get(VendorSearchLine, data.vsl_id)
-    if not vsl_exists:
-        raise HTTPException(404, "Vendor_search_line с таким ID не найден")
-    harvest = await session.execute(
-        select(Harvest, RewardRange)
-        .join(RewardRange, Harvest.range_id == RewardRange.id).where(Harvest.vendor_search_line_id == data.vsl_id))
-    harvest, reward = harvest.first()
-    if not harvest:
-        return {
-            "response": "not found", "is_ok": False, "message": "Предыдущих результатов нет, соберите данные заново"
-        }
-    data_with_info = await _prepare_harvest_response(session=session, redis=redis,
-                                                     harvest_id=harvest.id,
-                                                     sync_features=False, s3_client=s3_client)
-    return {"is_ok": True,
-            "category": harvest.category,
-            "datestamp": harvest.datestamp,
-            "range_reward": {"id": reward.id,
-                             "title": reward.title},
-            "data": data_with_info}
+async def get_previous_results(data: ParsingRequest, deps: AppDependencies = Depends()) -> ParsingResultOut:
+    return await fetch_previous_parsing_results(data, deps)
 
 
 @parsing_router.put("/update_parsing_item/{origin}")
@@ -181,47 +173,34 @@ async def update_parsing_item_dependency(title: str):
         return JSONResponse(content=data, media_type="application/json; charset=utf-8")
 
 
-@parsing_router.post("/recalculate_output_prices", response_model=RecalcPricesResponse)
-async def recalculate_reward(recalc_req: RecalcPricesRequest,
-                             redis=Depends(redis_session),
-                             s3_client=Depends(get_s3_client),
-                             session: AsyncSession = Depends(db.scoped_session_dependency)):
-    vsl = await session.get(VendorSearchLine, recalc_req.vsl_id)
+@parsing_router.post("/recalculate_output_prices", response_model=ParsingResultOut)
+async def recalculate_reward(recalc_req: RecalcPricesRequest, deps: AppDependencies = Depends()):
+    vsl: VendorSearchLine | None = await deps.session.get(VendorSearchLine, recalc_req.vsl_id)
     if not vsl:
-        raise HTTPException(404, "VendorSearchLine не найден")
-    harvest = (await session.execute(
-        select(Harvest).where(Harvest.vendor_search_line_id == recalc_req.vsl_id)
-    )).scalars().first()
-    if not harvest:
-        raise HTTPException(404, "Harvest не найден")
-    harvest.range_id = recalc_req.range_id
-    await session.flush()
-    ranges = await get_range_rewards_list(session=session, range_id=recalc_req.range_id)
-    lines = (await session.execute(
-        select(HarvestLine).where(HarvestLine.harvest_id == harvest.id)
-    )).scalars().all()
-    for line in lines:
+        raise HTTPException(404, "VSL не найден")
+    ranges: RewardRangeResponseSchema = await get_rr_obj(session=deps.session, range_id=recalc_req.range_id)
+    stmt = select(ParsingLine).where(ParsingLine.vsl_id == vsl.id)
+    lines = await deps.session.execute(stmt)
+    for line in lines.scalars().all():
         inp = line.input_price or 0
-        line.output_price = cost_process(inp, ranges)
-    await session.commit()
-    data_with_info = await _prepare_harvest_response(session=session,
-                                                     redis=redis,
-                                                     s3_client=s3_client,
-                                                     harvest_id=harvest.id,
-                                                     sync_features=False)
-    return {"is_ok": True,
-            "datestamp": harvest.datestamp,
-            "range_reward": recalc_req.range_id,
-            "data": data_with_info}
+        line.output_price = cost_process(inp, ranges.ranges)
+    vsl.profit_range_id = recalc_req.range_id
+    await deps.session.commit()
+    parsed_lines: List[ParsingLinesIn] = await _get_parsing_result(session=deps.session, vsl_id=recalc_req.vsl_id)
+    await append_info(session=deps.session,
+                      data_lines=parsed_lines, redis=deps.redis, channel='',
+                      sync_features=False)
+    await build_with_preview(session=deps.session, data_lines=parsed_lines, s3_client=deps.s3_client)
 
-
+    return ParsingResultOut(
+        dt_parsed=vsl.dt_parsed, profit_range_id=vsl.profit_range_id, is_ok=True, parsing_result=parsed_lines)
 
 
 @parsing_router.get("/fetch_images_62701/{origin}")
 async def fetch_images_in_origin(
         origin: int,
         session: AsyncSession = Depends(db.scoped_session_dependency),
-        s3_client = Depends(get_s3_client),
+        s3_client=Depends(get_s3_client),
         cl_session: ClientSession = Depends(get_http_client_session)):
     return await sync_images_by_origin(origin=origin, session=session, s3_client=s3_client, cl_session=cl_session)
 
@@ -271,7 +250,6 @@ async def upload_image_to_origin(
     return {"origin": origin, "preview": payload["preview"], "images": payload["images"]}
 
 
-
 @parsing_router.delete("/delete_images/{origin}/{filename}")
 async def delete_image(
         origin: int, filename: str,
@@ -314,12 +292,13 @@ async def delete_image(
     payload = await generate_final_image_payload(product, s3_client, bucket, prefix)
     return {"origin": origin, "preview": payload["preview"], "images": payload["images"]}
 
+
 @parsing_router.patch("/set_is_preview_image/{origin}/{filename}")
 async def set_preview_image(origin: int, filename: str,
-        session: AsyncSession = Depends(db.scoped_session_dependency),
-        s3_client=Depends(get_s3_client)):
+                            session: AsyncSession = Depends(db.scoped_session_dependency),
+                            s3_client=Depends(get_s3_client)):
     result = await session.execute(select(ProductOrigin)
-        .options(selectinload(ProductOrigin.images)).where(ProductOrigin.origin == origin))
+                                   .options(selectinload(ProductOrigin.images)).where(ProductOrigin.origin == origin))
     product = result.scalar_one_or_none()
     if not product:
         raise HTTPException(404, "Товар не найден")
@@ -330,7 +309,7 @@ async def set_preview_image(origin: int, filename: str,
 
     if target_image.is_preview:
         final_images = await generate_final_image_payload(product, s3_client, settings.s3.bucket_name,
-            f"{settings.s3.s3_hub_prefix}/{origin}/")
+                                                          f"{settings.s3.s3_hub_prefix}/{origin}/")
         return {"origin": origin, "preview": product.preview, "images": final_images}
 
     for img in product.images:

@@ -1,34 +1,32 @@
 import json
 import os
-from datetime import datetime
-from bs4 import BeautifulSoup
-from openpyxl.utils.formulas import validate
+from typing import Optional, List, Dict
+
+from bs4 import BeautifulSoup, Tag
 from playwright.async_api import async_playwright
 from playwright_stealth import stealth_async
 from pydantic import ValidationError
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
+from api_service.schemas import ParsingLinesIn
 
-from api_service.crud import get_range_rewards_list, store_harvest_line, get_rr_obj, SourceContext
-from api_service.schemas import HarvestLineIn
 from config import BROWSER_HEADERS, BASE_DIR
+from models import Vendor
 from parsing.browser import create_browser, open_page
-from parsing.utils import cost_value_update
 
 this_file_name = os.path.basename(__file__).rsplit('.', 1)[0]
 cookie_file = f"{BASE_DIR}/parsing/sources/{this_file_name}.json"
 
 
 class BaseParser:
-    def __init__(self, redis: Redis, progress: str, context: SourceContext, session: AsyncSession):
+    def __init__(self, redis: Redis, progress: str, vendor: Vendor, url: str, session: AsyncSession):
         self.page, self.browser, self.playwright = None, None, None
         self.pages = list()
-        self.progress= progress
-        self.vsl = context.vsl
-        self.vendor = context.vendor
+        self.progress = progress
+        self.url = url
+        self.vendor = vendor
         self.session = session
         self.redis = redis
-        self.range_reward = dict()
 
     @staticmethod
     async def check_auth(text: BeautifulSoup) -> bool:
@@ -52,7 +50,7 @@ class BaseParser:
         buttons = await self.page.locator('button[name="dispatch[auth.login]"]').all()
         await buttons[1].click()
         await self.page.wait_for_load_state("domcontentloaded")
-        await self.page.goto(self.vsl.url + '&sort_by=price&sort_order=asc&items_per_page=120')
+        await self.page.goto(self.url + '&sort_by=price&sort_order=asc&items_per_page=120')
         storage_state = await self.page.context.storage_state()
         with open(f"{BASE_DIR}/parsing/sources/{this_file_name}.json", "w") as file:
             json.dump(storage_state, file)
@@ -79,7 +77,7 @@ class BaseParser:
         await stealth_async(self.page)
 
     @staticmethod
-    async def extract_pic(swiper_wrapper: BeautifulSoup) -> list | None:
+    async def extract_pic(swiper_wrapper: Tag) -> list | None:
         carousel = swiper_wrapper.find_all('div')
         pics = list()
         for item in carousel:
@@ -96,71 +94,6 @@ class BaseParser:
         return pics
 
     @staticmethod
-    async def store_results(soup: BeautifulSoup, session: AsyncSession, vsl_id: int, range_reward_id: int) -> list:
-        parsing_lines_result = list()
-        content_list = soup.find_all("div", class_="ty-product-block ty-compact-list__content")
-        for line in content_list:
-            try:
-                origin_block = line.find("div", class_="code")
-                origin_span = origin_block.find("span") if origin_block else None
-                origin_text = origin_span.get_text().strip() if origin_span else None
-                origin = int(origin_text) if origin_text and origin_text.isdigit() else 0
-
-                # title & link
-                title_block = line.find("div", class_="category-list-item__title ty-compact-list__title")
-                title = title_block.a.get_text().strip() if title_block and title_block.a else ""
-                link = title_block.a.get("href") if title_block and title_block.a else None
-
-                # shipment
-                shipment_block = line.find("p", class_="delivery")
-                shipment = shipment_block.get_text().strip() if shipment_block else None
-
-                # warranty
-                warranty_block = line.find("div", class_="divisible-block")
-                warranty_span = warranty_block.find("span") if warranty_block else None
-                warranty = warranty_span.get_text().strip() if warranty_span else None
-
-                # input_price
-                price_block = line.find("span", class_="ty-price-num", id=lambda x: x and "sec_discounted_price" in x)
-                if not price_block:
-                    continue
-                price_text = price_block.get_text().strip().replace("\xa0", "")
-                input_price = float(price_text) if price_text.replace(".", "").isdigit() else None
-                if input_price is None:
-                    continue
-
-                # pics & preview
-                pics_block = line.find("div", class_="swiper-wrapper")
-                pics = await BaseParser.extract_pic(pics_block) if pics_block else None
-                preview = pics_block.find("a").get("href") if pics_block and pics_block.find("a") else None
-
-                # optional
-                optional_block = origin_block.find_next_sibling("div") if origin_block else None
-                optional = optional_block.get_text().strip() if optional_block else None
-
-                item = HarvestLineIn(
-                    origin=origin,
-                    title=title,
-                    link=link,
-                    shipment=shipment,
-                    warranty=warranty,
-                    input_price=input_price,
-                    pics=pics,
-                    preview=preview,
-                    optional=optional,
-                    vsl_id=vsl_id
-                )
-                parsing_lines_result.append(item)
-
-            except (AttributeError, ValueError, TypeError, IndexError, ValidationError):
-                continue
-
-        ranges = await get_range_rewards_list(session=session, range_id=range_reward_id)
-        validate_items = cost_value_update(parsing_lines_result, list(ranges))
-        stored_items = await store_harvest_line(session=session, items=validate_items)
-        return stored_items
-
-    @staticmethod
     def actual_pagination(soup: BeautifulSoup) -> list:
         pagination = soup.find('ul', {'class': 'pagination'})
         pages = list()
@@ -173,43 +106,98 @@ class BaseParser:
                 pages.append(li)
         return pages
 
-    async def process(self) -> dict:
-        opened_page = await open_page(page=self.page, url=self.vsl.url)
-        self.pages = self.actual_pagination(opened_page['soup'])
-        self.range_reward: dict = await get_rr_obj(session=self.session)
+    @staticmethod
+    async def page_data_separation(soup: BeautifulSoup) -> List[ParsingLinesIn]:
+        parsing_lines_result = list()
+        content_list = soup.find_all("div", class_="ty-product-block ty-compact-list__content")
+        for line in content_list:
+            try:
+                # origin
+                origin_block = line.find("div", class_="code")
+                origin_span = origin_block.find("span") if origin_block else None
+                origin_text = origin_span.get_text().strip() if origin_span else None
+                origin = int(origin_text) if origin_text and origin_text.isdigit() else 0
+                # title & link
+                title_block = line.find("div", class_="category-list-item__title ty-compact-list__title")
+                title = title_block.a.get_text().strip() if title_block and title_block.a else ""
+                link = title_block.a.get("href") if title_block and title_block.a else None
+                # shipment
+                shipment_block = line.find("p", class_="delivery")
+                shipment = shipment_block.get_text().strip() if shipment_block else None
+                # warranty
+                warranty_block = line.find("div", class_="divisible-block")
+                warranty_span = warranty_block.find("span") if warranty_block else None
+                warranty = warranty_span.get_text().strip() if warranty_span else None
+                # input_price
+                price_block = line.find("span", class_="ty-price-num", id=lambda x: x and "sec_discounted_price" in x)
+                if not price_block:
+                    continue
+                price_text = price_block.get_text().strip().replace("\xa0", "")
+                input_price = float(price_text) if price_text.replace(".", "").isdigit() else None
+                if input_price is None:
+                    continue
+                # pics & preview
+                pics_block = line.find("div", class_="swiper-wrapper")
+                pics = await BaseParser.extract_pic(pics_block) if pics_block else None
+                preview = pics_block.find("a").get("href") if pics_block and pics_block.find("a") else None
+                # optional
+                optional_block = origin_block.find_next_sibling("div") if origin_block else None
+                optional = optional_block.get_text().strip() if optional_block else None
 
-        await self.redis.publish(self.progress, f"{len(self.pages) - 1} страниц для сбора информации")
-        if not await self.check_auth(text=opened_page['soup']):
-            context = await self.browser.new_context()
+                item = ParsingLinesIn(origin=origin, title=title,
+                                     link=link, shipment=shipment,
+                                     warranty=warranty, input_price=input_price,
+                                     pics=pics, preview=preview, optional=optional)
+                parsing_lines_result.append(item)
+
+            except (AttributeError, ValueError, TypeError, IndexError, ValidationError):
+                continue
+
+        return parsing_lines_result
+
+    async def get_parsed_lines(self) -> List[ParsingLinesIn]:
+        opened_page = await open_page(page=self.page, url=self.url)
+        soup = opened_page['soup']
+        self.pages = self.actual_pagination(soup)
+        await self.redis.publish(self.progress, f"{len(self.pages) + 1} страниц для сбора информации")
+        if not await self.check_auth(text=soup):
             await self.redis.publish(self.progress, "Авторизация не пройдена")
             await self.authorization()
             await self.page.close()
+            context = await self.browser.new_context()
             with open(cookie_file, "r") as file:
                 storage_state = json.load(file)
             await context.add_cookies(storage_state["cookies"])
             self.page = await context.new_page()
             await stealth_async(self.page)
-            opened_page = await open_page(page=self.page, url=self.vsl.url)
-        result = await self.store_results(soup=opened_page['soup'], session=self.session, vsl_id=self.vsl.id,
-                                          range_reward_id=self.range_reward.get('id'))
-        await self.redis.publish(self.progress, f"Страница 1 из {len(self.pages) + 1} сохранена")
-        page_counter = 0
-        while page_counter < len(self.pages):
-            await self.redis.publish(self.progress, f"data: COUNT={len(self.pages) + 5}")
-            page_item = self.pages[page_counter]
-            next_url = page_item.a.get('href')
-            opened_page = await open_page(page=self.page, url=next_url)
-            result += await self.store_results(soup=opened_page['soup'],
-                                               session=self.session,
-                                               vsl_id=self.vsl.id,
-                                               range_reward_id=self.range_reward.get('id'))
+            opened_page = await open_page(page=self.page, url=self.url)
+            soup = opened_page['soup']
+            self.pages = self.actual_pagination(soup)
+
+        visited_urls = set()
+        urls_to_visit = [self.url] + [page.a.get("href") for page in self.pages if page.a]
+
+        result_lines: List[ParsingLinesIn] = list()
+        page_counter = 1
+
+        while urls_to_visit:
+            url = urls_to_visit.pop(0)
+            if url in visited_urls:
+                continue
+            visited_urls.add(url)
+
+            opened_page = await open_page(page=self.page, url=url)
+            soup = opened_page['soup']
+            lines = await self.page_data_separation(soup=soup)
+            result_lines.extend(lines)
+
+            await self.redis.publish(self.progress, f"Страница {page_counter} сохранена")
             page_counter += 1
-            await self.redis.publish(self.progress,
-                                     f"Страница {page_counter} из {len(self.pages) + 1} сохранена")
-            new_pages = self.actual_pagination(opened_page['soup'])
-            if len(new_pages) > len(self.pages):
-                self.pages = new_pages
-                await self.redis.publish(self.progress, f"data: COUNT={len(self.pages) + 5}")
-        return {'dt_parsed': datetime.now(),
-                'range_reward': self.range_reward,
-                'parsing_result': result}
+
+            new_pages = self.actual_pagination(soup)
+            for page in new_pages:
+                href = page.a.get("href") if page.a else None
+                if href and href not in visited_urls and href not in urls_to_visit:
+                    urls_to_visit.append(href)
+
+        return result_lines

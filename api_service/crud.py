@@ -1,27 +1,26 @@
 from collections import defaultdict
-from dataclasses import dataclass
-from typing import Sequence, List, Optional, Dict, Any
+from datetime import datetime
+from typing import List, Optional
 
-from sqlalchemy import select, Row, delete, distinct
+from aiohttp import ClientSession
+from redis.asyncio import Redis
+from sqlalchemy import delete, update, and_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
-from api_service.schemas import HarvestLineIn
+from api_service.api_connect import get_one_by_dtube
+from api_service.schemas import ParsingLinesIn
+from api_service.schemas.parsing_schemas import SourceContext, ParsingResultOut
+from api_service.schemas.product_schemas import ProductOriginCreate
+from api_service.schemas.range_reward_schemas import RewardRangeResponseSchema, RewardRangeLineSchema
 from api_service.utils import normalize_origin
-from models import Vendor, HarvestLine, ProductOrigin, ProductType, ProductBrand, ProductFeaturesGlobal, \
+from models import Vendor, ParsingLine, ProductOrigin, ProductType, ProductBrand, ProductFeaturesGlobal, \
     ProductFeaturesLink, HUbStock, HUbMenuLevel
 from models.vendor import VendorSearchLine, RewardRangeLine, RewardRange
 
-
 from sqlalchemy import select
-from sqlalchemy.orm import joinedload
 
-
-@dataclass
-class SourceContext:
-    vendor: Vendor
-    vsl: VendorSearchLine
 
 async def get_vendor_and_vsl(session: AsyncSession, vsl_id: int) -> Optional[SourceContext]:
     result = await session.execute(
@@ -34,103 +33,143 @@ async def get_vendor_and_vsl(session: AsyncSession, vsl_id: int) -> Optional[Sou
     return SourceContext(vendor, vsl)
 
 
-
-# async def store_harvest(data: dict, session: AsyncSession) -> int:
-#     stmt = insert(Harvest).values(**data).returning(Harvest.id)
-#     result = await session.execute(stmt)
-#     harvest_id = result.scalar_one()
-#     await session.commit()
-#     return harvest_id
-
-
-async def store_harvest_line(items: Sequence[HarvestLineIn], session: AsyncSession) -> list[dict]:
-    items = [line for line in items if not getattr(line, "is_deleted", False)]
-    if not items:
-        return []
-
-    normalized_map: dict[int, HarvestLineIn] = dict()
+async def store_parsing_lines(
+        session: AsyncSession, items: List[ParsingLinesIn], vsl_id: int, profit_range_id: int) -> ParsingResultOut:
+    normalized: List[ParsingLinesIn] = list()
     for line in items:
-        origin = normalize_origin(line.origin)
-        if not origin:
+        orig = normalize_origin(line.origin)
+        if not orig:
             continue
-        normalized_map[origin] = line
+        line.origin = orig
+        normalized.append(line)
 
-    origins = normalized_map.keys()
+    if normalized:
+        origins = {ln.origin for ln in normalized}
+        product_origin_query = select(ProductOrigin).where(ProductOrigin.origin.in_(origins))
+        product_orig_in_db = await session.execute(product_origin_query)
+        product_orig_list = product_orig_in_db.scalars().all()
+        existing: dict[int, ProductOrigin] = dict()
+        for product in product_orig_list:
+            existing[product.origin] = product
+    else:
+        existing = dict()
 
-    existing_stmt = select(ProductOrigin).where(ProductOrigin.origin.in_(origins))
-    existing_rows = await session.execute(existing_stmt)
-    scalars_result = existing_rows.scalars()
-    existing_map: dict[int, ProductOrigin] = dict()
-
-    for product_line in scalars_result:
-        existing_map[product_line.origin] = product_line
-
-    product_origin_value, harvest_line_value, return_list = list(), list(), list()
-
-    for origin, line in normalized_map.items():
-        db_row = existing_map.get(origin)
-        if db_row and db_row.is_deleted:
+    filtered = list()
+    for line in normalized:
+        origin = line.origin
+        if origin in existing and existing[origin].is_deleted:
             continue
-        product_origin_value.append({"origin": origin,
-                                     "title": line.title,
-                                     "link": line.link,
-                                     "pics": line.pics,
-                                     "preview": line.preview,
-                                     "is_deleted": False})
-        harvest_line_value.append({"vsl_id": line.vsl_id,
-                                   "origin": origin,
-                                   "shipment": line.shipment,
-                                   "warranty": line.warranty,
-                                   "input_price": line.input_price,
-                                   "output_price": line.output_price,
-                                   "optional": line.optional})
-        if db_row:
-            return_list.append(
-                line.model_copy(update={"title": db_row.title, "is_deleted": db_row.is_deleted})
-            )
-        else:
-            return_list.append(line)
+        filtered.append(line)
 
-    if not product_origin_value:
-        return [data_obj.model_dump() for data_obj in return_list]
+    if not filtered:
+        return ParsingResultOut(
+            dt_parsed=datetime.now(), profit_range_id=profit_range_id, is_ok=False, parsing_result=[]
+        )
 
-    insert_stmt = insert(ProductOrigin).values(product_origin_value)
-    stmt_product_origin = insert_stmt.on_conflict_do_update(index_elements=["origin"],
-                                                            set_={"link": insert_stmt.excluded.link,
-                                                                  "pics": insert_stmt.excluded.pics,
-                                                                  "preview": insert_stmt.excluded.preview})
+    new_product_origin: list[ProductOriginCreate] = list()
+    for line in filtered:
+        if line.origin in existing:
+            continue
 
-    stmt_harvest_line = (insert(HarvestLine).values(harvest_line_value)
-                         .on_conflict_do_nothing(index_elements=["vsl_id", "origin"]))
+        po_create = ProductOriginCreate(origin=line.origin, title=line.title, link=line.link, pics=line.pics,
+                                        preview=line.preview, is_deleted=False)
+        new_product_origin.append(po_create)
+    if new_product_origin:
+        new_po_dicts = [po.model_dump() for po in new_product_origin]
+        stmt = (
+            insert(ProductOrigin)
+            .values(new_po_dicts)
+            .on_conflict_do_nothing(index_elements=[ProductOrigin.origin])
+        )
+        await session.execute(stmt)
+        for po_data in new_po_dicts:
+            existing[po_data["origin"]] = ProductOrigin(**po_data)
 
-    await session.execute(stmt_product_origin)
-    await session.execute(stmt_harvest_line)
-    await session.commit()
+    await session.execute(delete(ParsingLine).where(ParsingLine.vsl_id == vsl_id))
+    inserted_bulk = list()
+    for line in filtered:
+        inserted_bulk.append({"vsl_id": vsl_id,
+                              "origin": line.origin,
+                              "shipment": line.shipment,
+                              "warranty": line.warranty,
+                              "input_price": line.input_price,
+                              "output_price": line.output_price,
+                              "optional": line.optional})
+    await session.execute(insert(ParsingLine).values(inserted_bulk))
+    vsl_stmt = (update(VendorSearchLine)
+                .where(VendorSearchLine.id == vsl_id).values(dt_parsed=datetime.now(), profit_range_id=profit_range_id))
+    await session.execute(vsl_stmt)
+    response: List[ParsingLinesIn] = list()
+    for line in filtered:
+        product_origin = existing[line.origin]
+        response.append(
+            line.model_copy(
+                update={"title": product_origin.title, "link": product_origin.link, "pics": product_origin.pics,
+                        "preview": product_origin.preview}))
+    await session.flush()
+    return ParsingResultOut(
+        dt_parsed=datetime.now(), profit_range_id=profit_range_id, parsing_result=response, is_ok=False)
 
-    return [data_obj.model_dump() for data_obj in return_list]
+
+async def append_info(session: AsyncSession,
+                      data_lines: list[ParsingLinesIn],
+                      sync_features: bool,
+                      redis: Redis = None,
+                      channel: str = None):
+    async with ClientSession() as client_session:
+        origins = [item.origin for item in data_lines]
+        cached: dict[int, list[str]] = await get_info_by_caching(session, origins)
+        missing = set(origins) - set(cached.keys())
+        if sync_features and missing:
+            if redis and channel:
+                await redis.publish(channel, f"data: COUNT={len(missing)}")
+            for line in data_lines:
+                origin = line.origin
+                if origin not in missing:
+                    continue
+                one_item = await get_one_by_dtube(session=client_session, title=line.title)
+                if one_item:
+                    feature_id = await store_one_item(session=session, data=one_item)
+                    await add_dependencies_link(session=session, origin=origin, feature_id=feature_id)
+                    cached[origin] = [one_item.get('title')]
+                    if redis and channel:
+                        await redis.publish(channel, f"Добавление {one_item.get('title')}")
+                else:
+                    cached[origin] = []
+        if not sync_features:
+            for origin in missing:
+                cached[origin] = []
+        for line in data_lines:
+            origin = line.origin
+            line.features_title = cached.get(origin, [])
+    return data_lines
 
 
-async def get_range_rewards_list(session: AsyncSession, range_id: int = None) -> Sequence[
-    Row[tuple[int, int, bool, int]]]:
+async def get_rr_obj(session: AsyncSession, range_id: Optional[int] = None) -> Optional[RewardRangeResponseSchema]:
     if range_id is None:
-        default_range_query = select(RewardRange.id).where(RewardRange.is_default == True)
-        default_range = await session.execute(default_range_query)
-        range_id = default_range.scalar()
-    if range_id is None:
-        return []
-    query = select(
-        RewardRangeLine.line_from, RewardRangeLine.line_to, RewardRangeLine.is_percent, RewardRangeLine.reward
-    ).where(RewardRangeLine.range_id == range_id)
-    result = await session.execute(query)
-    return result.all()
-
-
-async def get_rr_obj(session: AsyncSession) -> dict[str, int | str] | None:
-    query = select(RewardRange.id, RewardRange.title).where(RewardRange.is_default.is_(True))
-    result = await session.execute(query)
-    row = result.first()
-    if row:
-        return {"id": row.id, "title": row.title}
+        default_range_query = select(RewardRange.id, RewardRange.title).where(RewardRange.is_default.is_(True))
+        default_result = await session.execute(default_range_query)
+        default_row = default_result.first()
+        if not default_row:
+            return None
+        range_id = default_row.id
+        title = default_row.title
+    else:
+        range_query = select(RewardRange.id, RewardRange.title).where(RewardRange.id == range_id)
+        range_result = await session.execute(range_query)
+        range_row = range_result.first()
+        if not range_row:
+            return None
+        title = range_row.title
+    lines_query = (select(
+        RewardRangeLine.line_from, RewardRangeLine.line_to, RewardRangeLine.is_percent, RewardRangeLine.reward)
+                   .where(RewardRangeLine.range_id == range_id))
+    lines_result = await session.execute(lines_query)
+    lines = [
+        RewardRangeLineSchema(line_from=row[0], line_to=row[1], is_percent=row[2], reward=row[3])
+        for row in lines_result.all()
+    ]
+    return RewardRangeResponseSchema(id=range_id, title=title, ranges=lines)
 
 
 async def get_info_by_caching(session: AsyncSession, origins: list[int]) -> dict:
@@ -198,6 +237,35 @@ async def delete_product_stock_items(session: AsyncSession, origins: List):
     await session.commit()
 
 
+async def _get_parsing_result(session: AsyncSession, vsl_id: int) -> List[ParsingLinesIn]:
+    stmt = (
+        select(ParsingLine, ProductOrigin)
+        .join(ProductOrigin, ParsingLine.origin == ProductOrigin.origin)
+        .where(
+            and_(ParsingLine.vsl_id == vsl_id, ProductOrigin.is_deleted.is_(False))
+        ).order_by(ParsingLine.input_price)
+    )
+    result = await session.execute(stmt)
+    rows = result.all()
+    if not rows:
+        return []
+
+    parsing_results: List[ParsingLinesIn] = list()
+    for parsing_line, origin in rows:
+        parsing_results.append(ParsingLinesIn(origin=parsing_line.origin,
+                                              title=origin.title,
+                                              link=origin.link,
+                                              shipment=parsing_line.shipment,
+                                              warranty=parsing_line.warranty,
+                                              input_price=parsing_line.input_price,
+                                              output_price=parsing_line.output_price,
+                                              pics=origin.pics,
+                                              preview=origin.preview,
+                                              optional=parsing_line.optional,
+                                              features_title=None))
+    return parsing_results
+
+
 # async def get_urls_by_origins(origins, session: AsyncSession):
 #     stmt = (select(distinct(HubLoading.url)).join(HUbStock, HubLoading.id == HUbStock.loading_id)
 #             .where(HUbStock.origin.in_(origins)))
@@ -220,7 +288,6 @@ async def get_all_children_cte(session: AsyncSession, parent_id: int):
     query = select(cte)
     result = await session.execute(query)
     return result.scalars().all()
-
 
 # async def get_label_and_dt_parsed(urls: List[str], session: AsyncSession) -> Dict[str, Dict[str, Any]]:
 #     if not urls:

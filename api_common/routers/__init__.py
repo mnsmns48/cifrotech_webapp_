@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from api_general.routers.progress import progress_router
+from api_common.routers.progress import progress_router
 
 general_router = APIRouter(tags=['General'])
 

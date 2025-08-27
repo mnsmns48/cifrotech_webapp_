@@ -1,9 +1,10 @@
 from datetime import datetime
 from io import BytesIO
-from fastapi import Depends, APIRouter, Path, HTTPException
+from fastapi import Depends, APIRouter, Path, HTTPException, Form
 from num2words import num2words
 from openpyxl.styles import Alignment
 from openpyxl.workbook import Workbook
+from pydantic import BaseModel, Field
 from sqlalchemy import select, join
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,16 +12,46 @@ from sqlalchemy.orm import selectinload
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, StreamingResponse
 from xlsxtpl.writerx import BookWriter
-from api_service.schemas import get_receipt_form
+
+from api_service.schemas.parsing_schemas import ParsingResultOut
 from config import BASE_DIR
 from engine import db
-from models import HarvestLine, ProductOrigin
+from models import ParsingLine, ProductOrigin
 
 printer_router = APIRouter(tags=['Service-Bill-Printer'])
 
 
+class ReceiptForm(BaseModel):
+    receipt_date: str = Field(..., alias="receiptDate")
+    receipt_number: int = Field(..., alias="receiptNumber")
+    receipt_product: str = Field(..., alias="receiptProduct")
+    receipt_qty: int = Field(..., alias="receiptQty")
+    receipt_price: float = Field(..., alias="receiptPrice")
+
+    @property
+    def total(self) -> float:
+        return self.receipt_qty * self.receipt_price
+
+    @classmethod
+    def as_form(cls,
+                receiptDate: str = Form(...),
+                receiptNumber: int = Form(...),
+                receiptProduct: str = Form(...),
+                receiptQty: int = Form(...),
+                receiptPrice: float = Form(...)) -> "ReceiptForm":
+        return cls(receiptDate=receiptDate,
+                   receiptNumber=receiptNumber,
+                   receiptProduct=receiptProduct,
+                   receiptQty=receiptQty,
+                   receiptPrice=receiptPrice)
+
+    model_config = {
+        "populate_by_name": True
+    }
+
+
 @printer_router.post("/billrender", response_class=HTMLResponse)
-async def submit_link(request: Request, form=Depends(get_receipt_form)):
+async def submit_link(request: Request, form=Depends(ReceiptForm.as_form)):
     xlsx_template = BASE_DIR / "api_service/E1.xlsx"
     with open(xlsx_template, "rb") as template_file:
         file_stream = BytesIO(template_file.read())
@@ -37,38 +68,41 @@ async def submit_link(request: Request, form=Depends(get_receipt_form)):
     return response
 
 
-# @printer_router.get("/get_price_excel/{vsl_id}")
-# async def export_harvest_to_excel(vsl_id: int = Path(...), session: AsyncSession = Depends(db.scoped_session_dependency)):
-#     dt_obj = datetime.now().strftime("%Y_%m_%d___%H_%M_%S")
-#     try:
-#         query_one = (
-#             select(Harvest).where(Harvest.vendor_search_line_id == vsl_id).order_by(Harvest.datestamp.desc()).limit(1))
-#         result = await session.execute(query_one)
-#         harvest: Harvest | None = result.scalar_one_or_none()
-#     except SQLAlchemyError:
-#         raise HTTPException(500, "Ошибка доступа к базе данных")
-#     if not harvest:
-#         raise HTTPException(404, f"Сбор данных для vslId={vsl_id} не найден")
-#     query_two = (select(ProductOrigin.title, HarvestLine.warranty, HarvestLine.output_price)
-#                  .select_from(
-#         HarvestLine.__table__.join(ProductOrigin.__table__, HarvestLine.origin == ProductOrigin.origin))
-#                  .where(HarvestLine.harvest_id == harvest.id).order_by(HarvestLine.output_price))
-#     rows = (await session.execute(query_two)).all()
-#     wb = Workbook()
-#     ws = wb.active
-#     ws.title = f"h_{harvest.id}_by_cifrohub"
-#     for title, warranty, output_price in rows:
-#         ws.append([title, warranty or "", output_price if output_price is not None else ""])
-#     for row in ws.iter_rows(min_row=1, min_col=2, max_col=4, max_row=ws.max_row):
-#         for cell in row:
-#             cell.alignment = Alignment(horizontal="center", vertical="center")
-#     for column_cells in ws.columns:
-#         length = max(len(str(cell.value or "")) for cell in column_cells)
-#         ws.column_dimensions[column_cells[0].column_letter].width = length + 2
-#     stream = BytesIO()
-#     wb.save(stream)
-#     stream.seek(0)
-#     filename = f"products_offer_{harvest.id}_by_cifrohub_{dt_obj}.xlsx"
-#     headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
-#     return StreamingResponse(stream, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-#                              headers=headers)
+@printer_router.post("/get_price_excel")
+async def export_data_to_excel(bulk: ParsingResultOut):
+    _dt = bulk.dt_parsed.strftime("%d-%m-%Y %H:%M")
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Price"
+    ws.append([f"Актуально: {_dt}"])
+    ws.append(["Предложение действительно в течение суток"])
+    ws.append([])
+    ws.append(["Название", "Гарантия", "Цена"])
+
+    for item in bulk.parsing_result:
+        ws.append([
+            str(item.title or ""),
+            str(item.warranty or ""),
+            item.output_price if item.output_price is not None else ""
+        ])
+
+    for row in ws.iter_rows(min_row=2, min_col=1, max_col=3, max_row=ws.max_row):
+        for cell in row:
+            cell.alignment = Alignment(horizontal="left", vertical="center")
+
+    for column_cells in ws.columns:
+        max_length = max(len(str(cell.value or "")) for cell in column_cells)
+        column_letter = column_cells[0].column_letter
+        ws.column_dimensions[column_letter].width = max_length + 2
+
+    stream = BytesIO()
+    wb.save(stream)
+    stream.seek(0)
+
+    filename = f"by_cifrohub_{bulk.dt_parsed.strftime('%d_%m_%Y')}.xlsx"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+
+    return StreamingResponse(stream,
+                             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                             headers=headers)

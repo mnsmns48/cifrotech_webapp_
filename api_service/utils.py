@@ -2,7 +2,22 @@ import asyncio
 import re
 from typing import Optional
 
+from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from api_service.s3_helper import get_s3_client
+from config import redis_session
+from engine import db
+
+
+class AppDependencies:
+    def __init__(self,
+                 redis_deps=Depends(redis_session),
+                 session: AsyncSession = Depends(db.scoped_session_dependency),
+                 s3_client=Depends(get_s3_client)):
+        self.redis = redis_deps
+        self.session = session
+        self.s3_client = s3_client
 
 
 async def update_instance_fields(instance, update_data: dict, session: AsyncSession):

@@ -7,19 +7,21 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, update, distinct
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from api_service.crud import get_info_by_caching, delete_product_stock_items, get_all_children_cte, get_origins_by_path_ids
-from api_service.routers.s3_helper import get_s3_client, get_http_client_session, sync_images_by_origin
-from api_service.schemas import RenameRequest, HubPositionPatch, StockHubItemResult, HubLoadingData, \
-    HubItemChangeScheme, OriginsPayload, ComparisonDataScheme, ParsingLine
-from api_users.dependencies.fastapi_users_dep import current_user
+from api_service.crud import get_info_by_caching, delete_product_stock_items, get_all_children_cte, \
+    get_origins_by_path_ids
+from api_service.s3_helper import get_s3_client, get_http_client_session, sync_images_by_origin
+from api_service.schemas.hub_schemas import HubPositionPatchOut, AddHubLevelScheme, AddHubLevelOutScheme
 from config import redis_session
+from api_service.schemas import RenameRequest, HubPositionPatch, HubLoadingData, \
+    HubItemChangeScheme, OriginsPayload, ComparisonDataScheme, ParsingLine, HubMenuLevelSchema
+from api_users.dependencies.fastapi_users_dep import current_user
 from engine import db
 from models import HUbMenuLevel, HUbStock, ProductOrigin, VendorSearchLine, ProductFeaturesLink
 
 hub_router = APIRouter(tags=['Hub'])
 
 
-@hub_router.get("/initial_hub_levels")
+@hub_router.get("/initial_hub_levels", response_model=List[HubMenuLevelSchema])
 async def get_hub_levels(session: AsyncSession = Depends(db.scoped_session_dependency)):
     result = await session.execute(select(HUbMenuLevel))
     items = result.scalars().all()
@@ -33,16 +35,14 @@ async def rename_hub_level_item(payload: RenameRequest, session: AsyncSession = 
     if item is None:
         raise HTTPException(status_code=404, detail="Узел не найден")
     if item.label == payload.new_label:
-        return {
-            "status": "skipped", "message": "Имя совпадает — изменений не требуется", "id": item.id, "label": item.label
-        }
+        return {"status": False}
     item.label = payload.new_label
     await session.commit()
     await session.refresh(item)
-    return {"status": "renamed", "id": item.id, "new_label": item.label}
+    return {"status": True, "id": item.id, "new_label": item.label}
 
 
-@hub_router.patch("/change_hub_item_position")
+@hub_router.patch("/change_hub_item_position", response_model=HubPositionPatchOut)
 async def change_hub_item_position(patch: HubPositionPatch,
                                    session: AsyncSession = Depends(db.scoped_session_dependency)):
     result = await session.execute(select(HUbMenuLevel).where(HUbMenuLevel.id == patch.id))
@@ -77,30 +77,21 @@ async def change_hub_item_position(patch: HubPositionPatch,
     await session.commit()
     await session.refresh(moved)
 
-    return {"status": "updated", "id": moved.id, "parent_id": moved.parent_id, "sort_order": moved.sort_order}
+    return HubPositionPatchOut(status=True, id=moved.id, parent_id=moved.parent_id, sort_order=moved.sort_order)
 
 
-@hub_router.post("/add_hub_level")
-async def add_hub_level(payload: dict, session: AsyncSession = Depends(db.scoped_session_dependency)):
-    parent_id = payload.get("parent_id")
-    label = payload.get("label", "Новый уровень")
-    if parent_id is None:
-        raise HTTPException(400, "parent_id обязателен")
-    result = await session.execute(
-        select(HUbMenuLevel.sort_order)
-        .where(HUbMenuLevel.parent_id == parent_id)
-        .order_by(HUbMenuLevel.sort_order.desc())
-        .limit(1)
-    )
+@hub_router.post("/add_hub_level", response_model=AddHubLevelOutScheme)
+async def add_hub_level(payload: AddHubLevelScheme, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    query = (select(HUbMenuLevel.sort_order).where(HUbMenuLevel.parent_id == payload.parent_id)
+             .order_by(HUbMenuLevel.sort_order.desc()).limit(1))
+    result = await session.execute(query)
     max_order = result.scalar_one_or_none() or 0
 
-    new_level = HUbMenuLevel(parent_id=parent_id, label=label, sort_order=max_order + 1)
+    new_level = HUbMenuLevel(parent_id=payload.parent_id, label=payload.label, sort_order=max_order + 1)
     session.add(new_level)
     await session.commit()
-
-    return {"status": "created",
-            "id": new_level.id, "label": new_level.label, "parent_id": new_level.parent_id,
-            "sort_order": new_level.sort_order}
+    return AddHubLevelOutScheme(status=True, id=new_level.id, label=new_level.label,
+                                parent_id=new_level.parent_id, sort_order=new_level.sort_order)
 
 
 @hub_router.delete("/delete_hub_level/{level_id}")
@@ -124,7 +115,7 @@ async def delete_hub_level(level_id: int, session: AsyncSession = Depends(db.sco
         .values(sort_order=HUbMenuLevel.sort_order - 1)
     )
     await session.commit()
-    return {"status": "deleted", "id": level_id}
+    return {"status": True}
 
 
 # @hub_router.get("/fetch_stock_hub_items/{path_id}", response_model=List[StockHubItemResult])
@@ -171,11 +162,11 @@ async def delete_hub_level(level_id: int, session: AsyncSession = Depends(db.sco
 
 
 @hub_router.post("/load_items_in_hub")
-async def create_hub_loading(payload: HubLoadingData, session: AsyncSession = Depends(db.scoped_session_dependency),
+async def create_hub_loading(payload: HubLoadingData,
+                             session: AsyncSession = Depends(db.scoped_session_dependency),
                              s3_client: AioBaseClient = Depends(get_s3_client),
                              cl_session: ClientSession = Depends(get_http_client_session)):
-    print('payload.harvest_id', payload.harvest_id)
-    # origins = [s.get("origin") for s in payload.stocks]
+    origins = [s.get("origin") for s in payload.stocks]
     # stmt = select(HUbStock).options(selectinload(HUbStock.hub_loading)).where(HUbStock.origin.in_(origins))
     # result = await session.execute(stmt)
     # existing_stocks = result.scalars().all()
@@ -297,4 +288,4 @@ async def comparison_process(payload: ComparisonDataScheme,
 @hub_router.post("/transfer_parsing_lines")
 async def transfer_parsing_lines(lines: List[ParsingLine], redis=Depends(redis_session), user=Depends(current_user)):
     urls = [line.url for line in lines]
-    return {"status": "ok", "received": len(urls)}
+    return {"status": True, "received": len(urls)}

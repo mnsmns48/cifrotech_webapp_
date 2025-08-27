@@ -1,12 +1,10 @@
 import os
 from pathlib import Path
 from typing import List, Union
-import redis.asyncio as redis
 from dotenv import load_dotenv
-
 from pydantic import PostgresDsn, field_validator, Field, SecretStr
-
 from pydantic_settings import BaseSettings
+from redis import asyncio as redis
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -77,6 +75,7 @@ class S3Settings(CustomConfigSettings):
     s3_secret_access_key: str
     region: str
     s3_hub_prefix: str
+
 
 class Settings(CustomConfigSettings):
     db: DBSettings = DBSettings()

@@ -3,8 +3,7 @@ __all__ = (
     "Activity",
     "Base",
     "Guests",
-    "Harvest",
-    "HarvestLine",
+    "ParsingLine",
     "ProductBrand",
     "ProductFeaturesLink",
     "ProductFeaturesGlobal",
@@ -24,8 +23,8 @@ __all__ = (
 
 from .base import Base
 from .api_v1 import Activity, StockTable, Guests, Sellers
-from .harvest import HarvestLine
 from .hub import HUbMenuLevel, HUbStock
+from .parsing import ParsingLine
 from .product_dependencies import (ProductFeaturesLink,
                                    ProductOrigin,
                                    ProductFeaturesGlobal,

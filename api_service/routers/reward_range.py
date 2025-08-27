@@ -3,6 +3,7 @@ from sqlalchemy import select, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.schemas import RewardRangeSchema, RewardRangeLineSchema
+from api_service.schemas.range_reward_schemas import RewardRangeAddLineSchema
 from api_service.utils import update_instance_fields
 from engine import db
 from models.vendor import RewardRange, RewardRangeLine
@@ -79,7 +80,7 @@ async def get_reward_range(range_id: int, session: AsyncSession = Depends(db.sco
 
 
 @reward_range_router.post("/add_reward_range_line")
-async def add_reward_title(data: RewardRangeLineSchema, session: AsyncSession = Depends(db.scoped_session_dependency)):
+async def add_reward_title(data: RewardRangeAddLineSchema, session: AsyncSession = Depends(db.scoped_session_dependency)):
     await check_profile_exists(data.range_id, session, "Нельзя создать строку для несуществующего профиля")
     new_reward_line = RewardRangeLine(**data.model_dump())
     session.add(new_reward_line)

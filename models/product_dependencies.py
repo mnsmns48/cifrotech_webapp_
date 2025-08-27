@@ -8,10 +8,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from models import Base
 from datetime import datetime
 
-
-
 if TYPE_CHECKING:
-    from .harvest import HarvestLine
+    from .parsing import ParsingLine
     from .hub import HUbStock
 
 
@@ -51,9 +49,10 @@ class ProductOrigin(Base):
     is_deleted: Mapped[bool] = mapped_column(default=False)
 
     images: Mapped[list["ProductImage"]] = relationship(back_populates="origin", cascade="all, delete-orphan")
-    harvest_lines: Mapped[list["HarvestLine"]] = relationship("HarvestLine", back_populates="product_origin")
+    parsing_lines: Mapped[list["ParsingLine"]] = relationship("ParsingLine", back_populates="product_origin")
     stocks: Mapped[list[HUbStock]] = relationship(
-        "HUbStock", back_populates="product_origin",cascade="all, delete-orphan")
+        "HUbStock", back_populates="product_origin", cascade="all, delete-orphan")
+
 
 class ProductImage(Base):
     __tablename__ = "product_image"

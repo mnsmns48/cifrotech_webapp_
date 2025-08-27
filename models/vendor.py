@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, DateTime
@@ -7,7 +9,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from models.base import Base
 
 if TYPE_CHECKING:
-    from models import HUbStock, HarvestLine
+    from .hub import HUbStock
+    from .parsing import ParsingLine
 
 
 class Vendor(Base):
@@ -28,10 +31,10 @@ class VendorSearchLine(Base):
     vendor_id: Mapped[int] = mapped_column(ForeignKey("vendor.id"), nullable=False)
     title: Mapped[str] = mapped_column(nullable=False)
     url: Mapped[str] = mapped_column(nullable=False)
-    dt_parsed: Mapped[DateTime] = mapped_column(DateTime(timezone=True), nullable=True)
+    dt_parsed: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     profit_range_id: Mapped[int] = mapped_column(ForeignKey("rewardrange.id", ondelete="SET NULL"), nullable=True)
 
-    harvest_lines: Mapped["HarvestLine"] = relationship("HarvestLine", back_populates="vendor_search_line")
+    parsing_lines: Mapped["ParsingLine"] = relationship("ParsingLine", back_populates="vendor_search_line")
     vendor: Mapped["Vendor"] = relationship("Vendor", back_populates="search_lines")
     stocks: Mapped["HUbStock"] = relationship("HUbStock", back_populates="search_lines")
 

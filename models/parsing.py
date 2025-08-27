@@ -10,9 +10,8 @@ if TYPE_CHECKING:
     from models import VendorSearchLine, ProductOrigin
 
 
-
-class HarvestLine(Base):
-    __tablename__ = "harvest_line"
+class ParsingLine(Base):
+    __tablename__ = "parsing_line"
     vsl_id: Mapped[int] = mapped_column(ForeignKey("vendor_search_line.id", ondelete="CASCADE"), primary_key=True)
     origin: Mapped[int] = mapped_column(BigInteger, ForeignKey("product_origin.origin"), primary_key=True)
     shipment: Mapped[str] = mapped_column(nullable=True)
@@ -21,5 +20,5 @@ class HarvestLine(Base):
     output_price: Mapped[float] = mapped_column(nullable=True)
     optional: Mapped[str] = mapped_column(nullable=True)
 
-    vendor_search_line: Mapped["VendorSearchLine"] = relationship("VendorSearchLine", back_populates="harvest_lines")
-    product_origin: Mapped["ProductOrigin"] = relationship("ProductOrigin", back_populates="harvest_lines")
+    vendor_search_line: Mapped["VendorSearchLine"] = relationship("VendorSearchLine", back_populates="parsing_lines")
+    product_origin: Mapped["ProductOrigin"] = relationship("ProductOrigin", back_populates="parsing_lines")
