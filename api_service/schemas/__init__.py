@@ -1,5 +1,6 @@
-from api_service.schemas.hub_schemas import HubMenuLevelSchema, RenameRequest, HubPositionPatch, StockHubItemResult, \
-    HubLoadingData, HubItemChangeScheme, OriginsPayload, ComparisonDataScheme, ParsingLine
+from api_service.schemas.hub_schemas import HubMenuLevelSchema, RenameRequest, \
+    HubLoadingData, HubItemChangeScheme, OriginsPayload, ComparisonDataScheme, ParsingLine, HubPositionPatchOut, \
+    AddHubLevelScheme, AddHubLevelOutScheme, HubPositionPatch
 from api_service.schemas.parsing_schemas import ParsingRequest, ParsingLinesIn
 from api_service.schemas.product_schemas import ProductOriginUpdate, ProductDependencyUpdate, ProductResponse, \
     RecalcPricesRequest, RecalcPricesResponse
@@ -16,5 +17,6 @@ __all__ += ["RewardRangeLineSchema", "RewardRangeSchema"]
 __all__ += [
     "ProductOriginUpdate", "ProductDependencyUpdate", "ProductResponse", "RecalcPricesRequest", "RecalcPricesResponse"]
 __all__ += [
-    "HubMenuLevelSchema", "RenameRequest", "HubPositionPatch", "StockHubItemResult", "HubLoadingData",
-    "HubItemChangeScheme", "OriginsPayload", "ComparisonDataScheme", "ParsingLine"]
+    "HubMenuLevelSchema", "RenameRequest", "HubPositionPatch", "HubLoadingData",
+    "HubItemChangeScheme", "OriginsPayload", "ComparisonDataScheme", "ParsingLine", "HubPositionPatchOut", "HubPositionPatch",
+    "AddHubLevelOutScheme", "AddHubLevelScheme"]

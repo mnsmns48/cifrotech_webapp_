@@ -4,19 +4,20 @@ from typing import List
 from aiobotocore.client import AioBaseClient
 from aiohttp import ClientSession
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, update, distinct
+from sqlalchemy import select, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from api_service.crud import get_info_by_caching, delete_product_stock_items, get_all_children_cte, \
-    get_origins_by_path_ids
+from api_service.crud import delete_product_stock_items, get_all_children_cte, \
+    get_origins_by_path_ids, get_info_by_caching
 from api_service.s3_helper import get_s3_client, get_http_client_session, sync_images_by_origin
-from api_service.schemas.hub_schemas import HubPositionPatchOut, AddHubLevelScheme, AddHubLevelOutScheme
-from config import redis_session
-from api_service.schemas import RenameRequest, HubPositionPatch, HubLoadingData, \
-    HubItemChangeScheme, OriginsPayload, ComparisonDataScheme, ParsingLine, HubMenuLevelSchema
-from api_users.dependencies.fastapi_users_dep import current_user
+from api_service.schemas.hub_schemas import StockHubItemResult
+from api_service.schemas import RenameRequest, HubLoadingData, HubItemChangeScheme, OriginsPayload, \
+    ComparisonDataScheme, HubMenuLevelSchema, HubPositionPatchOut, AddHubLevelScheme, AddHubLevelOutScheme, \
+    HubPositionPatch
+
 from engine import db
-from models import HUbMenuLevel, HUbStock, ProductOrigin, VendorSearchLine, ProductFeaturesLink
+from models import HUbMenuLevel, HUbStock, ProductOrigin, VendorSearchLine
 
 hub_router = APIRouter(tags=['Hub'])
 
@@ -118,47 +119,34 @@ async def delete_hub_level(level_id: int, session: AsyncSession = Depends(db.sco
     return {"status": True}
 
 
-# @hub_router.get("/fetch_stock_hub_items/{path_id}", response_model=List[StockHubItemResult])
-# async def fetch_stock_hub_items(path_id: int,
-#                                 session: AsyncSession = Depends(db.scoped_session_dependency)) -> List[
-#     StockHubItemResult]:
-#     stmt = (select(
-#         HUbStock.origin,
-#         ProductOrigin.title,
-#         HUbStock.warranty,
-#         HUbStock.input_price,
-#         HUbStock.output_price,
-#         HUbStock.updated_at,
-#         HubLoading.dt_parsed,
-#         HubLoading.url)
-#             .join(ProductOrigin, HUbStock.origin == ProductOrigin.origin)
-#             .outerjoin(HubLoading, HUbStock.loading_id == HubLoading.id)
-#             .where(HUbStock.path_id == path_id).
-#             order_by(HUbStock.output_price)
-#             )
-#     result = await session.execute(stmt)
-#     rows = result.all()
-#     if not rows:
-#         return []
-#
-#     origin_ids = [row[0] for row in rows]
-#     features_map = await get_info_by_caching(session, origin_ids)
-#
-#     items = list()
-#     for origin, title, warranty, input_price, output_price, updated_at, dt_parsed, url in rows:
-#         items.append(
-#             StockHubItemResult(
-#                 origin=origin,
-#                 title=title,
-#                 warranty=warranty,
-#                 input_price=input_price,
-#                 output_price=output_price,
-#                 updated_at=updated_at,
-#                 dt_parsed=dt_parsed,
-#                 url=url,
-#                 features_title=features_map.get(origin, []))
-#         )
-#     return items
+@hub_router.get("/fetch_stock_hub_items/{path_id}", response_model=List[StockHubItemResult])
+async def fetch_stock_hub_items(
+        path_id: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    stmt = (select(HUbStock, ProductOrigin).join(ProductOrigin, HUbStock.origin == ProductOrigin.origin)
+            .where(HUbStock.path_id == path_id).order_by(HUbStock.output_price))
+    result = await session.execute(stmt)
+    rows = result.all()
+    if not rows:
+        return []
+
+    origin_ids = [stock.origin for stock, _ in rows]
+    features_map = await get_info_by_caching(session, origin_ids)
+    items = list()
+    for stock, origin in rows:
+        items.append(
+            StockHubItemResult(
+                origin=stock.origin,
+                title=origin.title,
+                warranty=stock.warranty,
+                input_price=stock.input_price,
+                output_price=stock.output_price,
+                updated_at=stock.updated_at,
+                dt_parsed=stock.updated_at,
+                url=origin.link,
+                features_title=features_map.get(stock.origin, [])
+            )
+        )
+    return items
 
 
 @hub_router.post("/load_items_in_hub")
@@ -166,59 +154,26 @@ async def create_hub_loading(payload: HubLoadingData,
                              session: AsyncSession = Depends(db.scoped_session_dependency),
                              s3_client: AioBaseClient = Depends(get_s3_client),
                              cl_session: ClientSession = Depends(get_http_client_session)):
-    origins = [s.get("origin") for s in payload.stocks]
-    # stmt = select(HUbStock).options(selectinload(HUbStock.hub_loading)).where(HUbStock.origin.in_(origins))
-    # result = await session.execute(stmt)
-    # existing_stocks = result.scalars().all()
-    # existing_map = {stock.origin: stock for stock in existing_stocks}
-    #
-    # reuse_loading_id = None
-    # for stock in existing_stocks:
-    #     hub = stock.hub_loading
-    #     if hub and hub.dt_parsed == payload.dt_parsed:
-    #         reuse_loading_id = hub.id
-    #         break
-    #
-    # try:
-    #     if reuse_loading_id is None:
-    #         line = await session.get(VendorSearchLine, payload.vsl_id)
-    #         if line is None:
-    #             raise HTTPException(404, "VendorSearchLine not found")
-    #
-    #         hub = HubLoading(url=str(line.url), dt_parsed=payload.dt_parsed)
-    #         session.add(hub)
-    #         await session.flush()
-    #         reuse_loading_id = hub.id
-    #
-    #     for s in payload.stocks:
-    #         origin = s.get("origin")
-    #         await sync_images_by_origin(origin, session, s3_client, cl_session)
-    #
-    #         stock = existing_map.get(origin)
-    #         if stock:
-    #             stock.loading_id = reuse_loading_id
-    #             stock.path_id = s.get("path_id", stock.path_id)
-    #             stock.warranty = s.get("warranty", stock.warranty)
-    #             stock.input_price = s.get("input_price", stock.input_price)
-    #             stock.output_price = s.get("output_price", stock.output_price)
-    #             stock.updated_at = payload.dt_parsed
-    #         else:
-    #             session.add(HUbStock(
-    #                 loading_id=reuse_loading_id,
-    #                 origin=origin,
-    #                 path_id=s.get("path_id"),
-    #                 warranty=s.get("warranty"),
-    #                 input_price=s.get("input_price"),
-    #                 output_price=s.get("output_price"),
-    #                 updated_at=payload.dt_parsed
-    #             ))
-    #
-    #     await session.commit()
-    # except SQLAlchemyError:
-    #     await session.rollback()
-    #     raise HTTPException(400, "Ошибка при создании или обновлении записей")
+    vsl = await session.get(VendorSearchLine, payload.vsl_id)
+    if not vsl or not vsl.dt_parsed:
+        raise HTTPException(status_code=400, detail="Такой vsl_id не найден")
 
-    return {"result": "ok"}
+    hub_stock_values = [stock_item.model_dump() for stock_item in payload.stocks]
+    for item in hub_stock_values:
+        item["vsl_id"] = payload.vsl_id
+        item["updated_at"] = vsl.dt_parsed
+        item["added_at"] = datetime.now()
+    insert_stmt = insert(HUbStock).values(hub_stock_values)
+    upsert_stmt = insert_stmt.on_conflict_do_update(index_elements=["origin", "path_id"],
+                                                    set_={"warranty": insert_stmt.excluded.warranty,
+                                                          "input_price": insert_stmt.excluded.input_price,
+                                                          "output_price": insert_stmt.excluded.output_price,
+                                                          "updated_at": insert_stmt.excluded.updated_at})
+    await session.execute(upsert_stmt)
+    await session.commit()
+    for item in payload.stocks:
+        await sync_images_by_origin(item.origin, session, s3_client, cl_session)
+    return {"status": True}
 
 
 @hub_router.patch("/rename_or_change_price_stock_item")
@@ -283,9 +238,3 @@ async def comparison_process(payload: ComparisonDataScheme,
         urls_for_parsing = await get_urls_by_origins(origins, session)
     urls_with_title_and_dt = await get_label_and_dt_parsed(urls_for_parsing, session)
     return urls_with_title_and_dt
-
-
-@hub_router.post("/transfer_parsing_lines")
-async def transfer_parsing_lines(lines: List[ParsingLine], redis=Depends(redis_session), user=Depends(current_user)):
-    urls = [line.url for line in lines]
-    return {"status": True, "received": len(urls)}

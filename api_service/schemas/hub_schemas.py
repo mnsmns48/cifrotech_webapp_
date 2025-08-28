@@ -48,13 +48,10 @@ class AddHubLevelOutScheme(BaseModel):
 
 class StockInHubItem(BaseModel):
     origin: int
-    path_id: str
-    vsl_id: str
-    warranty: float
+    path_id: int
+    warranty: str
     input_price: float
     output_price: float
-    added_at: datetime
-    updated_at: datetime
 
     class Config:
         from_attributes = True
@@ -66,6 +63,17 @@ class HubLoadingData(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class StockHubItemResult(BaseModel):
+    origin: int
+    title: str
+    warranty: str
+    input_price: float
+    output_price: float
+    updated_at: datetime
+    dt_parsed: datetime
+    features_title: list
 
 
 class HubItemChangeScheme(BaseModel):
