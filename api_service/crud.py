@@ -1,13 +1,12 @@
 from collections import defaultdict
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Any, Coroutine, Sequence
 
 from aiohttp import ClientSession
 from redis.asyncio import Redis
-from sqlalchemy import delete, update, and_
+from sqlalchemy import delete, update, and_, CTE, distinct, Row, RowMapping
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
-
 
 from api_service.api_connect import get_one_by_dtube
 from api_service.schemas import ParsingLinesIn
@@ -266,21 +265,7 @@ async def _get_parsing_result(session: AsyncSession, vsl_id: int) -> List[Parsin
     return parsing_results
 
 
-# async def get_urls_by_origins(origins, session: AsyncSession):
-#     stmt = (select(distinct(HubLoading.url)).join(HUbStock, HubLoading.id == HUbStock.loading_id)
-#             .where(HUbStock.origin.in_(origins)))
-#     result = await session.execute(stmt)
-#     urls: List[str] = list(result.scalars().all())
-#     return urls
-
-
-async def get_origins_by_path_ids(path_ids: list, session: AsyncSession) -> List[int]:
-    stmt = select(HUbStock.origin).where(HUbStock.path_id.in_(path_ids))
-    result = await session.execute(stmt)
-    return [row[0] for row in result.all()]
-
-
-async def get_all_children_cte(session: AsyncSession, parent_id: int):
+async def get_all_children_cte(session: AsyncSession, parent_id: int) -> Sequence[int]:
     base = select(HUbMenuLevel).where(HUbMenuLevel.id == parent_id)
     cte = base.cte(name="menu_cte", recursive=True)
     recursive = select(HUbMenuLevel).where(HUbMenuLevel.parent_id == cte.c.id)
@@ -288,6 +273,27 @@ async def get_all_children_cte(session: AsyncSession, parent_id: int):
     query = select(cte)
     result = await session.execute(query)
     return result.scalars().all()
+
+
+async def get_lines_by_origins(origins: list[int], session: AsyncSession) -> list[VendorSearchLine]:
+    stmt = (select(VendorSearchLine)
+            .join(HUbStock, VendorSearchLine.id == HUbStock.vsl_id).where(HUbStock.origin.in_(origins)))
+    result = await session.execute(stmt)
+    lines = result.scalars().all()
+    seen_ids = set()
+    unique_lines = []
+    for line in lines:
+        if line.id not in seen_ids:
+            seen_ids.add(line.id)
+            unique_lines.append(line)
+
+    return unique_lines
+
+
+async def get_origins_by_path_ids(path_ids: list | Sequence, session: AsyncSession) -> list[int]:
+    stmt = select(HUbStock.origin).where(HUbStock.path_id.in_(path_ids))
+    result = await session.execute(stmt)
+    return [row[0] for row in result.all()]
 
 # async def get_label_and_dt_parsed(urls: List[str], session: AsyncSession) -> Dict[str, Dict[str, Any]]:
 #     if not urls:

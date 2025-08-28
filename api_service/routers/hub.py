@@ -9,7 +9,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from api_service.crud import delete_product_stock_items, get_all_children_cte, \
-    get_origins_by_path_ids, get_info_by_caching
+    get_origins_by_path_ids, get_info_by_caching, get_lines_by_origins
 from api_service.s3_helper import get_s3_client, get_http_client_session, sync_images_by_origin
 from api_service.schemas.hub_schemas import StockHubItemResult
 from api_service.schemas import RenameRequest, HubLoadingData, HubItemChangeScheme, OriginsPayload, \
@@ -142,7 +142,6 @@ async def fetch_stock_hub_items(
                 output_price=stock.output_price,
                 updated_at=stock.updated_at,
                 dt_parsed=stock.updated_at,
-                url=origin.link,
                 features_title=features_map.get(stock.origin, [])
             )
         )
@@ -229,12 +228,11 @@ async def delete_stock_items_endpoint(payload: OriginsPayload,
 
 @hub_router.post("/start_comparison_process")
 async def comparison_process(payload: ComparisonDataScheme,
-                             session: AsyncSession = Depends(db.scoped_session_dependency)) -> dict:
+                             session: AsyncSession = Depends(db.scoped_session_dependency)):
     path_ids = await get_all_children_cte(session=session, parent_id=payload.path_id)
     if payload.origins:
-        urls_for_parsing = await get_urls_by_origins(origins=payload.origins, session=session)
+        vsl_list: list[VendorSearchLine] = await get_lines_by_origins(origins=payload.origins, session=session)
     else:
         origins = await get_origins_by_path_ids(path_ids, session)
-        urls_for_parsing = await get_urls_by_origins(origins, session)
-    urls_with_title_and_dt = await get_label_and_dt_parsed(urls_for_parsing, session)
-    return urls_with_title_and_dt
+        vsl_list: list[VendorSearchLine] = await get_lines_by_origins(origins, session)
+    return vsl_list
