@@ -38,6 +38,7 @@ class ParsingResultOut(BaseModel):
     dt_parsed: Optional[datetime] = None
     profit_range_id: Optional[int] = None
     is_ok: bool
+    duration: Optional[float] = None
     parsing_result: List[ParsingLinesIn]
 
     model_config = {"from_attributes": True}

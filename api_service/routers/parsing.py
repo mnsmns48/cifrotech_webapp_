@@ -1,7 +1,6 @@
 import asyncio
-import os
+from datetime import datetime
 from typing import Optional, List
-from urllib.parse import urlparse
 from aiohttp import ClientConnectionError, ClientResponseError
 from botocore.exceptions import ClientError, BotoCoreError
 from aiohttp import ClientSession
@@ -16,11 +15,11 @@ from api_service.crud import get_vendor_and_vsl, get_rr_obj, _get_parsing_result
 from api_service.s3_helper import (get_s3_client, get_http_client_session, sync_images_by_origin,
                                    generate_final_image_payload, build_with_preview)
 from api_service.schemas import (ParsingRequest, ProductOriginUpdate, ProductDependencyUpdate, ProductResponse,
-                                 RecalcPricesResponse, RecalcPricesRequest)
+                                 RecalcPricesRequest)
 from api_service.schemas.parsing_schemas import SourceContext, ParsingResultOut, ParsingLinesIn
 from api_service.schemas.range_reward_schemas import RewardRangeResponseSchema
 from api_service.utils import AppDependencies
-from config import settings, redis_session
+from config import settings
 from engine import db
 
 from models import ParsingLine, ProductOrigin, ProductType, ProductBrand, ProductFeaturesGlobal, \
@@ -37,9 +36,12 @@ parsing_router = APIRouter(tags=['Service-Parsing'])
 async def go_parsing(data: ParsingRequest, deps: AppDependencies = Depends()) -> Optional[ParsingResultOut]:
     pubsub_obj = deps.redis.pubsub()
     context: SourceContext = await get_vendor_and_vsl(session=deps.session, vsl_id=data.vsl_id)
+    start_time = datetime.now()
     try:
         parsing_data: ParsingResultOut = await parsing_core(
             deps.redis, deps.session, deps.s3_client, data.progress, context, data.sync_features)
+        duration = (datetime.now() - start_time).total_seconds()
+        parsing_data.duration = duration
     finally:
         await deps.redis.publish(data.progress, "data: COUNT=20")
         await asyncio.sleep(0.5)
