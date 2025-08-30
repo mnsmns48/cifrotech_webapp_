@@ -53,11 +53,13 @@ async def store_parsing_lines(
     else:
         existing = dict()
 
-    filtered = list()
+    filtered, seen_origins = list(), set()
+
     for line in normalized:
         origin = line.origin
-        if origin in existing and existing[origin].is_deleted:
+        if (origin in seen_origins) or (origin in existing and existing[origin].is_deleted):
             continue
+        seen_origins.add(origin)
         filtered.append(line)
 
     if not filtered:
@@ -85,6 +87,7 @@ async def store_parsing_lines(
             existing[po_data["origin"]] = ProductOrigin(**po_data)
 
     await session.execute(delete(ParsingLine).where(ParsingLine.vsl_id == vsl_id))
+    await session.flush()
     inserted_bulk = list()
     for line in filtered:
         inserted_bulk.append({"vsl_id": vsl_id,
