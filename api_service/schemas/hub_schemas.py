@@ -96,3 +96,7 @@ class ParsingLine(BaseModel):
     url: HttpUrl
     title: str
     dt_parsed: datetime
+
+
+class ConsentProcessScheme(BaseModel):
+    path_ids: List[int]

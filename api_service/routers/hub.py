@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api_service.crud import delete_product_stock_items, get_all_children_cte, \
     get_origins_by_path_ids, get_info_by_caching, get_lines_by_origins
 from api_service.s3_helper import get_s3_client, get_http_client_session, sync_images_by_origin
-from api_service.schemas.hub_schemas import StockHubItemResult
+from api_service.schemas.hub_schemas import StockHubItemResult, ConsentProcessScheme
 from api_service.schemas import RenameRequest, HubLoadingData, HubItemChangeScheme, OriginsPayload, \
     ComparisonDataScheme, HubMenuLevelSchema, HubPositionPatchOut, AddHubLevelScheme, AddHubLevelOutScheme, \
     HubPositionPatch
@@ -236,3 +236,11 @@ async def comparison_process(payload: ComparisonDataScheme,
         origins = await get_origins_by_path_ids(path_ids, session)
         vsl_list: list[VendorSearchLine] = await get_lines_by_origins(origins, session)
     return vsl_list
+
+
+@hub_router.post("/give_me_consent")
+async def consent_process(payload: ConsentProcessScheme,
+                          session: AsyncSession = Depends(db.scoped_session_dependency)):
+    query = select(HUbStock).where(HUbStock.path_id.in_(payload.path_ids)).order_by(HUbStock.output_price)
+    result = await session.execute(query)
+    return result.scalars().all()
