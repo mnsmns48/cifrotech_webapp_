@@ -11,10 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api_service.crud import delete_product_stock_items, get_all_children_cte, \
     get_origins_by_path_ids, get_info_by_caching, get_lines_by_origins
 from api_service.s3_helper import get_s3_client, get_http_client_session, sync_images_by_origin
-from api_service.schemas.hub_schemas import StockHubItemResult, ConsentProcessScheme
 from api_service.schemas import RenameRequest, HubLoadingData, HubItemChangeScheme, OriginsPayload, \
-    ComparisonDataScheme, HubMenuLevelSchema, HubPositionPatchOut, AddHubLevelScheme, AddHubLevelOutScheme, \
-    HubPositionPatch
+    ComparisonInScheme, HubMenuLevelSchema, HubPositionPatchOut, AddHubLevelScheme, AddHubLevelOutScheme, \
+    HubPositionPatch, StockHubItemResult, ConsentProcessScheme
 
 from engine import db
 from models import HUbMenuLevel, HUbStock, ProductOrigin, VendorSearchLine
@@ -227,7 +226,7 @@ async def delete_stock_items_endpoint(payload: OriginsPayload,
 
 
 @hub_router.post("/start_comparison_process")
-async def comparison_process(payload: ComparisonDataScheme,
+async def comparison_process(payload: ComparisonInScheme,
                              session: AsyncSession = Depends(db.scoped_session_dependency)):
     path_ids = await get_all_children_cte(session=session, parent_id=payload.path_id)
     if payload.origins:

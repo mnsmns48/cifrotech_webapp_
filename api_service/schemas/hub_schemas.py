@@ -86,9 +86,12 @@ class OriginsPayload(BaseModel):
     origins: list[int]
 
 
-class ComparisonDataScheme(BaseModel):
+class ComparisonInScheme(BaseModel):
     origins: Optional[list[int]] = None
     path_id: int
+
+
+# class ComparisonOut(BaseModel):
 
 
 class ParsingLine(BaseModel):
