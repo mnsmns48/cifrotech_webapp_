@@ -9,7 +9,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.api_connect import get_one_by_dtube
-from api_service.schemas import ParsingLinesIn
+from api_service.schemas import ParsingLinesIn, VSLScheme
 from api_service.schemas.parsing_schemas import SourceContext, ParsingResultOut
 from api_service.schemas.product_schemas import ProductOriginCreate
 from api_service.schemas.range_reward_schemas import RewardRangeResponseSchema, RewardRangeLineSchema

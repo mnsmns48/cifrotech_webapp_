@@ -13,7 +13,8 @@ from api_service.crud import delete_product_stock_items, get_all_children_cte, \
 from api_service.s3_helper import get_s3_client, get_http_client_session, sync_images_by_origin
 from api_service.schemas import RenameRequest, HubLoadingData, HubItemChangeScheme, OriginsPayload, \
     ComparisonInScheme, HubMenuLevelSchema, HubPositionPatchOut, AddHubLevelScheme, AddHubLevelOutScheme, \
-    HubPositionPatch, StockHubItemResult, ConsentProcessScheme
+    HubPositionPatch, StockHubItemResult, ConsentProcessScheme, VSLScheme
+from api_service.schemas.hub_schemas import ComparisonOut
 
 from engine import db
 from models import HUbMenuLevel, HUbStock, ProductOrigin, VendorSearchLine
@@ -225,16 +226,22 @@ async def delete_stock_items_endpoint(payload: OriginsPayload,
         raise HTTPException(status_code=500, detail=f"Ошибка при удалении")
 
 
-@hub_router.post("/start_comparison_process")
+@hub_router.post("/start_comparison_process", response_model=ComparisonOut)
 async def comparison_process(payload: ComparisonInScheme,
                              session: AsyncSession = Depends(db.scoped_session_dependency)):
     path_ids = await get_all_children_cte(session=session, parent_id=payload.path_id)
+
     if payload.origins:
-        vsl_list: list[VendorSearchLine] = await get_lines_by_origins(origins=payload.origins, session=session)
+        raw_vsl_list: list[VendorSearchLine] = await get_lines_by_origins(origins=payload.origins, session=session)
     else:
         origins = await get_origins_by_path_ids(path_ids, session)
-        vsl_list: list[VendorSearchLine] = await get_lines_by_origins(origins, session)
-    return vsl_list
+        raw_vsl_list: list[VendorSearchLine] = await get_lines_by_origins(origins, session)
+
+    vsl_list: list[VSLScheme] = list()
+    for vsl in raw_vsl_list:
+        vsl_list.append(VSLScheme.model_validate(vsl))
+
+    return ComparisonOut(vsl_list=vsl_list, path_ids=list(path_ids))
 
 
 @hub_router.post("/give_me_consent")

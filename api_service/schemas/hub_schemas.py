@@ -3,6 +3,8 @@ from typing import Optional, List
 
 from pydantic import BaseModel, ConfigDict, HttpUrl
 
+from api_service.schemas.vsl_schemas import VSLScheme
+
 
 class HubMenuLevelSchema(BaseModel):
     id: int
@@ -91,7 +93,9 @@ class ComparisonInScheme(BaseModel):
     path_id: int
 
 
-# class ComparisonOut(BaseModel):
+class ComparisonOut(BaseModel):
+    vsl_list: list[VSLScheme]
+    path_ids: list[int]
 
 
 class ParsingLine(BaseModel):
