@@ -1,15 +1,15 @@
 from collections import defaultdict
 from datetime import datetime
-from typing import List, Optional, Any, Coroutine, Sequence
+from typing import List, Optional, Sequence
 
 from aiohttp import ClientSession
 from redis.asyncio import Redis
-from sqlalchemy import delete, update, and_, CTE, distinct, Row, RowMapping
+from sqlalchemy import delete, update, and_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.api_connect import get_one_by_dtube
-from api_service.schemas import ParsingLinesIn, VSLScheme
+from api_service.schemas import ParsingLinesIn
 from api_service.schemas.parsing_schemas import SourceContext, ParsingResultOut
 from api_service.schemas.product_schemas import ProductOriginCreate
 from api_service.schemas.range_reward_schemas import RewardRangeResponseSchema, RewardRangeLineSchema
@@ -279,40 +279,19 @@ async def get_all_children_cte(session: AsyncSession, parent_id: int) -> Sequenc
 
 
 async def get_lines_by_origins(origins: list[int], session: AsyncSession) -> list[VendorSearchLine]:
-    stmt = (
-        select(VendorSearchLine)
-        .join(HUbStock, VendorSearchLine.id == HUbStock.vsl_id)
-        .where(HUbStock.origin.in_(origins))
-    )
+    stmt = (select(VendorSearchLine)
+            .join(HUbStock, VendorSearchLine.id == HUbStock.vsl_id).where(HUbStock.origin.in_(origins)))
     result = await session.execute(stmt)
-    return list(result.scalars().all())
+    not_repeated, unique_lines = set(), list()
+    bulk = result.scalars().all()
+    for line in bulk:
+        if line.id not in not_repeated:
+            not_repeated.add(line.id)
+            unique_lines.append(line)
+    return unique_lines
 
 
 async def get_origins_by_path_ids(path_ids: list | Sequence, session: AsyncSession) -> list[int]:
     stmt = select(HUbStock.origin).where(HUbStock.path_id.in_(path_ids))
     result = await session.execute(stmt)
     return [row[0] for row in result.all()]
-
-# async def get_label_and_dt_parsed(urls: List[str], session: AsyncSession) -> Dict[str, Dict[str, Any]]:
-#     if not urls:
-#         return {}
-#
-#     stmt_vendor = (select(VendorSearchLine.url, VendorSearchLine.title, Harvest.datestamp)
-#         .join(Harvest, Harvest.vendor_search_line_id == VendorSearchLine.id)
-#         .where(VendorSearchLine.url.in_(urls)))
-#     vendor_result = await session.execute(stmt_vendor)
-#     vendor_rows = vendor_result.all()
-#
-#     result = {url: {"title": title, "dt_parsed": datestamp} for url, title, datestamp in vendor_rows}
-#     harvest_urls = set(result.keys())
-#     for_hub_loading_search_urls = [url for url in urls if url not in harvest_urls]
-#
-#     if for_hub_loading_search_urls:
-#         stmt_loading = (select(HubLoading.url, HubLoading.dt_parsed).where(HubLoading.url.in_(for_hub_loading_search_urls)))
-#         loading_result = await session.execute(stmt_loading)
-#         loading_rows = loading_result.all()
-#
-#         for url, dt_parsed in loading_rows:
-#             result[url] = {"title": None, "dt_parsed": dt_parsed}
-#
-#     return result
