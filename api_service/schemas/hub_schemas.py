@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 from pydantic import BaseModel, ConfigDict, HttpUrl
 
@@ -106,3 +106,17 @@ class ParsingLine(BaseModel):
 
 class ConsentProcessScheme(BaseModel):
     path_ids: List[int]
+
+
+class ConsentOut(BaseModel):
+    id: int
+    origin: int
+    path_id: int
+    vsl_id: int
+    warranty: Optional[str]
+    input_price: float
+    output_price: Optional[float]
+    added_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}

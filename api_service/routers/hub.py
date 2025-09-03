@@ -1,5 +1,6 @@
+from collections import defaultdict
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Dict
 
 from aiobotocore.client import AioBaseClient
 from aiohttp import ClientSession
@@ -14,7 +15,7 @@ from api_service.s3_helper import get_s3_client, get_http_client_session, sync_i
 from api_service.schemas import RenameRequest, HubLoadingData, HubItemChangeScheme, OriginsPayload, \
     ComparisonInScheme, HubMenuLevelSchema, HubPositionPatchOut, AddHubLevelScheme, AddHubLevelOutScheme, \
     HubPositionPatch, StockHubItemResult, ConsentProcessScheme, VSLScheme
-from api_service.schemas.hub_schemas import ComparisonOut
+from api_service.schemas.hub_schemas import ComparisonOut, ConsentOut
 
 from engine import db
 from models import HUbMenuLevel, HUbStock, ProductOrigin, VendorSearchLine
@@ -244,9 +245,14 @@ async def comparison_process(payload: ComparisonInScheme,
     return ComparisonOut(vsl_list=vsl_list, path_ids=list(path_ids))
 
 
-@hub_router.post("/give_me_consent")
+@hub_router.post("/give_me_consent", response_model=Dict[int, List[ConsentOut]])
 async def consent_process(payload: ConsentProcessScheme,
                           session: AsyncSession = Depends(db.scoped_session_dependency)):
     query = select(HUbStock).where(HUbStock.path_id.in_(payload.path_ids)).order_by(HUbStock.output_price)
     result = await session.execute(query)
-    return result.scalars().all()
+    res = result.scalars().all()
+    grouped = defaultdict(list)
+    for line in res:
+        obj = ConsentOut.model_validate(line).model_dump()
+        grouped[line.path_id].append(obj)
+    return grouped
