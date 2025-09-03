@@ -97,6 +97,8 @@ class ComparisonOut(BaseModel):
     vsl_list: list[VSLScheme]
     path_ids: list[int]
 
+    model_config = {"from_attributes": True}
+
 
 class ParsingLine(BaseModel):
     key: int

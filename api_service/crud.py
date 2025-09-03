@@ -279,18 +279,13 @@ async def get_all_children_cte(session: AsyncSession, parent_id: int) -> Sequenc
 
 
 async def get_lines_by_origins(origins: list[int], session: AsyncSession) -> list[VendorSearchLine]:
-    stmt = (select(VendorSearchLine)
-            .join(HUbStock, VendorSearchLine.id == HUbStock.vsl_id).where(HUbStock.origin.in_(origins)))
+    stmt = (
+        select(VendorSearchLine)
+        .join(HUbStock, VendorSearchLine.id == HUbStock.vsl_id)
+        .where(HUbStock.origin.in_(origins))
+    )
     result = await session.execute(stmt)
-    lines = result.scalars().all()
-    seen_ids = set()
-    unique_lines = []
-    for line in lines:
-        if line.id not in seen_ids:
-            seen_ids.add(line.id)
-            unique_lines.append(line)
-
-    return unique_lines
+    return list(result.scalars().all())
 
 
 async def get_origins_by_path_ids(path_ids: list | Sequence, session: AsyncSession) -> list[int]:
