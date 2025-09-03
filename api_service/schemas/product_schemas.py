@@ -21,8 +21,7 @@ class ProductOriginCreate(ProductOriginBase):
 class ProductOriginRead(ProductOriginBase):
     origin: int
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class ProductOriginUpdate(BaseModel):

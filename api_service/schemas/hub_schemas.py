@@ -13,8 +13,7 @@ class HubMenuLevelSchema(BaseModel):
     icon: Optional[str]
     parent_id: int
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class RenameRequest(BaseModel):
@@ -55,16 +54,14 @@ class StockInHubItem(BaseModel):
     input_price: float
     output_price: float
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class HubLoadingData(BaseModel):
     vsl_id: int
     stocks: List[StockInHubItem]
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class StockHubItemResult(BaseModel):

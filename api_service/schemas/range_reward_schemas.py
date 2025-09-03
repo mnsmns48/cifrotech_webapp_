@@ -9,8 +9,7 @@ class RewardRangeLineSchema(BaseModel):
     is_percent: bool
     reward: int
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class RewardRangeSchema(BaseModel):
@@ -30,5 +29,4 @@ class RewardRangeAddLineSchema(BaseModel):
     is_percent: bool
     reward: int
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
