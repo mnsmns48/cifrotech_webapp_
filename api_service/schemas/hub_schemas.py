@@ -4,6 +4,7 @@ from typing import Optional, List, Dict
 from pydantic import BaseModel, ConfigDict, HttpUrl
 
 from api_service.schemas.vsl_schemas import VSLScheme
+from var_types import PriceDiffStatus
 
 
 class HubMenuLevelSchema(BaseModel):
@@ -108,8 +109,7 @@ class ConsentProcessScheme(BaseModel):
     path_ids: List[int]
 
 
-class ConsentOut(BaseModel):
-    id: int
+class ConsentOutTable(BaseModel):
     origin: int
     path_id: int
     vsl_id: int
@@ -120,3 +120,29 @@ class ConsentOut(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class ParsingHubDiffItem(BaseModel):
+    origin: int
+    title: str
+    warranty: Optional[str]
+    optional: Optional[str]
+    shipment: Optional[str]
+    parsing_line_title: str
+    parsing_input_price: Optional[float]
+    parsing_output_price: Optional[float]
+    dt_parsed: datetime
+    hub_input_price: float
+    hub_output_price: float
+    hub_added_at: Optional[datetime]
+    hub_updated_at: Optional[datetime]
+    status: PriceDiffStatus
+    profit_range_id: int
+
+    model_config = {"from_attributes": True}
+
+
+class ParsingHubDiffOut(BaseModel):
+    path_id: int
+    label: str
+    items: Optional[List[ParsingHubDiffItem]]

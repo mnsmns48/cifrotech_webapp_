@@ -10,12 +10,13 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from api_service.crud import delete_product_stock_items, get_all_children_cte, \
-    get_origins_by_path_ids, get_info_by_caching, get_lines_by_origins
+    get_origins_by_path_ids, get_info_by_caching, get_lines_by_origins, get_parsing_map
 from api_service.s3_helper import get_s3_client, get_http_client_session, sync_images_by_origin
 from api_service.schemas import RenameRequest, HubLoadingData, HubItemChangeScheme, OriginsPayload, \
     ComparisonInScheme, HubMenuLevelSchema, HubPositionPatchOut, AddHubLevelScheme, AddHubLevelOutScheme, \
     HubPositionPatch, StockHubItemResult, ConsentProcessScheme, VSLScheme
-from api_service.schemas.hub_schemas import ComparisonOut, ConsentOut
+from api_service.schemas.hub_schemas import ComparisonOut, ConsentOutTable, ParsingHubDiffOut
+from api_service.schemas.parsing_schemas import ParsingToDiffData
 
 from engine import db
 from models import HUbMenuLevel, HUbStock, ProductOrigin, VendorSearchLine
@@ -245,14 +246,10 @@ async def comparison_process(payload: ComparisonInScheme,
     return ComparisonOut(vsl_list=vsl_list, path_ids=list(path_ids))
 
 
-@hub_router.post("/give_me_consent", response_model=Dict[int, List[ConsentOut]])
-async def consent_process(payload: ConsentProcessScheme,
-                          session: AsyncSession = Depends(db.scoped_session_dependency)):
-    query = select(HUbStock).where(HUbStock.path_id.in_(payload.path_ids)).order_by(HUbStock.output_price)
-    result = await session.execute(query)
-    res = result.scalars().all()
-    grouped = defaultdict(list)
-    for line in res:
-        obj = ConsentOut.model_validate(line).model_dump()
-        grouped[line.path_id].append(obj)
-    return grouped
+# @hub_router.post(
+#     path="/give_me_consent", response_model=List[ParsingHubDiffOut], summary="Сравнение ParsingLine и HUbStock")
+# async def consent_process(payload: ConsentProcessScheme,
+#                           session: AsyncSession = Depends(db.scoped_session_dependency)):
+#     parsing_map: Dict[int, ParsingToDiffData] = await get_parsing_map(session)
+#     # hub_map: Dict[int, List[HubData]]    = await get_hub_map(session)
+#     # menu_labels: Dict[int, str]         = await get_menu_levels(session)

@@ -1,6 +1,6 @@
 from collections import defaultdict
 from datetime import datetime
-from typing import List, Optional, Sequence
+from typing import List, Optional, Sequence, Dict
 
 from aiohttp import ClientSession
 from redis.asyncio import Redis
@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.api_connect import get_one_by_dtube
 from api_service.schemas import ParsingLinesIn
-from api_service.schemas.parsing_schemas import SourceContext, ParsingResultOut
+from api_service.schemas.parsing_schemas import SourceContext, ParsingResultOut, ParsingToDiffData
 from api_service.schemas.product_schemas import ProductOriginCreate
 from api_service.schemas.range_reward_schemas import RewardRangeResponseSchema, RewardRangeLineSchema
 from api_service.utils import normalize_origin
@@ -295,3 +295,29 @@ async def get_origins_by_path_ids(path_ids: list | Sequence, session: AsyncSessi
     stmt = select(HUbStock.origin).where(HUbStock.path_id.in_(path_ids))
     result = await session.execute(stmt)
     return [row[0] for row in result.all()]
+
+
+async def get_parsing_map(session: AsyncSession) -> Dict[int, ParsingToDiffData]:
+    query = (select(ParsingLine.origin,
+                    ParsingLine.warranty,
+                    ParsingLine.optional,
+                    ParsingLine.shipment,
+                    VendorSearchLine.title.label("parsing_line_title"),
+                    ParsingLine.input_price,
+                    ParsingLine.output_price,
+                    VendorSearchLine.dt_parsed,
+                    VendorSearchLine.profit_range_id)
+             .join(VendorSearchLine, ParsingLine.vsl_id == VendorSearchLine.id)
+             .join(ProductOrigin, ProductOrigin.origin == ParsingLine.origin)
+             .where(ProductOrigin.is_deleted == False))
+    execute = await session.execute(query)
+    rows = execute.all()
+    result = dict()
+    for origin, warranty, optional, shipment, parsing_line_title, input_price, output_price, dt_parsed, profit_range_id in rows:
+        result.update(
+            {origin: ParsingToDiffData(origin=origin, warranty=warranty, optional=optional, shipment=shipment,
+                                       parsing_line_title=parsing_line_title, parsing_input_price=input_price,
+                                       parsing_output_price=output_price, dt_parsed=dt_parsed,
+                                       profit_range_id=profit_range_id)})
+    return result
+

@@ -42,3 +42,15 @@ class ParsingResultOut(BaseModel):
     parsing_result: List[ParsingLinesIn]
 
     model_config = {"from_attributes": True}
+
+
+class ParsingToDiffData(BaseModel):
+    origin: int
+    warranty: Optional[str]
+    optional: Optional[str]
+    shipment: Optional[str]
+    parsing_line_title: str
+    parsing_input_price: Optional[float]
+    parsing_output_price: Optional[float]
+    dt_parsed: datetime
+    profit_range_id: Optional[int]
