@@ -17,6 +17,11 @@ class HubMenuLevelSchema(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class HubLevelPath(BaseModel):
+    path_id: int
+    label: str
+
+
 class RenameRequest(BaseModel):
     id: int
     new_label: str
@@ -91,9 +96,9 @@ class ComparisonInScheme(BaseModel):
     path_id: int
 
 
-class ComparisonOut(BaseModel):
+class ComparisonOutScheme(BaseModel):
     vsl_list: list[VSLScheme]
-    path_ids: list[int]
+    path_ids: list[HubLevelPath]
 
     model_config = {"from_attributes": True}
 

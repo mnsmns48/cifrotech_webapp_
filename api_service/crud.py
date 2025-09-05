@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.api_connect import get_one_by_dtube
 from api_service.schemas import ParsingLinesIn
+from api_service.schemas.hub_schemas import HubLevelPath
 from api_service.schemas.parsing_schemas import SourceContext, ParsingResultOut, ParsingToDiffData
 from api_service.schemas.product_schemas import ProductOriginCreate
 from api_service.schemas.range_reward_schemas import RewardRangeResponseSchema, RewardRangeLineSchema
@@ -268,14 +269,18 @@ async def _get_parsing_result(session: AsyncSession, vsl_id: int) -> List[Parsin
     return parsing_results
 
 
-async def get_all_children_cte(session: AsyncSession, parent_id: int) -> Sequence[int]:
+async def get_all_children_cte(session: AsyncSession, parent_id: int) -> List[HubLevelPath]:
     base = select(HUbMenuLevel).where(HUbMenuLevel.id == parent_id)
     cte = base.cte(name="menu_cte", recursive=True)
     recursive = select(HUbMenuLevel).where(HUbMenuLevel.parent_id == cte.c.id)
     cte = cte.union_all(recursive)
     query = select(cte)
-    result = await session.execute(query)
-    return result.scalars().all()
+    execute = await session.execute(query)
+    rows = execute.all()
+    result = list()
+    for path_id, label in rows:
+        result.append(HubLevelPath(path_id=path_id, label=label))
+    return result
 
 
 async def get_lines_by_origins(origins: list[int], session: AsyncSession) -> list[VendorSearchLine]:
@@ -320,4 +325,3 @@ async def get_parsing_map(session: AsyncSession) -> Dict[int, ParsingToDiffData]
                                        parsing_output_price=output_price, dt_parsed=dt_parsed,
                                        profit_range_id=profit_range_id)})
     return result
-
