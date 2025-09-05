@@ -247,10 +247,10 @@ async def comparison_process(payload: ComparisonInScheme,
     return ComparisonOutScheme(vsl_list=vsl_list, path_ids=path_ids)
 
 
-# @hub_router.post(
-#     path="/give_me_consent", response_model=List[ParsingHubDiffOut], summary="Сравнение ParsingLine и HUbStock")
-# async def consent_process(payload: ComparisonOut,
-#                           session: AsyncSession = Depends(db.scoped_session_dependency)):
-#     parsing_map: Dict[int, ParsingToDiffData] = await get_parsing_map(session)
-    # hub_map: Dict[int, List[HubData]]    = await get_hub_map(session)
-    # menu_labels: Dict[int, str]         = await get_menu_levels(session)
+@hub_router.post(
+    path="/give_me_consent", response_model=List[ParsingHubDiffOut], summary="Сравнение ParsingLine и HUbStock")
+async def consent_process(
+        payload: ComparisonOutScheme, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    parsing_map: Dict[int, ParsingToDiffData] = await get_parsing_map(session)
+    hub_map: Dict[int, List[HubData]] = await get_hub_map(session)
+    menu_labels: Dict[int, str] = await get_menu_levels(session)
