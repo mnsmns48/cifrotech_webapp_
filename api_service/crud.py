@@ -270,11 +270,11 @@ async def _get_parsing_result(session: AsyncSession, vsl_id: int) -> List[Parsin
 
 
 async def get_all_children_cte(session: AsyncSession, parent_id: int) -> List[HubLevelPath]:
-    base = select(HUbMenuLevel).where(HUbMenuLevel.id == parent_id)
+    base = select(HUbMenuLevel.id, HUbMenuLevel.label).where(HUbMenuLevel.id == parent_id)
     cte = base.cte(name="menu_cte", recursive=True)
-    recursive = select(HUbMenuLevel).where(HUbMenuLevel.parent_id == cte.c.id)
+    recursive = select(HUbMenuLevel.id, HUbMenuLevel.label).where(HUbMenuLevel.parent_id == cte.c.id)
     cte = cte.union_all(recursive)
-    query = select(cte)
+    query = select(cte.c.id, cte.c.label)
     execute = await session.execute(query)
     rows = execute.all()
     result = list()

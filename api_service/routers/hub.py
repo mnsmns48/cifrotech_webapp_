@@ -236,7 +236,8 @@ async def comparison_process(payload: ComparisonInScheme,
     if payload.origins:
         raw_vsl_list: list[VendorSearchLine] = await get_lines_by_origins(origins=payload.origins, session=session)
     else:
-        origins = await get_origins_by_path_ids(path_ids, session)
+        only_paths = [p.path_id for p in path_ids]
+        origins = await get_origins_by_path_ids(only_paths, session)
         raw_vsl_list: list[VendorSearchLine] = await get_lines_by_origins(origins, session)
 
     vsl_list: list[VSLScheme] = list()
