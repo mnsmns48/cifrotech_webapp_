@@ -1,7 +1,7 @@
 from datetime import datetime
-from typing import Optional, List, Dict
+from typing import Optional, List
 
-from pydantic import BaseModel, ConfigDict, HttpUrl
+from pydantic import BaseModel, HttpUrl
 
 from api_service.schemas.vsl_schemas import VSLScheme
 from var_types import PriceDiffStatus
@@ -151,3 +151,15 @@ class ParsingHubDiffOut(BaseModel):
     path_id: int
     label: str
     items: Optional[List[ParsingHubDiffItem]]
+
+
+class HubToDiffData(BaseModel):
+    origin: int
+    title: str
+    warranty: Optional[str]
+    hub_input_price: float
+    hub_output_price: Optional[float]
+    hub_added_at: datetime
+    hub_updated_at: datetime
+
+    model_config = {"from_attributes": True}

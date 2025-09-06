@@ -9,8 +9,8 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.api_connect import get_one_by_dtube
-from api_service.schemas import ParsingLinesIn
-from api_service.schemas.hub_schemas import HubLevelPath
+from api_service.schemas import ParsingLinesIn, VSLScheme
+from api_service.schemas.hub_schemas import HubLevelPath, HubToDiffData
 from api_service.schemas.parsing_schemas import SourceContext, ParsingResultOut, ParsingToDiffData
 from api_service.schemas.product_schemas import ProductOriginCreate
 from api_service.schemas.range_reward_schemas import RewardRangeResponseSchema, RewardRangeLineSchema
@@ -302,26 +302,48 @@ async def get_origins_by_path_ids(path_ids: list | Sequence, session: AsyncSessi
     return [row[0] for row in result.all()]
 
 
-async def get_parsing_map(session: AsyncSession) -> Dict[int, ParsingToDiffData]:
+async def get_parsing_map(session: AsyncSession, vsl_list: List[VSLScheme]) -> Dict[int, ParsingToDiffData]:
+    vsl_ids: List[int] = [vsl.id for vsl in vsl_list]
+    vsl_map: Dict[int, VSLScheme] = {vsl.id: vsl for vsl in vsl_list}
     query = (select(ParsingLine.origin,
+                    ParsingLine.vsl_id,
+                    ProductOrigin.title.label("title"),
                     ParsingLine.warranty,
                     ParsingLine.optional,
                     ParsingLine.shipment,
-                    VendorSearchLine.title.label("parsing_line_title"),
-                    ParsingLine.input_price,
-                    ParsingLine.output_price,
-                    VendorSearchLine.dt_parsed,
-                    VendorSearchLine.profit_range_id)
-             .join(VendorSearchLine, ParsingLine.vsl_id == VendorSearchLine.id)
+                    ParsingLine.input_price.label("parsing_input_price"),
+                    ParsingLine.output_price.label("parsing_output_price"),
+                    )
              .join(ProductOrigin, ProductOrigin.origin == ParsingLine.origin)
-             .where(ProductOrigin.is_deleted == False))
+             .where(ProductOrigin.is_deleted == False, ParsingLine.vsl_id.in_(vsl_ids)))
     execute = await session.execute(query)
     rows = execute.all()
-    result = dict()
-    for origin, warranty, optional, shipment, parsing_line_title, input_price, output_price, dt_parsed, profit_range_id in rows:
-        result.update(
-            {origin: ParsingToDiffData(origin=origin, warranty=warranty, optional=optional, shipment=shipment,
-                                       parsing_line_title=parsing_line_title, parsing_input_price=input_price,
-                                       parsing_output_price=output_price, dt_parsed=dt_parsed,
-                                       profit_range_id=profit_range_id)})
+    result: Dict[int, ParsingToDiffData] = {}
+    for origin, vsl_id, title, warranty, optional, shipment, parsing_input_price, parsing_output_price in rows:
+        vsl = vsl_map[vsl_id]
+        data = ParsingToDiffData(origin=origin, title=title, warranty=warranty, optional=optional,
+                                 shipment=shipment, parsing_line_title=vsl.title,
+                                 parsing_input_price=parsing_input_price,
+                                 parsing_output_price=parsing_output_price, dt_parsed=vsl.dt_parsed,
+                                 profit_range_id=vsl.profit_range_id)
+        result[origin] = data
     return result
+
+
+async def get_hub_map(session: AsyncSession, path_ids: List[int]) -> Dict[int, List[HubToDiffData]]:
+    stmt = (select(HUbStock.origin, HUbStock.path_id, ProductOrigin.title.label("title"),
+                   HUbStock.warranty, HUbStock.input_price, HUbStock.output_price, HUbStock.added_at,
+                   HUbStock.updated_at)
+            .join(ProductOrigin, ProductOrigin.origin == HUbStock.origin)
+            .where(HUbStock.path_id.in_(path_ids), ProductOrigin.is_deleted == False)
+            .order_by(HUbStock.output_price))
+    execute = await session.execute(stmt)
+    rows = execute.all()
+
+    hub_map: Dict[int, List[HubToDiffData]] = dict()
+    for origin, title,path_id, warranty, input_obj, output, added_at, updated_at in rows:
+        row = HubToDiffData(origin=origin, title=title, warranty=warranty, hub_input_price=input_obj, hub_output_price=output,
+                            hub_added_at=added_at, hub_updated_at=updated_at)
+        hub_map.setdefault(path_id, []).append(row)
+
+    return hub_map

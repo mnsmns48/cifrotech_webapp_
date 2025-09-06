@@ -9,13 +9,14 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from api_service.crud import delete_product_stock_items, get_all_children_cte, \
-    get_origins_by_path_ids, get_info_by_caching, get_lines_by_origins, get_parsing_map
+    get_origins_by_path_ids, get_info_by_caching, get_lines_by_origins, get_parsing_map, get_hub_map
+from api_service.func import generate_diff_tabs
 from api_service.s3_helper import get_s3_client, get_http_client_session, sync_images_by_origin
 
 from api_service.schemas import RenameRequest, HubLoadingData, HubItemChangeScheme, OriginsPayload, \
     ComparisonInScheme, HubMenuLevelSchema, HubPositionPatchOut, AddHubLevelScheme, AddHubLevelOutScheme, \
     HubPositionPatch, StockHubItemResult, VSLScheme, ParsingToDiffData, ComparisonOutScheme, ParsingHubDiffOut, \
-    HubLevelPath
+    HubLevelPath, HubToDiffData
 
 from engine import db
 from models import HUbMenuLevel, HUbStock, ProductOrigin, VendorSearchLine
@@ -249,6 +250,16 @@ async def comparison_process(payload: ComparisonInScheme,
 @hub_router.post(path="/give_me_consent", response_model=List[ParsingHubDiffOut])
 async def consent_process(payload: ComparisonOutScheme,
                           session: AsyncSession = Depends(db.scoped_session_dependency)):
-    parsing_map: Dict[int, ParsingToDiffData] = await get_parsing_map(session)
-    # hub_map: Dict[int, List[HubData]] = await get_hub_map(session)
-    # menu_labels: Dict[int, str] = await get_menu_levels(session)
+    parsing_map: Dict[int, ParsingToDiffData] = await get_parsing_map(session, payload.vsl_list)
+    path_ids: List[int] = [p.path_id for p in payload.path_ids]
+    hub_map: Dict[int, List[HubToDiffData]] = await get_hub_map(session, path_ids)
+    path_label_map: Dict[int, str] = dict()
+    for p in payload.path_ids:
+        path_label_map.update({p.path_id: p.label})
+    result: List[ParsingHubDiffOut] = generate_diff_tabs(parsing_map=parsing_map,
+                                                         hub_map=hub_map,
+                                                         path_label_map=path_label_map,
+                                                         path_ids=path_ids
+                                                         )
+
+    return result
