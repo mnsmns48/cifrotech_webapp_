@@ -257,5 +257,4 @@ async def consent_process(payload: ComparisonOutScheme,
     for p in payload.path_ids:
         path_map.update({p.path_id: p.label})
     result: List[ParsingHubDiffOut] = generate_diff_tabs(parsing_map, hub_map, path_map)
-
     return result
