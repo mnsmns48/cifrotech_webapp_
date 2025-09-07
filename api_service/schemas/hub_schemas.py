@@ -135,6 +135,12 @@ class ParsingHubDiffItem(BaseModel):
 
     model_config = {"from_attributes": True}
 
+    @property
+    def sort_price(self) -> float:
+        if self.parsing_input_price is not None:
+            return self.parsing_input_price
+        return self.hub_input_price or 0.0
+
 
 class ParsingHubDiffOut(BaseModel):
     path_id: int
@@ -145,6 +151,7 @@ class ParsingHubDiffOut(BaseModel):
 class HubToDiffData(BaseModel):
     origin: int
     title: str
+    vsl_id: int
     warranty: Optional[str]
     hub_input_price: float
     hub_output_price: Optional[float]

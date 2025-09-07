@@ -250,11 +250,12 @@ async def comparison_process(payload: ComparisonInScheme,
 @hub_router.post(path="/give_me_consent", response_model=List[ParsingHubDiffOut])
 async def consent_process(payload: ComparisonOutScheme,
                           session: AsyncSession = Depends(db.scoped_session_dependency)):
-    parsing_map: Dict[int, ParsingToDiffData] = await get_parsing_map(session, payload.vsl_list)
+    parsing_map: Dict[int, List[ParsingToDiffData]] = await get_parsing_map(session, payload.vsl_list)
     path_ids: List[int] = [p.path_id for p in payload.path_ids]
     hub_map: Dict[int, List[HubToDiffData]] = await get_hub_map(session, path_ids)
     path_map: Dict[int, str] = dict()
     for p in payload.path_ids:
-        path_map.update({p.path_id: p.label})
+        if p.path_id in hub_map.keys():
+            path_map.update({p.path_id: p.label})
     result: List[ParsingHubDiffOut] = generate_diff_tabs(parsing_map, hub_map, path_map)
     return result
