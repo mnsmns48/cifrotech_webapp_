@@ -341,7 +341,7 @@ async def get_hub_map(session: AsyncSession, path_ids: List[int]) -> Dict[int, L
     rows = execute.all()
 
     hub_map: Dict[int, List[HubToDiffData]] = dict()
-    for origin, title,path_id, warranty, input_obj, output, added_at, updated_at in rows:
+    for origin, path_id, title, warranty, input_obj, output, added_at, updated_at in rows:
         row = HubToDiffData(origin=origin, title=title, warranty=warranty, hub_input_price=input_obj, hub_output_price=output,
                             hub_added_at=added_at, hub_updated_at=updated_at)
         hub_map.setdefault(path_id, []).append(row)
