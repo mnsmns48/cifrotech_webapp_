@@ -18,7 +18,6 @@ def generate_diff_tabs(parsing_map: Dict[int, List[ParsingToDiffData]],
             vsl_id = h_data.vsl_id
             origin = h_data.origin
 
-
             parsing_input_price = None
             dt_parsed = None
             parsing_candidates = parsing_map.get(vsl_id, [])
@@ -58,9 +57,6 @@ def generate_diff_tabs(parsing_map: Dict[int, List[ParsingToDiffData]],
                 hub_updated_at=h_data.hub_updated_at,
             )
             items.append(item)
-
-
-        items.sort(key=lambda it: it.hub_input_price or 0.0)
 
         result.append(
             ParsingHubDiffOut(
