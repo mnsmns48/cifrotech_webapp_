@@ -253,13 +253,9 @@ async def consent_process(payload: ComparisonOutScheme,
     parsing_map: Dict[int, ParsingToDiffData] = await get_parsing_map(session, payload.vsl_list)
     path_ids: List[int] = [p.path_id for p in payload.path_ids]
     hub_map: Dict[int, List[HubToDiffData]] = await get_hub_map(session, path_ids)
-    path_label_map: Dict[int, str] = dict()
+    path_map: Dict[int, str] = dict()
     for p in payload.path_ids:
-        path_label_map.update({p.path_id: p.label})
-    result: List[ParsingHubDiffOut] = generate_diff_tabs(parsing_map=parsing_map,
-                                                         hub_map=hub_map,
-                                                         path_label_map=path_label_map,
-                                                         path_ids=path_ids
-                                                         )
+        path_map.update({p.path_id: p.label})
+    result: List[ParsingHubDiffOut] = generate_diff_tabs(parsing_map, hub_map, path_map)
 
     return result

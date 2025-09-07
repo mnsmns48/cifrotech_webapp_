@@ -130,19 +130,21 @@ class ConsentProcessScheme(BaseModel):
 class ParsingHubDiffItem(BaseModel):
     origin: int
     title: str
-    warranty: Optional[str]
-    optional: Optional[str]
-    shipment: Optional[str]
-    parsing_line_title: str
-    parsing_input_price: Optional[float]
-    parsing_output_price: Optional[float]
-    dt_parsed: datetime
-    hub_input_price: float
-    hub_output_price: float
-    hub_added_at: Optional[datetime]
-    hub_updated_at: Optional[datetime]
+
+    warranty: Optional[str] = None
+    optional: Optional[str] = None
+    shipment: Optional[str] = None
+    parsing_line_title: Optional[str] = None
+    parsing_input_price: Optional[float] = None
+    parsing_output_price: Optional[float] = None
+    dt_parsed: Optional[datetime] = None
+    hub_input_price: Optional[float] = None
+    hub_output_price: Optional[float] = None
+    hub_added_at: Optional[datetime] = None
+    hub_updated_at: Optional[datetime] = None
+    profit_range_id: Optional[int] = None
+
     status: PriceDiffStatus
-    profit_range_id: int
 
     model_config = {"from_attributes": True}
 
