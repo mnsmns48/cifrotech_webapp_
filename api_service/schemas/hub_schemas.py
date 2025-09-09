@@ -121,6 +121,7 @@ class ParsingHubDiffItem(BaseModel):
     warranty: Optional[str] = None
     optional: Optional[str] = None
     shipment: Optional[str] = None
+    url: Optional[str] = None
     parsing_line_title: Optional[str] = None
     parsing_input_price: Optional[float] = None
     parsing_output_price: Optional[float] = None
@@ -152,6 +153,7 @@ class HubToDiffData(BaseModel):
     origin: int
     title: str
     url: Optional[str]
+    optional: Optional[str]
     vsl_id: int
     warranty: Optional[str]
     hub_input_price: float
