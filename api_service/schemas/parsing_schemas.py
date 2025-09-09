@@ -47,6 +47,7 @@ class ParsingResultOut(BaseModel):
 class ParsingToDiffData(BaseModel):
     origin: int
     title: str
+    url: Optional[str]
     warranty: Optional[str]
     optional: Optional[str]
     shipment: Optional[str]

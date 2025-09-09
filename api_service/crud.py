@@ -309,6 +309,7 @@ async def get_parsing_map(session: AsyncSession, vsl_list: List[VSLScheme]) -> D
     query = (select(ParsingLine.origin,
                     ParsingLine.vsl_id,
                     ProductOrigin.title.label("title"),
+                    ProductOrigin.link.label("url"),
                     ParsingLine.warranty,
                     ParsingLine.optional,
                     ParsingLine.shipment,
@@ -320,10 +321,11 @@ async def get_parsing_map(session: AsyncSession, vsl_list: List[VSLScheme]) -> D
     execute = await session.execute(query)
     rows = execute.all()
     result: Dict[int, List[ParsingToDiffData]] = dict()
-    for origin, vsl_id, title, warranty, optional, shipment, parsing_input_price, parsing_output_price in rows:
+    for origin, vsl_id, title, url, warranty, optional, shipment, parsing_input_price, parsing_output_price in rows:
         vsl = vsl_map[vsl_id]
         item = ParsingToDiffData(origin=origin,
                                  title=title,
+                                 url=url,
                                  warranty=warranty,
                                  optional=optional,
                                  shipment=shipment,
@@ -339,7 +341,8 @@ async def get_parsing_map(session: AsyncSession, vsl_list: List[VSLScheme]) -> D
 
 
 async def get_hub_map(session: AsyncSession, path_ids: List[int]) -> Dict[int, List[HubToDiffData]]:
-    stmt = (select(HUbStock.origin, HUbStock.path_id, ProductOrigin.title.label("title"), HUbStock.vsl_id,
+    stmt = (select(HUbStock.origin, HUbStock.path_id, ProductOrigin.title.label("title"),
+                   ProductOrigin.link.label("url"), HUbStock.vsl_id,
                    HUbStock.warranty, HUbStock.input_price, HUbStock.output_price, HUbStock.added_at,
                    HUbStock.updated_at)
             .join(ProductOrigin, ProductOrigin.origin == HUbStock.origin)
@@ -349,8 +352,9 @@ async def get_hub_map(session: AsyncSession, path_ids: List[int]) -> Dict[int, L
     rows = execute.all()
 
     hub_map: Dict[int, List[HubToDiffData]] = dict()
-    for origin, path_id, title, vsl_id, warranty, input_obj, output, added_at, updated_at in rows:
-        row = HubToDiffData(origin=origin, title=title, vsl_id=vsl_id, warranty=warranty, hub_input_price=input_obj,
+    for origin, path_id, title, url, vsl_id, warranty, input_obj, output, added_at, updated_at in rows:
+        row = HubToDiffData(origin=origin, title=title, url=url, vsl_id=vsl_id, warranty=warranty,
+                            hub_input_price=input_obj,
                             hub_output_price=output, hub_added_at=added_at, hub_updated_at=updated_at)
         hub_map.setdefault(path_id, []).append(row)
 

@@ -151,6 +151,7 @@ class ParsingHubDiffOut(BaseModel):
 class HubToDiffData(BaseModel):
     origin: int
     title: str
+    url: Optional[str]
     vsl_id: int
     warranty: Optional[str]
     hub_input_price: float

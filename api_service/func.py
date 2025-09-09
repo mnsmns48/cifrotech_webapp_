@@ -39,6 +39,7 @@ def generate_diff_tabs(parsing_map: Dict[int, List[ParsingToDiffData]],
 
             item = ParsingHubDiffItem(origin=hub_item.origin,
                                       title=hub_item.title,
+                                      url=pars_obj.url if pars_obj is not None else None,
                                       status=get_diff_status(pars_obj, hub_item.hub_input_price),
                                       warranty=hub_item.warranty,
                                       optional=pars_obj.optional if pars_obj is not None else None,
