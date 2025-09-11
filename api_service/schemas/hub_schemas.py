@@ -153,7 +153,6 @@ class HubToDiffData(BaseModel):
     origin: int
     title: str
     url: Optional[str]
-    optional: Optional[str]
     vsl_id: int
     warranty: Optional[str]
     hub_input_price: float
