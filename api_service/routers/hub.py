@@ -17,6 +17,7 @@ from api_service.schemas import RenameRequest, HubLoadingData, HubItemChangeSche
     ComparisonInScheme, HubMenuLevelSchema, HubPositionPatchOut, AddHubLevelScheme, AddHubLevelOutScheme, \
     HubPositionPatch, StockHubItemResult, VSLScheme, ParsingToDiffData, ComparisonOutScheme, ParsingHubDiffOut, \
     HubLevelPath, HubToDiffData
+from api_service.schemas.hub_schemas import RecalcScheme
 
 from engine import db
 from models import HUbMenuLevel, HUbStock, ProductOrigin, VendorSearchLine
@@ -259,3 +260,15 @@ async def consent_process(payload: ComparisonOutScheme,
             path_map.update({p.path_id: p.label})
     result: List[ParsingHubDiffOut] = generate_diff_tabs(parsing_map, hub_map, path_map)
     return result
+
+
+
+# class RecalcScheme(BaseModel):
+#     path_ids: List[int]
+#     origins: Optional[List[int]]
+#     rr_profile: Optional[RewardRangeResponseSchema]
+
+# @hub_router.post("/recalculate_output_prices")
+# async def recalculate_output_prices(payload: RecalcScheme,
+#                                     session: AsyncSession = Depends(db.scoped_session_dependency)):
+#

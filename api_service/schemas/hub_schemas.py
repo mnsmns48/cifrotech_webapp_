@@ -3,6 +3,7 @@ from typing import Optional, List
 
 from pydantic import BaseModel, HttpUrl
 
+from api_service.schemas.range_reward_schemas import RewardRangeResponseSchema
 from api_service.schemas.vsl_schemas import VSLScheme
 from var_types import PriceDiffStatus
 
@@ -130,7 +131,6 @@ class ParsingHubDiffItem(BaseModel):
     hub_output_price: Optional[float] = None
     hub_added_at: Optional[datetime] = None
     hub_updated_at: Optional[datetime] = None
-    profit_range_id: Optional[int] = None
 
     status: PriceDiffStatus
 
@@ -161,3 +161,9 @@ class HubToDiffData(BaseModel):
     hub_updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class RecalcScheme(BaseModel):
+    path_ids: List[int]
+    origins: Optional[List[int]]
+    rr_profile: Optional[RewardRangeResponseSchema]
