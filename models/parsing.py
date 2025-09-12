@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import ForeignKey, BigInteger
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -7,7 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from models import Base
 
 if TYPE_CHECKING:
-    from models import VendorSearchLine, ProductOrigin
+    from models import VendorSearchLine, ProductOrigin, RewardRange
 
 
 class ParsingLine(Base):
@@ -19,6 +19,8 @@ class ParsingLine(Base):
     input_price: Mapped[float] = mapped_column(nullable=True)
     output_price: Mapped[float] = mapped_column(nullable=True)
     optional: Mapped[str] = mapped_column(nullable=True)
+    profit_range_id: Mapped[Optional[int]] = mapped_column(ForeignKey("rewardrange.id", ondelete="SET NULL"))
 
     vendor_search_line: Mapped["VendorSearchLine"] = relationship("VendorSearchLine", back_populates="parsing_lines")
     product_origin: Mapped["ProductOrigin"] = relationship("ProductOrigin", back_populates="parsing_lines")
+    reward_range: Mapped["RewardRange"] = relationship("RewardRange", back_populates="parsing_lines")

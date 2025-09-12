@@ -62,8 +62,14 @@ async def fetch_previous_parsing_results(data: ParsingRequest, deps: AppDependen
                       sync_features=data.sync_features)
     await build_with_preview(session=deps.session, data_lines=parsed_lines, s3_client=deps.s3_client)
 
+    profit_range_ids = {line.profit_range_id for line in parsed_lines}
+    if len(profit_range_ids) == 1 and None not in profit_range_ids:
+        profit_range_id = profit_range_ids.pop()
+    else:
+        profit_range_id = None
+
     return ParsingResultOut(
-        dt_parsed=vsl.dt_parsed, profit_range_id=vsl.profit_range_id, is_ok=True, parsing_result=parsed_lines)
+        dt_parsed=vsl.dt_parsed, profit_range_id=profit_range_id, is_ok=True, parsing_result=parsed_lines)
 
 
 @parsing_router.post("/previous_parsing_results")
@@ -186,16 +192,17 @@ async def recalculate_reward(recalc_req: RecalcPricesRequest, deps: AppDependenc
     for line in lines.scalars().all():
         inp = line.input_price or 0
         line.output_price = cost_process(inp, ranges.ranges)
-    vsl.profit_range_id = recalc_req.range_id
+        line.profit_range_id = recalc_req.range_id
     await deps.session.commit()
     parsed_lines: List[ParsingLinesIn] = await _get_parsing_result(session=deps.session, vsl_id=recalc_req.vsl_id)
     await append_info(session=deps.session,
-                      data_lines=parsed_lines, redis=deps.redis, channel='',
+                      data_lines=parsed_lines,
+                      redis=deps.redis, channel='',
                       sync_features=False)
     await build_with_preview(session=deps.session, data_lines=parsed_lines, s3_client=deps.s3_client)
 
     return ParsingResultOut(
-        dt_parsed=vsl.dt_parsed, profit_range_id=vsl.profit_range_id, is_ok=True, parsing_result=parsed_lines)
+        dt_parsed=vsl.dt_parsed, profit_range_id=recalc_req.range_id, is_ok=True, parsing_result=parsed_lines)
 
 
 @parsing_router.get("/fetch_images_62701/{origin}")

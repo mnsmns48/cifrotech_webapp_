@@ -15,6 +15,7 @@ from api_service.s3_helper import build_with_preview
 
 from api_service.schemas import ParsingRequest, ParsingLinesIn
 from api_service.schemas.parsing_schemas import SourceContext, ParsingResultOut
+from api_service.schemas.range_reward_schemas import RewardRangeResponseSchema
 from api_service.utils import normalize_origin
 from config import BASE_DIR
 
@@ -33,7 +34,7 @@ async def parsing_core(redis: Redis, session: AsyncSession, s3_client: AioBaseCl
     await pars_obj.run()
     try:
         unclean_parsed_lines: List[ParsingLinesIn] = await pars_obj.get_parsed_lines()
-        ranges = await get_rr_obj(session=session)
+        ranges: RewardRangeResponseSchema = await get_rr_obj(session=session)
         with_added_cost = cost_value_update(items=unclean_parsed_lines, ranges=ranges.ranges)
         stored_items = await store_parsing_lines(
             session=session, items=with_added_cost, vsl_id=context.vsl.id, profit_range_id=ranges.id

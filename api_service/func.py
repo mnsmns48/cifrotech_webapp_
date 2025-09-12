@@ -2,7 +2,7 @@ from collections import defaultdict
 from typing import Dict, List, Optional
 
 from api_service.schemas import ParsingToDiffData, HubToDiffData, ParsingHubDiffOut
-from api_service.schemas.hub_schemas import ParsingHubDiffItem
+from api_service.schemas.comparison_schemas import ParsingHubDiffItem
 from var_types import PriceDiffStatus
 
 

@@ -32,7 +32,6 @@ class VendorSearchLine(Base):
     title: Mapped[str] = mapped_column(nullable=False)
     url: Mapped[str] = mapped_column(nullable=False)
     dt_parsed: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
-    profit_range_id: Mapped[int] = mapped_column(ForeignKey("rewardrange.id", ondelete="SET NULL"), nullable=True)
 
     parsing_lines: Mapped["ParsingLine"] = relationship("ParsingLine", back_populates="vendor_search_line")
     vendor: Mapped["Vendor"] = relationship("Vendor", back_populates="search_lines")
@@ -40,11 +39,15 @@ class VendorSearchLine(Base):
 
 
 class RewardRange(Base):
+    __tablename__ = "rewardrange"
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, )
     title: Mapped[str] = mapped_column(nullable=False)
     is_default: Mapped[bool] = mapped_column(nullable=False)
     lines: Mapped[list["RewardRangeLine"]] = relationship("RewardRangeLine",
                                                           back_populates="range", cascade="all, delete")
+
+    parsing_lines: Mapped[list["ParsingLine"]] = relationship("ParsingLine", back_populates="reward_range")
+    stocks: Mapped[list["HUbStock"]] = relationship("HUbStock", back_populates="reward_range")
 
 
 class RewardRangeLine(Base):

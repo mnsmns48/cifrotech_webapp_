@@ -1,9 +1,8 @@
-from api_service.schemas.hub_schemas import (HubMenuLevelSchema, RenameRequest, \
-                                             HubLoadingData, HubItemChangeScheme, OriginsPayload, ComparisonInScheme,
-                                             ParsingLine, HubPositionPatchOut, \
-                                             AddHubLevelScheme, AddHubLevelOutScheme, HubPositionPatch,
-                                             StockHubItemResult, ConsentProcessScheme,
-                                             ComparisonOutScheme, ParsingHubDiffOut, HubLevelPath, HubToDiffData)
+from api_service.schemas.hub_schemas import HubMenuLevelSchema, RenameRequest, HubPositionPatchOut, AddHubLevelScheme, \
+    AddHubLevelOutScheme, HubPositionPatch, HubLevelPath
+from api_service.schemas.hubstock_schemas import HubLoadingData, StockHubItemResult, HubItemChangeScheme, OriginsPayload
+from api_service.schemas.comparison_schemas import ComparisonInScheme, ComparisonOutScheme, ParsingLine, \
+    ConsentProcessScheme, ParsingHubDiffOut, HubToDiffData, RecalcScheme
 from api_service.schemas.parsing_schemas import ParsingRequest, ParsingLinesIn, ParsingToDiffData
 from api_service.schemas.product_schemas import ProductOriginUpdate, ProductDependencyUpdate, ProductResponse, \
     RecalcPricesRequest, RecalcPricesResponse
@@ -19,8 +18,8 @@ __all__ += ["ParsingRequest", "ParsingLinesIn", "ParsingToDiffData"]
 __all__ += ["RewardRangeLineSchema", "RewardRangeSchema"]
 __all__ += [
     "ProductOriginUpdate", "ProductDependencyUpdate", "ProductResponse", "RecalcPricesRequest", "RecalcPricesResponse"]
-__all__ += [
-    "HubMenuLevelSchema", "RenameRequest", "HubPositionPatch", "HubLoadingData",
-    "HubItemChangeScheme", "OriginsPayload", "ComparisonInScheme", "ParsingLine", "HubPositionPatchOut",
-    "HubPositionPatch", "AddHubLevelOutScheme", "AddHubLevelScheme", "StockHubItemResult", "ConsentProcessScheme",
-    "ComparisonOutScheme", "ParsingHubDiffOut", "HubLevelPath", "HubToDiffData"]
+__all__ += ["HubMenuLevelSchema", "RenameRequest", "HubPositionPatchOut", "AddHubLevelScheme", "AddHubLevelOutScheme",
+            "HubPositionPatch", "HubLevelPath"]
+__all__ += ["HubLoadingData", "StockHubItemResult", "HubItemChangeScheme", "OriginsPayload"]
+__all__ += ["ComparisonInScheme", "ComparisonOutScheme", "ParsingLine", "ConsentProcessScheme",
+            "ParsingHubDiffOut", "HubToDiffData", "RecalcScheme"]

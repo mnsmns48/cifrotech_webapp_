@@ -30,6 +30,7 @@ class ParsingLinesIn(BaseModel):
     preview: Optional[str] = None
     optional: Optional[str] = None
     features_title: Optional[list] = None
+    profit_range_id: Optional[int] = None
 
     model_config = {"from_attributes": True, "extra": "ignore"}
 

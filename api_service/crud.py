@@ -10,8 +10,9 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.api_connect import get_one_by_dtube
-from api_service.schemas import ParsingLinesIn, VSLScheme
-from api_service.schemas.hub_schemas import HubLevelPath, HubToDiffData
+from api_service.schemas import ParsingLinesIn, VSLScheme, HubToDiffData
+from api_service.schemas.hub_schemas import HubLevelPath
+from api_service.schemas.comparison_schemas import RecomputedNewPriceLines
 from api_service.schemas.parsing_schemas import SourceContext, ParsingResultOut, ParsingToDiffData
 from api_service.schemas.product_schemas import ProductOriginCreate
 from api_service.schemas.range_reward_schemas import RewardRangeResponseSchema, RewardRangeLineSchema
@@ -98,18 +99,19 @@ async def store_parsing_lines(
                               "warranty": line.warranty,
                               "input_price": line.input_price,
                               "output_price": line.output_price,
-                              "optional": line.optional})
+                              "optional": line.optional,
+                              "profit_range_id": profit_range_id})
     await session.execute(insert(ParsingLine).values(inserted_bulk))
-    vsl_stmt = (update(VendorSearchLine)
-                .where(VendorSearchLine.id == vsl_id).values(dt_parsed=datetime.now(), profit_range_id=profit_range_id))
+    vsl_stmt = update(VendorSearchLine).where(VendorSearchLine.id == vsl_id).values(dt_parsed=datetime.now())
     await session.execute(vsl_stmt)
     response: List[ParsingLinesIn] = list()
     for line in filtered:
         product_origin = existing[line.origin]
         response.append(
             line.model_copy(
-                update={"title": product_origin.title, "link": product_origin.link, "pics": product_origin.pics,
-                        "preview": product_origin.preview}))
+                update={
+                    "title": product_origin.title,
+                    "link": product_origin.link, "pics": product_origin.pics, "preview": product_origin.preview}))
     await session.flush()
     return ParsingResultOut(
         dt_parsed=datetime.now(), profit_range_id=profit_range_id, parsing_result=response, is_ok=False)
@@ -266,7 +268,8 @@ async def _get_parsing_result(session: AsyncSession, vsl_id: int) -> List[Parsin
                                               pics=origin.pics,
                                               preview=origin.preview,
                                               optional=parsing_line.optional,
-                                              features_title=None))
+                                              features_title=None,
+                                              profit_range_id=parsing_line.profit_range_id))
     return parsing_results
 
 
@@ -359,3 +362,7 @@ async def get_hub_map(session: AsyncSession, path_ids: List[int]) -> Dict[int, L
         hub_map.setdefault(path_id, []).append(row)
 
     return hub_map
+
+
+async def get_recomputed_lines(origins: List[int], session: AsyncSession) -> List[RecomputedNewPriceLines]:
+    pass

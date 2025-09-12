@@ -8,7 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from models import Base
 
 if TYPE_CHECKING:
-    from models import ProductOrigin, VendorSearchLine
+    from models import ProductOrigin, VendorSearchLine, RewardRange
 
 
 class HUbMenuLevel(Base):
@@ -38,7 +38,11 @@ class HUbStock(Base):
     output_price: Mapped[Optional[float]] = mapped_column(nullable=True)
     added_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=False), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    profit_range_id: Mapped[Optional[int]] = mapped_column(ForeignKey("rewardrange.id", ondelete="SET NULL"),
+                                                           nullable=True,
+                                                           index=True)
 
     menu_level: Mapped["HUbMenuLevel"] = relationship("HUbMenuLevel", back_populates="stocks")
     product_origin: Mapped["ProductOrigin"] = relationship("ProductOrigin", back_populates="stocks")
     search_lines: Mapped["VendorSearchLine"] = relationship("VendorSearchLine", back_populates="stocks")
+    reward_range: Mapped["RewardRange"] = relationship("RewardRange", back_populates="stocks")
