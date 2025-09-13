@@ -11,12 +11,11 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.crud import get_info_by_caching, delete_product_stock_items
-from api_service.routers import hub_router
 from api_service.s3_helper import get_s3_client, get_http_client_session, sync_images_by_origin
 
 from api_service.schemas import StockHubItemResult, HubLoadingData, HubItemChangeScheme, OriginsPayload
 from engine import db
-from models import HUbStock, ProductOrigin, VendorSearchLine
+from models import HUbStock, ProductOrigin, VendorSearchLine, RewardRange
 
 hubstock_router = APIRouter(tags=['Hub Stock'])
 
@@ -24,17 +23,23 @@ hubstock_router = APIRouter(tags=['Hub Stock'])
 @hubstock_router.get("/fetch_stock_hub_items/{path_id}", response_model=List[StockHubItemResult])
 async def fetch_stock_hub_items(
         path_id: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
-    stmt = (select(HUbStock, ProductOrigin).join(ProductOrigin, HUbStock.origin == ProductOrigin.origin)
-            .where(HUbStock.path_id == path_id).order_by(HUbStock.output_price))
+    stmt = (
+        select(HUbStock, ProductOrigin, RewardRange)
+        .join(ProductOrigin, HUbStock.origin == ProductOrigin.origin)
+        .outerjoin(RewardRange, HUbStock.profit_range_id == RewardRange.id)
+        .where(HUbStock.path_id == path_id)
+        .order_by(HUbStock.output_price)
+    )
+
     result = await session.execute(stmt)
     rows = result.all()
     if not rows:
         return []
 
-    origin_ids = [stock.origin for stock, _ in rows]
+    origin_ids = [stock.origin for stock, _, _ in rows]
     features_map = await get_info_by_caching(session, origin_ids)
     items = list()
-    for stock, origin in rows:
+    for stock, origin, reward_range in rows:
         items.append(
             StockHubItemResult(origin=stock.origin,
                                title=origin.title,
@@ -44,7 +49,7 @@ async def fetch_stock_hub_items(
                                updated_at=stock.updated_at,
                                dt_parsed=stock.updated_at,
                                features_title=features_map.get(stock.origin, []),
-                               profit_range_id=stock.profit_range_id)
+                               profit_range=reward_range)
         )
     return items
 
@@ -118,7 +123,7 @@ async def rename_or_change_price_stock_item(patch: HubItemChangeScheme,
             "updated_at": stock.updated_at if price_changed else None}
 
 
-@hub_router.delete("/delete_stock_items")
+@hubstock_router.delete("/delete_stock_items")
 async def delete_stock_items_endpoint(payload: OriginsPayload,
                                       session: AsyncSession = Depends(db.scoped_session_dependency)) -> bool:
     try:

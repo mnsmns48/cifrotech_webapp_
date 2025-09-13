@@ -3,6 +3,8 @@ from typing import Optional, List
 
 from pydantic import BaseModel
 
+from api_service.schemas.range_reward_schemas import RewardRangeBaseSchema
+
 
 class StockInHubItem(BaseModel):
     origin: int
@@ -10,7 +12,7 @@ class StockInHubItem(BaseModel):
     warranty: Optional[str]
     input_price: float
     output_price: float
-    profit_range_id: Optional[int]
+    profit_range: Optional[RewardRangeBaseSchema]
 
     model_config = {"from_attributes": True}
 
@@ -31,7 +33,7 @@ class StockHubItemResult(BaseModel):
     updated_at: datetime
     dt_parsed: datetime
     features_title: list
-    profit_range_id: Optional[int]
+    profit_range: Optional[RewardRangeBaseSchema]
 
 
 class HubItemChangeScheme(BaseModel):

@@ -16,12 +16,6 @@ class RewardRangeSchema(BaseModel):
     title: str
 
 
-class RewardRangeResponseSchema(BaseModel):
-    id: int
-    title: str
-    ranges: List[RewardRangeLineSchema]
-
-
 class RewardRangeAddLineSchema(BaseModel):
     range_id: int
     line_from: int
@@ -30,3 +24,13 @@ class RewardRangeAddLineSchema(BaseModel):
     reward: int
 
     model_config = {"from_attributes": True}
+
+
+class RewardRangeBaseSchema(BaseModel):
+    id: int
+    title: str
+    model_config = {"from_attributes": True}
+
+
+class RewardRangeResponseSchema(RewardRangeBaseSchema):
+    ranges: List[RewardRangeLineSchema]
