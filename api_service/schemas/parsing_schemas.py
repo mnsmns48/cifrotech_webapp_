@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, conint, confloat
 
+from api_service.schemas.range_reward_schemas import RewardRangeBaseSchema
 from models import Vendor, VendorSearchLine
 
 
@@ -30,7 +31,7 @@ class ParsingLinesIn(BaseModel):
     preview: Optional[str] = None
     optional: Optional[str] = None
     features_title: Optional[list] = None
-    profit_range_id: Optional[int] = None
+    profit_range: Optional[RewardRangeBaseSchema] = None
 
     model_config = {"from_attributes": True, "extra": "ignore"}
 

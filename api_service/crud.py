@@ -1,4 +1,3 @@
-import asyncio
 from collections import defaultdict
 from datetime import datetime
 from typing import List, Optional, Sequence, Dict
@@ -9,6 +8,7 @@ from redis.asyncio import Redis
 from sqlalchemy import delete, update, and_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from api_service.api_connect import get_one_by_dtube
 from api_service.schemas import ParsingLinesIn, VSLScheme, HubToDiffData
@@ -16,7 +16,8 @@ from api_service.schemas.hub_schemas import HubLevelPath
 from api_service.schemas.comparison_schemas import RecomputedNewPriceLines
 from api_service.schemas.parsing_schemas import SourceContext, ParsingResultOut, ParsingToDiffData
 from api_service.schemas.product_schemas import ProductOriginCreate
-from api_service.schemas.range_reward_schemas import RewardRangeResponseSchema, RewardRangeLineSchema
+from api_service.schemas.range_reward_schemas import RewardRangeResponseSchema, RewardRangeLineSchema, \
+    RewardRangeBaseSchema
 from api_service.utils import normalize_origin
 from models import Vendor, ParsingLine, ProductOrigin, ProductType, ProductBrand, ProductFeaturesGlobal, \
     ProductFeaturesLink, HUbStock, HUbMenuLevel
@@ -153,29 +154,22 @@ async def append_info(session: AsyncSession,
 
 
 async def get_rr_obj(session: AsyncSession, range_id: Optional[int] = None) -> Optional[RewardRangeResponseSchema]:
-    if range_id is None:
-        default_range_query = select(RewardRange.id, RewardRange.title).where(RewardRange.is_default.is_(True))
-        default_result = await session.execute(default_range_query)
-        default_row = default_result.first()
-        if not default_row:
-            return None
-        range_id = default_row.id
-        title = default_row.title
-    else:
-        range_query = select(RewardRange.id, RewardRange.title).where(RewardRange.id == range_id)
-        range_result = await session.execute(range_query)
-        range_row = range_result.first()
-        if not range_row:
-            return None
-        title = range_row.title
-    lines_query = (select(
-        RewardRangeLine.line_from, RewardRangeLine.line_to, RewardRangeLine.is_percent, RewardRangeLine.reward)
-                   .where(RewardRangeLine.range_id == range_id))
+    range_query = (select(RewardRange.id, RewardRange.title)
+                   .where(RewardRange.id == range_id if range_id is not None else RewardRange.is_default.is_(True)))
+    range_result = await session.execute(range_query)
+    range_row = range_result.first()
+    if not range_row:
+        return None
+    range_id, title = range_row
+    lines_query = select(RewardRangeLine.line_from,
+                         RewardRangeLine.line_to,
+                         RewardRangeLine.is_percent,
+                         RewardRangeLine.reward).where(RewardRangeLine.range_id == range_id)
     lines_result = await session.execute(lines_query)
-    lines = [
-        RewardRangeLineSchema(line_from=row[0], line_to=row[1], is_percent=row[2], reward=row[3])
-        for row in lines_result.all()
-    ]
+    lines = list()
+    for row in lines_result.all():
+        lines.append(RewardRangeLineSchema(line_from=row[0], line_to=row[1], is_percent=row[2], reward=row[3]))
+
     return RewardRangeResponseSchema(id=range_id, title=title, ranges=lines)
 
 
@@ -256,10 +250,16 @@ async def _get_parsing_result(session: AsyncSession, vsl_id: int) -> List[Parsin
     stmt = (
         select(ParsingLine, ProductOrigin)
         .join(ProductOrigin, ParsingLine.origin == ProductOrigin.origin)
+        .options(selectinload(ParsingLine.reward_range))
         .where(
-            and_(ParsingLine.vsl_id == vsl_id, ProductOrigin.is_deleted.is_(False))
-        ).order_by(ParsingLine.input_price)
+            and_(
+                ParsingLine.vsl_id == vsl_id,
+                ProductOrigin.is_deleted.is_(False)
+            )
+        )
+        .order_by(ParsingLine.input_price)
     )
+
     result = await session.execute(stmt)
     rows = result.all()
     if not rows:
@@ -267,18 +267,29 @@ async def _get_parsing_result(session: AsyncSession, vsl_id: int) -> List[Parsin
 
     parsing_results: List[ParsingLinesIn] = list()
     for parsing_line, origin in rows:
-        parsing_results.append(ParsingLinesIn(origin=parsing_line.origin,
-                                              title=origin.title,
-                                              link=origin.link,
-                                              shipment=parsing_line.shipment,
-                                              warranty=parsing_line.warranty,
-                                              input_price=parsing_line.input_price,
-                                              output_price=parsing_line.output_price,
-                                              pics=origin.pics,
-                                              preview=origin.preview,
-                                              optional=parsing_line.optional,
-                                              features_title=None,
-                                              profit_range_id=parsing_line.profit_range_id))
+        reward_range_obj = parsing_line.reward_range
+        profit_range_obj = (
+            RewardRangeBaseSchema.model_validate(reward_range_obj)
+            if reward_range_obj else None
+        )
+
+        parsing_results.append(
+            ParsingLinesIn(
+                origin=parsing_line.origin,
+                title=origin.title,
+                link=origin.link,
+                shipment=parsing_line.shipment,
+                warranty=parsing_line.warranty,
+                input_price=parsing_line.input_price,
+                output_price=parsing_line.output_price,
+                pics=origin.pics,
+                preview=origin.preview,
+                optional=parsing_line.optional,
+                features_title=None,
+                profit_range=profit_range_obj
+            )
+        )
+
     return parsing_results
 
 

@@ -57,12 +57,11 @@ async def fetch_previous_parsing_results(data: ParsingRequest, deps: AppDependen
         raise ValueError(f"Ссылка с id: {data.vsl_id} не найдена")
 
     parsed_lines: List[ParsingLinesIn] = await _get_parsing_result(session=deps.session, vsl_id=data.vsl_id)
-    await append_info(session=deps.session,
-                      data_lines=parsed_lines, redis=deps.redis, channel=data.progress,
-                      sync_features=data.sync_features)
+    await append_info(session=deps.session, data_lines=parsed_lines, redis=deps.redis,
+                      channel=data.progress, sync_features=data.sync_features)
     await build_with_preview(session=deps.session, data_lines=parsed_lines, s3_client=deps.s3_client)
 
-    profit_range_ids = {line.profit_range_id for line in parsed_lines}
+    profit_range_ids = {line.profit_range.id for line in parsed_lines}
     if len(profit_range_ids) == 1 and None not in profit_range_ids:
         profit_range_id = profit_range_ids.pop()
     else:
