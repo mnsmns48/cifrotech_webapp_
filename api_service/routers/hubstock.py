@@ -70,6 +70,8 @@ async def create_hub_loading(payload: HubLoadingData,
         item["vsl_id"] = payload.vsl_id
         item["updated_at"] = vsl.dt_parsed
         item["added_at"] = datetime.now()
+        item["profit_range_id"] = item.get("profit_range", {}).get("id")
+        item.pop("profit_range", None)
     insert_stmt = insert(HUbStock).values(hub_stock_values)
     upsert_stmt = insert_stmt.on_conflict_do_update(index_elements=["origin", "path_id"],
                                                     set_={"warranty": insert_stmt.excluded.warranty,
