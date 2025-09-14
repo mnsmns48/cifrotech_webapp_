@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import List, Optional, Sequence, Dict
 
 from aiohttp import ClientSession
+from fastapi import HTTPException
 from redis.asyncio import Redis
 from sqlalchemy import delete, update, and_
 from sqlalchemy.dialects.postgresql import insert
@@ -176,6 +177,14 @@ async def get_rr_obj(session: AsyncSession, range_id: Optional[int] = None) -> O
         for row in lines_result.all()
     ]
     return RewardRangeResponseSchema(id=range_id, title=title, ranges=lines)
+
+
+async def get_reward_range_profile(session: AsyncSession, range_id: int) -> RewardRange:
+    result = await session.execute(select(RewardRange).where(RewardRange.id == range_id))
+    reward_range = result.scalar_one_or_none()
+    if not reward_range:
+        raise HTTPException(status_code=404, detail="RewardRange не найден")
+    return reward_range
 
 
 async def get_info_by_caching(session: AsyncSession, origins: list[int]) -> dict:

@@ -36,11 +36,29 @@ class StockHubItemResult(BaseModel):
     profit_range: Optional[RewardRangeBaseSchema]
 
 
-class HubItemChangeScheme(BaseModel):
+class PriceChange(BaseModel):
     origin: int
-    title: str
     new_price: float
+
+
+class HubItemChangeRequest(BaseModel):
+    title_updates: Optional[dict[int, str]] = None
+    price_updates: Optional[list[PriceChange]] = None
+    new_profit_range_id: Optional[int] = None
 
 
 class OriginsPayload(BaseModel):
     origins: list[int]
+
+
+class ProfitRangeOut(BaseModel):
+    id: int
+    title: str
+
+
+class HubItemChangeResponse(BaseModel):
+    origin: int
+    new_title: str
+    new_price: float
+    updated_at: Optional[datetime]
+    profit_range: Optional[ProfitRangeOut]
