@@ -31,9 +31,18 @@ class StockHubItemResult(BaseModel):
     input_price: float
     output_price: float
     updated_at: datetime
-    dt_parsed: datetime
+    dt_parsed: Optional[datetime]
     features_title: list
     profit_range: Optional[RewardRangeBaseSchema]
+
+
+class OriginsPayload(BaseModel):
+    origins: list[int]
+
+
+class HubItemTitlePatch(BaseModel):
+    origin: int
+    new_title: str
 
 
 class PriceChange(BaseModel):
@@ -41,19 +50,13 @@ class PriceChange(BaseModel):
     new_price: Optional[float] = None
 
 
-class HubItemChangeRequest(BaseModel):
-    title_update: Optional[dict[int, str]] = None
-    price_update: Optional[list[PriceChange]] = None
+class HubItemsChangePriceRequest(BaseModel):
+    price_update: list[PriceChange]
     new_profit_range_id: Optional[int] = None
 
 
-class OriginsPayload(BaseModel):
-    origins: list[int]
-
-
-class HubItemChangeResponse(BaseModel):
+class HubItemsChangePriceResponse(BaseModel):
     origin: int
-    new_title: str
     new_price: float
-    updated_at: Optional[datetime]
+    updated_at: datetime
     profit_range: Optional[RewardRangeBaseSchema]

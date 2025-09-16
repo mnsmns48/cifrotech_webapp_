@@ -1,5 +1,5 @@
-from datetime import datetime, timezone
-from typing import List, Dict, Optional
+from datetime import datetime
+from typing import List
 
 from aiobotocore.client import AioBaseClient
 from aiohttp import ClientSession
@@ -11,11 +11,13 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from api_service.crud import get_info_by_caching, delete_product_stock_items, get_reward_range_profile, get_rr_obj
+from api_service.crud import get_info_by_caching, delete_product_stock_items, get_rr_obj
 from api_service.s3_helper import get_s3_client, get_http_client_session, sync_images_by_origin
 
-from api_service.schemas import StockHubItemResult, HubLoadingData, OriginsPayload, \
-    HubItemChangeRequest, HubItemChangeResponse, RewardRangeResponseSchema
+from api_service.schemas import (
+    StockHubItemResult, HubLoadingData, OriginsPayload, HubItemTitlePatch, HubItemsChangePriceRequest,
+    HubItemsChangePriceResponse, RewardRangeBaseSchema
+)
 from engine import db
 from models import HUbStock, ProductOrigin, VendorSearchLine, RewardRange
 from parsing.utils import cost_process
@@ -27,9 +29,10 @@ hubstock_router = APIRouter(tags=['Hub Stock'])
 async def fetch_stock_hub_items(
         path_id: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
     stmt = (
-        select(HUbStock, ProductOrigin, RewardRange)
+        select(HUbStock, ProductOrigin, RewardRange, VendorSearchLine)
         .join(ProductOrigin, HUbStock.origin == ProductOrigin.origin)
         .outerjoin(RewardRange, HUbStock.profit_range_id == RewardRange.id)
+        .join(VendorSearchLine, HUbStock.vsl_id == VendorSearchLine.id)
         .where(HUbStock.path_id == path_id)
         .order_by(HUbStock.output_price)
     )
@@ -39,22 +42,24 @@ async def fetch_stock_hub_items(
     if not rows:
         return []
 
-    origin_ids = [stock.origin for stock, _, _ in rows]
+    origin_ids = [stock.origin for stock, _, _, _ in rows]
     features_map = await get_info_by_caching(session, origin_ids)
-    items = list()
-    for stock, origin, reward_range in rows:
-        items.append(
-            StockHubItemResult(origin=stock.origin,
-                               title=origin.title,
-                               warranty=stock.warranty,
-                               input_price=stock.input_price,
-                               output_price=stock.output_price,
-                               updated_at=stock.updated_at,
-                               dt_parsed=stock.updated_at,
-                               features_title=features_map.get(stock.origin, []),
-                               profit_range=reward_range)
+    result = list()
+    for stock, origin, reward_range, vsl in rows:
+        result.append(
+            StockHubItemResult(
+                origin=stock.origin,
+                title=origin.title,
+                warranty=stock.warranty,
+                input_price=stock.input_price,
+                output_price=stock.output_price,
+                updated_at=stock.updated_at,
+                dt_parsed=vsl.dt_parsed,
+                features_title=features_map.get(stock.origin, []),
+                profit_range=reward_range
+            )
         )
-    return items
+    return result
 
 
 @hubstock_router.post("/load_items_in_hub")
@@ -86,97 +91,54 @@ async def create_hub_loading(payload: HubLoadingData,
     return {"status": True}
 
 
-@hubstock_router.post("/update_stock_items", response_model=List[HubItemChangeResponse])
-async def update_stock_items(
-        payload: HubItemChangeRequest, session: AsyncSession = Depends(db.scoped_session_dependency)):
-    def build_response(orig: int,
-                       prod: ProductOrigin,
-                       stck: HUbStock,
-                       upd_at: Optional[datetime],
-                       reward_range: Optional[RewardRangeResponseSchema]
-                       ) -> HubItemChangeResponse:
-        return HubItemChangeResponse(origin=orig,
-                                     new_title=str(prod.title),
-                                     new_price=stck.output_price or 0.0,
-                                     updated_at=upd_at,
-                                     profit_range=reward_range)
-
-    all_origins = set()
-    if payload.title_update:
-        all_origins.update(payload.title_update.keys())
-    if payload.price_update:
-        all_origins.update(p.origin for p in payload.price_update)
-    if not all_origins:
-        raise HTTPException(status_code=400, detail="Нет данных для изменения")
-
-    products_query = select(ProductOrigin).where(ProductOrigin.origin.in_(all_origins))
-    result_products = await session.execute(products_query)
-    products_by_origin = {p.origin: p for p in result_products.scalars().all()}
-
-    stocks_query = select(HUbStock).where(HUbStock.origin.in_(all_origins)).options(selectinload(HUbStock.reward_range))
-    result_stocks = await session.execute(stocks_query)
-    stocks_by_origin = {s.origin: s for s in result_stocks.scalars().all()}
-
-    updated_items: List[HubItemChangeResponse] = list()
-
-    if payload.title_update:
-        for origin, new_title in payload.title_update.items():
-            product = products_by_origin.get(origin)
-            stock = stocks_by_origin.get(origin)
-            if not product or not stock:
-                continue
-
-            if product.title.strip() != new_title.strip():
-                product.title = new_title.strip()
-                session.add(product)
-
-            updated_items.append(build_response(origin, product, stock, None, stock.reward_range))
-
-    if payload.price_update:
-        requires_profile = any(p.new_price is None for p in payload.price_update)
-        reward_range_obj = None
-        if requires_profile:
-            if payload.new_profit_range_id is None:
-                raise HTTPException(status_code=400, detail="Для расчёта по профилю необходимо указать profit_range_id")
-            reward_range_obj = await get_rr_obj(session, payload.new_profit_range_id)
-            if not reward_range_obj:
-                raise HTTPException(status_code=404, detail="Профиль не найден")
-
-        for update in payload.price_update:
-            origin = update.origin
-            new_price = update.new_price
-
-            stock = stocks_by_origin.get(origin)
-            product = products_by_origin.get(origin)
-            if not stock or not product:
-                continue
-
-            updated_at = None
-            applied_range = None
-
-            if new_price is not None:
-                if stock.output_price != new_price:
-                    stock.output_price = new_price
-                    stock.updated_at = datetime.now()
-                    stock.profit_range_id = None
-                    session.add(stock)
-                applied_range = None
-
-            elif reward_range_obj:
-                input_price = stock.input_price
-                calculated_price = cost_process(input_price, reward_range_obj.ranges)
-                if stock.output_price != calculated_price:
-                    stock.output_price = calculated_price
-                    stock.updated_at = datetime.now()
-                    stock.profit_range_id = reward_range_obj.id
-                    session.add(stock)
-                applied_range = reward_range_obj
-
-            updated_items.append(build_response(origin, product, stock, updated_at, applied_range))
+@hubstock_router.patch("/rename_hubstock_obj_title", response_model=HubItemTitlePatch)
+async def rename_hubstock_obj_title(
+        patch_data: HubItemTitlePatch, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    origin = patch_data.origin
+    query = select(ProductOrigin).where(ProductOrigin.origin == origin)
+    execute = await session.execute(query)
+    obj = execute.scalars().first()
+    if not obj:
+        raise HTTPException(status_code=404, detail="Такого товара нет")
+    obj.title = patch_data.new_title
+    session.add(obj)
     await session.commit()
-    for line in updated_items:
-        print(line)
-    return updated_items
+    return patch_data
+
+
+@hubstock_router.patch("/calc_hubstock_items", response_model=List[HubItemsChangePriceResponse])
+async def recalc_hubstock_items(
+        patch_data: HubItemsChangePriceRequest, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    reward_range_obj, profit_range = None, None
+    if patch_data.new_profit_range_id:
+        reward_range_obj = await get_rr_obj(session, patch_data.new_profit_range_id)
+        profit_range = RewardRangeBaseSchema(id=reward_range_obj.id, title=reward_range_obj.title)
+    origin_price_map = dict()
+    for line in patch_data.price_update:
+        origin_price_map[line.origin] = line.new_price
+    query = (select(HUbStock).where(HUbStock.origin.in_(origin_price_map.keys()))
+             .options(selectinload(HUbStock.reward_range)))
+    execute = await session.execute(query)
+    rows = execute.scalars().all()
+    result: List[HubItemsChangePriceResponse] = list()
+    dt_now_obj = datetime.now()
+    for row in rows:
+        new_price = origin_price_map.get(row.origin)
+        if reward_range_obj:
+            new_price = cost_process(row.input_price, reward_range_obj.ranges)
+            row.output_price = new_price
+            row.profit_range_id = reward_range_obj.id
+        else:
+            row.output_price = new_price
+            row.profit_range_id = None
+        row.updated_at = dt_now_obj
+        result.append(HubItemsChangePriceResponse(origin=row.origin,
+                                                  new_price=new_price,
+                                                  updated_at=dt_now_obj,
+                                                  profit_range=profit_range))
+        session.add_all(rows)
+        await session.commit()
+        return result
 
 
 @hubstock_router.delete("/delete_stock_items")
