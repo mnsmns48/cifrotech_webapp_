@@ -18,6 +18,7 @@ from api_service.schemas import StockHubItemResult, HubLoadingData, OriginsPaylo
     HubItemChangeRequest, HubItemChangeResponse, RewardRangeResponseSchema
 from engine import db
 from models import HUbStock, ProductOrigin, VendorSearchLine, RewardRange
+from parsing.utils import cost_process
 
 hubstock_router = APIRouter(tags=['Hub Stock'])
 
@@ -87,17 +88,18 @@ async def create_hub_loading(payload: HubLoadingData,
 
 @hubstock_router.post("/update_stock_items", response_model=List[HubItemChangeResponse])
 async def update_stock_items(
-        payload: HubItemChangeRequest,
-        session: AsyncSession = Depends(db.scoped_session_dependency)):
-    def build_response(
-            orig: int, prod: ProductOrigin,
-            stck: HUbStock, upd_at: Optional[datetime],
-            reward_range: Optional[RewardRangeResponseSchema]) -> HubItemChangeResponse:
-        return (
-            HubItemChangeResponse(origin=orig, new_title=str(prod.title),
-                                  new_price=stck.output_price or 0.0,
-                                  updated_at=upd_at,
-                                  profit_range=reward_range))
+        payload: HubItemChangeRequest, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    def build_response(orig: int,
+                       prod: ProductOrigin,
+                       stck: HUbStock,
+                       upd_at: Optional[datetime],
+                       reward_range: Optional[RewardRangeResponseSchema]
+                       ) -> HubItemChangeResponse:
+        return HubItemChangeResponse(origin=orig,
+                                     new_title=str(prod.title),
+                                     new_price=stck.output_price or 0.0,
+                                     updated_at=upd_at,
+                                     profit_range=reward_range)
 
     all_origins = set()
     if payload.title_update:
@@ -109,29 +111,11 @@ async def update_stock_items(
 
     products_query = select(ProductOrigin).where(ProductOrigin.origin.in_(all_origins))
     result_products = await session.execute(products_query)
-    product_rows = result_products.scalars().all()
+    products_by_origin = {p.origin: p for p in result_products.scalars().all()}
 
-    products_by_origin: Dict[int, ProductOrigin] = dict()
-    for product in product_rows:
-        origin_key = product.origin
-        products_by_origin[origin_key] = product
-
-    stocks_query = (select(HUbStock)
-                    .where(HUbStock.origin.in_(all_origins)).options(selectinload(HUbStock.reward_range)))
+    stocks_query = select(HUbStock).where(HUbStock.origin.in_(all_origins)).options(selectinload(HUbStock.reward_range))
     result_stocks = await session.execute(stocks_query)
-    stock_rows = result_stocks.scalars().all()
-
-    stocks_by_origin: Dict[int, HUbStock] = dict()
-    for stock in stock_rows:
-        origin_key = stock.origin
-        stocks_by_origin[origin_key] = stock
-
-    reward_range_obj = None
-    if payload.price_update and len(payload.price_update) > 1:
-        if payload.new_profit_range_id is None:
-            raise HTTPException(status_code=400,
-                                detail="При массовом изменении цены необходимо указать profit_range_id")
-        reward_range_obj = await get_reward_range_profile(session, payload.new_profit_range_id)
+    stocks_by_origin = {s.origin: s for s in result_stocks.scalars().all()}
 
     updated_items: List[HubItemChangeResponse] = list()
 
@@ -149,6 +133,15 @@ async def update_stock_items(
             updated_items.append(build_response(origin, product, stock, None, stock.reward_range))
 
     if payload.price_update:
+        requires_profile = any(p.new_price is None for p in payload.price_update)
+        reward_range_obj = None
+        if requires_profile:
+            if payload.new_profit_range_id is None:
+                raise HTTPException(status_code=400, detail="Для расчёта по профилю необходимо указать profit_range_id")
+            reward_range_obj = await get_rr_obj(session, payload.new_profit_range_id)
+            if not reward_range_obj:
+                raise HTTPException(status_code=404, detail="Профиль не найден")
+
         for update in payload.price_update:
             origin = update.origin
             new_price = update.new_price
@@ -159,20 +152,30 @@ async def update_stock_items(
                 continue
 
             updated_at = None
-            if stock.output_price != new_price:
-                stock.output_price = new_price
-                stock.updated_at = updated_at = datetime.now(timezone.utc)
-                stock.profit_range_id = reward_range_obj.id if reward_range_obj else None
-                session.add(stock)
+            applied_range = None
 
-            reward_range_for_response = reward_range_obj
-            range_id = getattr(stock, "reward_range_id", None)
-            if not reward_range_for_response and range_id:
-                reward_range_for_response = await get_rr_obj(session, range_id)
+            if new_price is not None:
+                if stock.output_price != new_price:
+                    stock.output_price = new_price
+                    stock.updated_at = datetime.now()
+                    stock.profit_range_id = None
+                    session.add(stock)
+                applied_range = None
 
-            updated_items.append(build_response(origin, product, stock, updated_at, reward_range_for_response))
+            elif reward_range_obj:
+                input_price = stock.input_price
+                calculated_price = cost_process(input_price, reward_range_obj.ranges)
+                if stock.output_price != calculated_price:
+                    stock.output_price = calculated_price
+                    stock.updated_at = datetime.now()
+                    stock.profit_range_id = reward_range_obj.id
+                    session.add(stock)
+                applied_range = reward_range_obj
 
+            updated_items.append(build_response(origin, product, stock, updated_at, applied_range))
     await session.commit()
+    for line in updated_items:
+        print(line)
     return updated_items
 
 

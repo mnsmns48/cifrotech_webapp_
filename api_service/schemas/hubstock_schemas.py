@@ -38,7 +38,7 @@ class StockHubItemResult(BaseModel):
 
 class PriceChange(BaseModel):
     origin: int
-    new_price: float
+    new_price: Optional[float] = None
 
 
 class HubItemChangeRequest(BaseModel):
