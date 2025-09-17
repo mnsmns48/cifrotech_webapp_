@@ -4,10 +4,11 @@ from api_service.schemas.hubstock_schemas import (HubLoadingData, StockHubItemRe
                                                   HubItemTitlePatch, HubItemsChangePriceRequest,
                                                   HubItemsChangePriceResponse)
 from api_service.schemas.comparison_schemas import ComparisonInScheme, ComparisonOutScheme, ParsingLine, \
-    ConsentProcessScheme, ParsingHubDiffOut, HubToDiffData, RecalcScheme
-from api_service.schemas.parsing_schemas import ParsingRequest, ParsingLinesIn, ParsingToDiffData
+    ConsentProcessScheme, ParsingHubDiffOut, HubToDiffData, RecalcScheme, RecomputedResult, RecomputedNewPriceLines
+from api_service.schemas.parsing_schemas import ParsingRequest, ParsingLinesIn, ParsingToDiffData, SourceContext, \
+    ParsingResultOut
 from api_service.schemas.product_schemas import ProductOriginUpdate, ProductDependencyUpdate, ProductResponse, \
-    RecalcPricesRequest, RecalcPricesResponse
+    RecalcPricesRequest, RecalcPricesResponse, ProductOriginCreate
 from api_service.schemas.range_reward_schemas import RewardRangeLineSchema, RewardRangeSchema, \
     RewardRangeResponseSchema, RewardRangeBaseSchema
 from api_service.schemas.vsl_schemas import VSLScheme
@@ -17,10 +18,11 @@ __all__ = list()
 
 __all__ += ["VendorSchema"]
 __all__ += ["VSLScheme"]
-__all__ += ["ParsingRequest", "ParsingLinesIn", "ParsingToDiffData"]
+__all__ += ["ParsingRequest", "ParsingLinesIn", "ParsingToDiffData", "SourceContext", "ParsingResultOut"]
 __all__ += ["RewardRangeLineSchema", "RewardRangeSchema", "RewardRangeResponseSchema", "RewardRangeBaseSchema"]
 __all__ += [
-    "ProductOriginUpdate", "ProductDependencyUpdate", "ProductResponse", "RecalcPricesRequest", "RecalcPricesResponse"]
+    "ProductOriginUpdate", "ProductDependencyUpdate", "ProductResponse", "RecalcPricesRequest", "RecalcPricesResponse",
+    "ProductOriginCreate"]
 
 __all__ += ["HubMenuLevelSchema", "RenameRequest", "HubPositionPatchOut", "AddHubLevelScheme", "AddHubLevelOutScheme",
             "HubPositionPatch", "HubLevelPath"]
@@ -30,4 +32,4 @@ __all__ += [
     "HubItemsChangePriceResponse"]
 
 __all__ += ["ComparisonInScheme", "ComparisonOutScheme", "ParsingLine", "ConsentProcessScheme",
-            "ParsingHubDiffOut", "HubToDiffData", "RecalcScheme"]
+            "ParsingHubDiffOut", "HubToDiffData", "RecalcScheme", "RecomputedResult", "RecomputedNewPriceLines"]

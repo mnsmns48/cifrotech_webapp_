@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional, List
 
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, root_validator, model_validator
 
 from api_service.schemas.vsl_schemas import VSLScheme
 from api_service.schemas.hub_schemas import HubLevelPath
@@ -80,12 +80,25 @@ class HubToDiffData(BaseModel):
 
 
 class RecalcScheme(BaseModel):
-    path_ids: List[int]
-    origins: Optional[List[int]]
+    path_ids: Optional[List[int]] = None
+    origins: Optional[List[int]] = None
+
+    @model_validator(mode="after")
+    def validate_exclusive_fields(self) -> "RecalcScheme":
+        if bool(self.path_ids) == bool(self.origins):
+            raise ValueError("Нужно передать либо список path_ids, либо список origins")
+        return self
 
 
 class RecomputedNewPriceLines(BaseModel):
     origin: int
     title: str
-    old_price: float
-    new_price: float
+    input_parsing_price: float
+    output_parsing_price: float
+    output_stock_price: float
+
+
+class RecomputedResult(BaseModel):
+    path_id: int
+    label: str
+    recomputed_items: Optional[List[RecomputedNewPriceLines]]

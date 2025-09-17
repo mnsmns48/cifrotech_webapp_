@@ -61,11 +61,18 @@ async def fetch_previous_parsing_results(data: ParsingRequest, deps: AppDependen
                       channel=data.progress, sync_features=data.sync_features)
     await build_with_preview(session=deps.session, data_lines=parsed_lines, s3_client=deps.s3_client)
 
-    profit_range_ids = {line.profit_range.id for line in parsed_lines}
-    if len(profit_range_ids) == 1 and None not in profit_range_ids:
-        profit_range_id = profit_range_ids.pop()
-    else:
-        profit_range_id = None
+    first_id, all_same = None, True
+    for line in parsed_lines:
+        if line.profit_range is None:
+            all_same = False
+            break
+        if first_id is None:
+            first_id = line.profit_range.id
+        elif line.profit_range.id != first_id:
+            all_same = False
+            break
+
+    profit_range_id = first_id if all_same else None
 
     return ParsingResultOut(
         dt_parsed=vsl.dt_parsed, profit_range_id=profit_range_id, is_ok=True, parsing_result=parsed_lines)

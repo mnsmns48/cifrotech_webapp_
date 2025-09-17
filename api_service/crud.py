@@ -1,6 +1,6 @@
 from collections import defaultdict
 from datetime import datetime
-from typing import List, Optional, Sequence, Dict
+from typing import List, Optional, Sequence, Dict, Union, Any
 
 from aiohttp import ClientSession
 from fastapi import HTTPException
@@ -11,13 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from api_service.api_connect import get_one_by_dtube
-from api_service.schemas import ParsingLinesIn, VSLScheme, HubToDiffData
-from api_service.schemas.hub_schemas import HubLevelPath
-from api_service.schemas.comparison_schemas import RecomputedNewPriceLines
-from api_service.schemas.parsing_schemas import SourceContext, ParsingResultOut, ParsingToDiffData
-from api_service.schemas.product_schemas import ProductOriginCreate
-from api_service.schemas.range_reward_schemas import RewardRangeResponseSchema, RewardRangeLineSchema, \
-    RewardRangeBaseSchema
+from api_service.schemas import ParsingLinesIn, VSLScheme, HubToDiffData, HubLevelPath, RecomputedNewPriceLines, \
+    RecomputedResult, SourceContext, ParsingResultOut, ParsingToDiffData, ProductOriginCreate, \
+    RewardRangeResponseSchema, RewardRangeLineSchema, RewardRangeBaseSchema
+
 from api_service.utils import normalize_origin
 from models import Vendor, ParsingLine, ProductOrigin, ProductType, ProductBrand, ProductFeaturesGlobal, \
     ProductFeaturesLink, HUbStock, HUbMenuLevel
@@ -384,5 +381,76 @@ async def get_hub_map(session: AsyncSession, path_ids: List[int]) -> Dict[int, L
     return hub_map
 
 
-async def get_recomputed_lines(origins: List[int], session: AsyncSession) -> List[RecomputedNewPriceLines]:
-    pass
+async def fetch_hubstock_items(session: AsyncSession, origins: List[int]) -> List[HUbStock]:
+    query = select(HUbStock).where(HUbStock.origin.in_(origins)).options(selectinload(HUbStock.reward_range))
+    fetch = await session.execute(query)
+    result = fetch.scalars().all()
+    return list(result)
+
+
+async def update_parsing_line_prices(session: AsyncSession,
+                                     updates: Dict[int, Dict[str, Union[float, Optional[int]]]]) -> None:
+    query = select(ParsingLine).where(ParsingLine.origin.in_(updates.keys()))
+    result = await session.execute(query)
+    rows = result.scalars().all()
+
+    for row in rows:
+        update_data = updates.get(row.origin)
+        if update_data:
+            row.output_price = update_data["new_price"]
+            row.profit_range_id = update_data.get("profit_range_id")
+
+    session.add_all(rows)
+    await session.flush()
+
+
+async def get_recomputed_lines(session: AsyncSession, origins: List[int]) -> List[RecomputedResult]:
+    hubstock_query = select(HUbStock).where(HUbStock.origin.in_(origins)).options(
+        selectinload(HUbStock.product_origin), selectinload(HUbStock.menu_level))
+    hubstock_result = await session.execute(hubstock_query)
+    hubstock_rows = hubstock_result.scalars().all()
+    parsing_query = select(ParsingLine).where(ParsingLine.origin.in_(origins))
+    parsing_result = await session.execute(parsing_query)
+    parsing_rows = parsing_result.scalars().all()
+    parsing_price_map = {row.origin:
+                             {'output_price': row.output_price,
+                              'input_price': row.input_price} for row in parsing_rows}
+    grouped_result = defaultdict(list)
+    path_labels = dict()
+
+    for stock in hubstock_rows:
+        input_parsing_price = parsing_price_map.get(stock.origin, {}).get('input_price')
+        output_parsing_price = parsing_price_map.get(stock.origin, {}).get('output_price')
+        if not output_parsing_price or not input_parsing_price:
+            continue
+        if stock.output_price != output_parsing_price:
+            path_id = stock.path_id
+            label = stock.menu_level.label if stock.menu_level else "unknown"
+            path_labels[path_id] = label
+            grouped_result[path_id].append(
+                RecomputedNewPriceLines(origin=stock.origin,
+                                        title=stock.product_origin.title,
+                                        input_parsing_price=input_parsing_price,
+                                        output_parsing_price=output_parsing_price,
+                                        output_stock_price=stock.output_price))
+    output: List[RecomputedResult] = list()
+    for path_id, items in grouped_result.items():
+        output.append(RecomputedResult(path_id=path_id, label=path_labels.get(path_id), recomputed_items=items))
+    return output
+
+
+async def update_hubstock_prices(price_map: Dict[int, Dict[str, float]], session: AsyncSession):
+    now = datetime.now()
+    origins = list(price_map.keys())
+    stmt = select(HUbStock).where(HUbStock.origin.in_(origins))
+    result = await session.execute(stmt)
+    stocks = result.scalars().all()
+    for stock in stocks:
+        input_price = price_map.get(stock.origin, {}).get('input_price')
+        output_price = price_map.get(stock.origin, {}).get('output_price')
+        if input_price and output_price and stock.output_price != output_price:
+            stock.output_price = output_price
+            stock.input_price = input_price
+            stock.updated_at = now
+    await session.flush()
+    return True
