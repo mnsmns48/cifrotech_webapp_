@@ -9,10 +9,9 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from api_service.crud import get_info_by_caching, delete_product_stock_items, get_rr_obj, fetch_hubstock_items, \
-    update_parsing_line_prices
+    update_parsing_line_prices, fetch_parsing_input_price_map
 from api_service.s3_helper import get_s3_client, get_http_client_session, sync_images_by_origin
 
 from api_service.schemas import (
@@ -118,6 +117,7 @@ async def recalc_hubstock_items(
     for line in patch_data.price_update:
         origin_price_map[line.origin] = line.new_price
     rows = await fetch_hubstock_items(session, list(origin_price_map.keys()))
+    input_price_map = await fetch_parsing_input_price_map(session, list(origin_price_map.keys()))
     result: List[HubItemsChangePriceResponse] = list()
     dt_now_obj = datetime.now()
     parsing_updated_dict = dict()
@@ -130,6 +130,7 @@ async def recalc_hubstock_items(
         else:
             row.output_price = new_price
             row.profit_range_id = None
+        row.input_price = input_price_map.get(row.origin)
         row.updated_at = dt_now_obj
         parsing_updated_dict[row.origin] = {"new_price": new_price,
                                             "profit_range_id": profit_range.id if profit_range else None}

@@ -388,6 +388,20 @@ async def fetch_hubstock_items(session: AsyncSession, origins: List[int]) -> Lis
     return list(result)
 
 
+async def fetch_parsing_input_price_map(session: AsyncSession, origins: List[int]) -> Dict[int, float]:
+    if not origins:
+        return {}
+    stmt = select(ParsingLine.origin, ParsingLine.input_price).where(ParsingLine.origin.in_(origins))
+    execute = await session.execute(stmt)
+    result = execute.all()
+    price_map: Dict[int, float] = dict()
+    for origin, input_price in result:
+        if input_price:
+            price_map[origin] = input_price
+
+    return price_map
+
+
 async def update_parsing_line_prices(session: AsyncSession,
                                      updates: Dict[int, Dict[str, Union[float, Optional[int]]]]) -> None:
     query = select(ParsingLine).where(ParsingLine.origin.in_(updates.keys()))
@@ -397,7 +411,7 @@ async def update_parsing_line_prices(session: AsyncSession,
     for row in rows:
         update_data = updates.get(row.origin)
         if update_data:
-            row.output_price = update_data["new_price"]
+            row.output_price = update_data.get("new_price")
             row.profit_range_id = update_data.get("profit_range_id")
 
     session.add_all(rows)
