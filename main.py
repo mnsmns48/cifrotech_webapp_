@@ -1,4 +1,6 @@
 import logging
+
+from aiogram_dialog import setup_dialogs
 from starlette.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import uvicorn
@@ -9,7 +11,7 @@ from api_common.routers import general_router
 from api_service.routers import service_router
 from api_users.routers import auth_api_router
 from api_v2.routers import api_v2_router
-from bot.bot_main import bot_setup_webhook, bot_fastapi_router, bot
+from bot.bot_main import bot_setup_webhook, bot_fastapi_router, bot, dp
 from bot.crud_bot import get_option_value, add_bot_options
 from config import settings
 from engine import db
@@ -17,6 +19,7 @@ from engine import db
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_dialogs(dp)
     bot_username = await bot_setup_webhook()
     async with db.tg_session() as session:
         already_add = await get_option_value(session=session, username=bot_username, field='username')
@@ -28,8 +31,8 @@ async def lifespan(app: FastAPI):
         await bot.session.close()
 
 
-# app = FastAPI(lifespan=lifespan, docs_url=settings.api.docs_url)
-app = FastAPI(docs_url=settings.api.docs_url)
+app = FastAPI(lifespan=lifespan, docs_url=settings.api.docs_url)
+# app = FastAPI(docs_url=settings.api.docs_url)
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors,
                    allow_methods=["*"],
                    allow_headers=["*"],
@@ -49,4 +52,5 @@ if __name__ == "__main__":
     logging.getLogger("aiobotocore").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
     logging.getLogger("python_multipart.multipart").setLevel(logging.WARNING)
+    logging.getLogger("aiogram_dialog").setLevel(logging.WARNING)
     uvicorn.run("main:app", host='0.0.0.0', port=5000)

@@ -1,12 +1,15 @@
 import aiohttp
-from aiogram import Router
+from aiogram import Router, F
 from aiogram.filters import CommandStart
 from aiogram.types import Message
+from aiogram_dialog import Dialog, DialogManager
 
 from bot.api import notify_new_user, get_bot_username
 from bot.crud_bot import user_spotted, get_option_value, update_bot
 from bot.api import upload_photo_to_telegram
 from bot.user.keyboards_user import user_kb
+from bot.user.state import UserMainMenu
+from bot.user.window import user_hubstock_window
 from config import BASE_DIR, settings
 from engine import db
 
@@ -17,8 +20,7 @@ tg_user_router = Router()
 async def start(m: Message) -> None:
     hello_text = (f'Привет, {m.from_user.full_name}, '
                   f'наше приложение покажет актуальные цены и товары, доступные в салоне ЦИФРОТЕХ\n\n'
-                  f'Спросить/узнать @cifrotech_mobile\n'
-                  f'Телеграм канал @cifrotechmobile')
+                  f'Спросить / узнать / выяснить можно [тут](https://t.me/tser88)')
     message_data = {'id_': m.from_user.id, 'fullname': m.from_user.full_name, 'username': m.from_user.username}
     async with aiohttp.ClientSession() as client_session, db.tg_session() as pg_session:
         await notify_new_user(
@@ -40,7 +42,17 @@ async def start(m: Message) -> None:
                 token=settings.bot.bot_token.get_secret_value(),
                 chat_id=str(m.chat.id)
             )
-            await m.answer(text=hello_text, reply_markup=user_kb)
+            await m.answer(text=hello_text, reply_markup=user_kb, parse_mode="MarkdownV2")
             await update_bot(session=pg_session, **{'username': bot_username, 'main_pic': pic})
         else:
-            await m.answer_photo(photo=main_pic, caption=hello_text, reply_markup=user_kb)
+            await m.answer_photo(photo=main_pic, caption=hello_text, reply_markup=user_kb, parse_mode="MarkdownV2")
+
+
+main_menu_dialog = Dialog(user_hubstock_window)
+tg_user_router.include_router(main_menu_dialog)
+
+
+@tg_user_router.message(F.text == 'Актуально под заказ')
+async def hub_main(m: Message, dialog_manager: DialogManager):
+    async with db.tg_session() as session:
+        await dialog_manager.start(UserMainMenu.start, data={"parent_id": 1, "session": session})

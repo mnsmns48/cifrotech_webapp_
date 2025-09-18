@@ -1,11 +1,13 @@
 from datetime import date
+from typing import List
 
 import sqlalchemy
 from sqlalchemy import select, Result, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import Guests, TgBotOptions
+from bot.user.schemas import HubMenuLevel
+from models import Guests, TgBotOptions, HUbMenuLevel
 
 
 async def user_spotted(session: AsyncSession, data: dict) -> None:
@@ -42,3 +44,13 @@ async def show_day_sales(session: AsyncSession, current_date: date):
 """)
     response: Result = await session.execute(stmt)
     return response.fetchall()
+
+
+async def get_menu_levels(session: AsyncSession, parent_id: int = 1) -> List[HubMenuLevel]:
+    query = select(HUbMenuLevel).where(HUbMenuLevel.parent_id == parent_id).order_by(HUbMenuLevel.sort_order)
+    execute = await session.execute(query)
+    levels = execute.scalars().all()
+    result: List[HubMenuLevel] = list()
+    for level in levels:
+        result.append(HubMenuLevel.model_validate(level))
+    return result
