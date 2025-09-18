@@ -54,6 +54,10 @@ async def delete_vendor_search_line(vsl_id: int,
     vsl = await session.get(VendorSearchLine, vsl_id)
     if not vsl:
         raise HTTPException(status_code=404, detail="Vendor Search Line not found")
-    await session.delete(vsl)
-    await session.commit()
+    try:
+        await session.delete(vsl)
+        await session.commit()
+    except Exception as e:
+        await session.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     return {"result": f"Vendor Search Line {vsl_id} deleted"}

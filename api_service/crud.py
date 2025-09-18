@@ -334,14 +334,16 @@ async def get_parsing_map(session: AsyncSession, vsl_list: List[VSLScheme]) -> D
                     ParsingLine.optional,
                     ParsingLine.shipment,
                     ParsingLine.input_price.label("parsing_input_price"),
-                    ParsingLine.output_price.label("parsing_output_price"))
+                    ParsingLine.output_price.label("parsing_output_price"),
+                    ParsingLine.profit_range_id)
              .join(ProductOrigin, ProductOrigin.origin == ParsingLine.origin)
              .where(ProductOrigin.is_deleted == False, ParsingLine.vsl_id.in_(vsl_ids))
              .order_by(ParsingLine.input_price))
     execute = await session.execute(query)
     rows = execute.all()
     result: Dict[int, List[ParsingToDiffData]] = dict()
-    for origin, vsl_id, title, url, warranty, optional, shipment, parsing_input_price, parsing_output_price in rows:
+    for (origin, vsl_id, title, url, warranty, optional, shipment, parsing_input_price, parsing_output_price,
+         profit_range_id) in rows:
         vsl = vsl_map[vsl_id]
         item = ParsingToDiffData(origin=origin,
                                  title=title,
@@ -353,7 +355,7 @@ async def get_parsing_map(session: AsyncSession, vsl_list: List[VSLScheme]) -> D
                                  parsing_input_price=parsing_input_price,
                                  parsing_output_price=parsing_output_price,
                                  dt_parsed=vsl.dt_parsed,
-                                 profit_range_id=vsl.profit_range_id)
+                                 profit_range_id=profit_range_id)
         if vsl_id not in result:
             result[vsl_id] = list()
         result[vsl_id].append(item)

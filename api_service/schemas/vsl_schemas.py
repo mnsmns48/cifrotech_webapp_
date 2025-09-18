@@ -9,7 +9,6 @@ class VSLScheme(BaseModel):
     title: str
     url: str
     dt_parsed: datetime | None = None
-    profit_range_id: int | None = None
 
     @classmethod
     def cls_validate(cls, vendor, exclude_id=False):
