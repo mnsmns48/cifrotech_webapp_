@@ -2,16 +2,12 @@ from datetime import datetime
 
 from aiogram import Router, F
 from aiogram.filters import BaseFilter, CommandStart
-from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, CallbackQuery
-from aiohttp import ClientSession
-from bot.admin.keyboards_admin import admin_basic_choice_kb, admin_basic_kb
-# from bot.core import parse_product_message, working_under_product_list
+from aiogram.types import Message
+from bot.admin.keyboards_admin import admin_basic_kb
 from bot.crud_bot import show_day_sales
-from bot.utils import filter_keys
 from config import settings
 from engine import db
-from app_utils import sanitize_emoji
+
 
 tg_admin_router = Router()
 
@@ -60,21 +56,3 @@ async def show_sales(m: Message):
     if sum(cardpay):
         res += f'Картой {int(sum(cardpay))}'
     await m.answer(text=res)
-
-
-# @tg_admin_router.callback_query(F.data == 'process_vendor_message')
-# async def callback_process_vendor_message(c: CallbackQuery, state: FSMContext):
-#     await c.answer('ok')
-#     context = await state.get_data()
-#     msg = context.get('msg')
-#     string_data_key = 'caption' if 'caption' in msg else 'text' if 'text' in msg else None
-#     parsed_data_list: list[dict] = parse_product_message(text=sanitize_emoji(msg.get(string_data_key)))
-#     async with pg_engine.tg_session() as tg_session, ClientSession() as cl_session:
-#         await working_under_product_list(pg_session=tg_session, cl_session=cl_session, products=parsed_data_list)
-
-
-
-@tg_admin_router.message()
-async def get_forwarding_message(m: Message, state: FSMContext):
-    await state.update_data(msg=filter_keys(m.model_dump()))
-    await m.answer(text='?', reply_markup=admin_basic_choice_kb.as_markup())

@@ -3,18 +3,18 @@ from aiogram import Router, F
 from aiogram.filters import CommandStart
 from aiogram.types import Message
 from aiogram_dialog import Dialog, DialogManager, StartMode
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from bot.api import notify_new_user, get_bot_username
 from bot.crud_bot import user_spotted, get_option_value, update_bot
 from bot.api import upload_photo_to_telegram
 from bot.user.keyboards_user import user_kb
 from bot.user.state import UserMainMenu
-from bot.user.window import user_hubstock_window
+from bot.user.dialog import main_hubstock_dialog
 from config import BASE_DIR, settings
 from engine import db
 
 tg_user_router = Router()
+
+tg_user_router.include_routers(main_hubstock_dialog)
 
 
 @tg_user_router.message(CommandStart())
@@ -47,10 +47,6 @@ async def start(m: Message) -> None:
             await update_bot(session=pg_session, **{'username': bot_username, 'main_pic': pic})
         else:
             await m.answer_photo(photo=main_pic, caption=hello_text, reply_markup=user_kb, parse_mode="MarkdownV2")
-
-
-main_menu_dialog = Dialog(user_hubstock_window)
-tg_user_router.include_router(main_menu_dialog)
 
 
 @tg_user_router.message(F.text == 'Актуально в Цифрохаб')
