@@ -54,3 +54,12 @@ async def get_menu_levels(session: AsyncSession, parent_id: int = 1) -> List[Hub
     for level in levels:
         result.append(HubMenuLevel.model_validate(level))
     return result
+
+
+async def get_labels_by_ids(session: AsyncSession, ids: list[int]) -> dict[int, str]:
+    if not ids:
+        return {}
+    query = select(HUbMenuLevel).where(HUbMenuLevel.id.in_(ids))
+    execute = await session.execute(query)
+    levels = execute.scalars().all()
+    return {level.id: level.label for level in levels}

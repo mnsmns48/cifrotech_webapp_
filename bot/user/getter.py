@@ -1,7 +1,7 @@
 from aiogram_dialog import DialogManager
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from bot.crud_bot import get_menu_levels
+from bot.crud_bot import get_menu_levels, get_labels_by_ids
 from models import HUbMenuLevel
 
 
@@ -19,10 +19,7 @@ async def walking_dirs_getter(dialog_manager: DialogManager, session: AsyncSessi
     walk_history = dialog_manager.dialog_data.get("walk_history", [1])
 
     levels = await get_menu_levels(session, int(parent_id))
-    query = select(HUbMenuLevel).where(HUbMenuLevel.id.in_(walk_history))
-    execute = await session.execute(query)
-    all_levels = execute.scalars().all()
-    id_to_label = {level.id: level.label for level in all_levels}
+    id_to_label = await get_labels_by_ids(session, walk_history)
     breadcrumb = "  >  ".join([id_to_label.get(i, f"[{i}]") for i in walk_history])
 
     return {"levels": levels, "breadcrumb": breadcrumb, "back": True}
