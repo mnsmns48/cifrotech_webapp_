@@ -1,21 +1,23 @@
 import asyncio
 
 from aiogram import Bot, Dispatcher
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.storage.base import DefaultKeyBuilder
+from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.types import Update
 from fastapi import APIRouter, Request
 
 from bot.admin.handler_admin import tg_admin_router
-from bot.middleware import DBSessionMiddleware
+from bot.middleware import DBSessionMiddleware, UnknownIntentMiddleware
 from bot.user.handler_user import tg_user_router
-from config import settings
+from config import settings, redis_session
 from engine import db
 
-storage = MemoryStorage()
+storage = RedisStorage(redis_session(), key_builder=DefaultKeyBuilder(prefix="Hub_user_bot", with_destiny=True))
 bot = Bot(token=settings.bot.bot_token.get_secret_value())
-dp = Dispatcher()
+dp = Dispatcher(storage=storage)
 dp.message.middleware(DBSessionMiddleware(db.session_factory))
 dp.callback_query.middleware(DBSessionMiddleware(db.session_factory))
+dp.update.middleware(UnknownIntentMiddleware())
 dp.include_routers(tg_admin_router, tg_user_router)
 
 

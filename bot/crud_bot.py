@@ -1,3 +1,4 @@
+from collections import Counter
 from datetime import date
 from typing import List
 
@@ -6,8 +7,9 @@ from sqlalchemy import select, Result, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.user.schemas import HubMenuLevel
-from models import Guests, TgBotOptions, HUbMenuLevel
+from app_utils import format_datetime_ru
+from bot.user.schemas import HubMenuLevel, HubStockResponse, HubStockItem
+from models import Guests, TgBotOptions, HUbMenuLevel, HUbStock, ProductOrigin
 
 
 async def user_spotted(session: AsyncSession, data: dict) -> None:
@@ -63,3 +65,33 @@ async def get_labels_by_ids(session: AsyncSession, ids: list[int]) -> dict[int, 
     execute = await session.execute(query)
     levels = execute.scalars().all()
     return {level.id: level.label for level in levels}
+
+
+async def get_hubstock_items(session: AsyncSession, path_id: int) -> HubStockResponse:
+    stmt = (
+        select(
+            HUbStock.output_price,
+            HUbStock.updated_at,
+            HUbStock.origin,
+            ProductOrigin.title
+        )
+        .join(ProductOrigin, ProductOrigin.origin == HUbStock.origin)
+        .where(HUbStock.path_id == path_id)
+    )
+
+    result = await session.execute(stmt)
+    rows = result.all()
+
+    items = [
+        HubStockItem(title=row.title, price=row.output_price, origin=row.origin)
+        for row in rows if row.output_price is not None
+    ]
+
+    updated_dates = [row.updated_at for row in rows]
+    most_common_updated_at = None
+    if updated_dates:
+        most_common_updated_at = Counter(updated_dates).most_common(1)[0][0]
+
+    formatted_date = format_datetime_ru(most_common_updated_at) if most_common_updated_at else None
+
+    return HubStockResponse(items=items, most_common_updated_at=formatted_date)

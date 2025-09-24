@@ -1,6 +1,8 @@
 import aiohttp
 from aiohttp import ClientSession
 
+from config import settings
+
 api_url = 'https://api.telegram.org/bot'
 
 
@@ -12,7 +14,7 @@ async def notify_new_user(session: ClientSession, bot_token: str, chat_id: str, 
 
 
 async def get_bot_username(session: ClientSession, bot_token: str) -> str:
-    url = f"{api_url}{bot_token}/getMe"
+    url = f"{api_url}{bot_token}/getme"
     async with session.get(url) as response:
         if response.status == 200:
             bot_data = await response.json()
@@ -36,3 +38,12 @@ async def upload_photo_to_telegram(session: ClientSession,
                 return data['result']['photo'][-1]['file_id']
             else:
                 raise Exception(f"Ошибка при загрузке фотографии: {response.status}")
+
+
+async def get_bot_name() -> str | None:
+    url = f"{api_url}{settings.bot.bot_token.get_secret_value()}/getMe"
+    async with ClientSession() as session:
+        async with session.get(url) as response:
+            data = await response.json()
+            if response.status == 200:
+                return data['result']['username']
