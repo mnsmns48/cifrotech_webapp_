@@ -1,7 +1,5 @@
-import logging
-
 from aiogram import BaseMiddleware
-from aiogram.types import CallbackQuery, Message, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram_dialog.api.exceptions import UnknownIntent
 
 from bot.api import get_bot_name
