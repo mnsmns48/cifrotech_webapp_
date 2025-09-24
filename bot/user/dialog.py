@@ -8,7 +8,7 @@ from bot.user.state import UserMainMenu
 
 main_hubstock_dialog = Dialog(
     Window(
-        Const("Главное меню"),
+        Const("Главная страница"),
         Column(
             Select(
                 id="main_menu",
