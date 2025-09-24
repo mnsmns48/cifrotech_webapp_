@@ -20,15 +20,19 @@ from engine import db
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_dialogs(dp)
-    bot_username = await bot_setup_webhook()
-    async with db.tg_session() as session:
-        already_add = await get_option_value(session=session, username=bot_username, field='username')
-        if not already_add:
-            await add_bot_options(session=session, **{'username': bot_username})
     try:
+        bot_username = await bot_setup_webhook()
+        async with db.tg_session() as session:
+            already_add = await get_option_value(session=session, username=bot_username, field='username')
+            if not already_add:
+                await add_bot_options(session=session, **{'username': bot_username})
+        yield
+    except Exception as e:
+        logging.error(f"Lifespan startup failed: {e}")
         yield
     finally:
         await bot.session.close()
+
 
 
 app = FastAPI(lifespan=lifespan, docs_url=settings.api.docs_url)
