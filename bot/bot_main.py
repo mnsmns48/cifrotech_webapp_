@@ -1,6 +1,8 @@
 import asyncio
+import logging
 
 from aiogram import Bot, Dispatcher
+from aiogram.exceptions import TelegramRetryAfter
 from aiogram.fsm.storage.base import DefaultKeyBuilder
 from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.types import Update
@@ -27,11 +29,15 @@ async def bot_setup_webhook():
     current_webhook = await bot.get_webhook_info()
     expected_url = f"{settings.bot.webhook_url.get_secret_value()}/webhook"
     if current_webhook.url != expected_url:
-        await bot.set_webhook(url=expected_url,
-                              allowed_updates=dp.resolve_used_update_types(),
-                              drop_pending_updates=True)
-    bot_obj = await bot.me()
-    return bot_obj.username
+        try:
+            await bot.set_webhook(url=expected_url,
+                                  allowed_updates=dp.resolve_used_update_types(),
+                                  drop_pending_updates=True)
+        except TelegramRetryAfter as e:
+            logging.warning(f"Flood control: retry after {e.retry_after} seconds")
+            await asyncio.sleep(e.retry_after)
+        bot_obj = await bot.me()
+        return bot_obj.username
 
 
 bot_fastapi_router = APIRouter()
