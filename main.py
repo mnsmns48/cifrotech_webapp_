@@ -32,7 +32,6 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan, docs_url=settings.api.docs_url)
-# app = FastAPI(docs_url=settings.api.docs_url)
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors,
                    allow_methods=["*"],
                    allow_headers=["*"],
@@ -53,4 +52,5 @@ if __name__ == "__main__":
     logging.getLogger("urllib3").setLevel(logging.WARNING)
     logging.getLogger("python_multipart.multipart").setLevel(logging.WARNING)
     logging.getLogger("aiogram_dialog").setLevel(logging.WARNING)
+    logging.getLogger("aiogram.event").setLevel(logging.WARNING)
     uvicorn.run("main:app", host='0.0.0.0', port=5000)

@@ -6,12 +6,16 @@ from aiogram.types import Update
 from fastapi import APIRouter, Request
 
 from bot.admin.handler_admin import tg_admin_router
+from bot.middleware import DBSessionMiddleware
 from bot.user.handler_user import tg_user_router
 from config import settings
+from engine import db
 
 storage = MemoryStorage()
 bot = Bot(token=settings.bot.bot_token.get_secret_value())
 dp = Dispatcher()
+dp.message.middleware(DBSessionMiddleware(db.session_factory))
+dp.callback_query.middleware(DBSessionMiddleware(db.session_factory))
 dp.include_routers(tg_admin_router, tg_user_router)
 
 

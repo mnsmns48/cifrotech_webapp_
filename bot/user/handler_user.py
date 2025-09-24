@@ -2,7 +2,8 @@ import aiohttp
 from aiogram import Router, F
 from aiogram.filters import CommandStart
 from aiogram.types import Message
-from aiogram_dialog import Dialog, DialogManager
+from aiogram_dialog import Dialog, DialogManager, StartMode
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.api import notify_new_user, get_bot_username
 from bot.crud_bot import user_spotted, get_option_value, update_bot
@@ -52,7 +53,6 @@ main_menu_dialog = Dialog(user_hubstock_window)
 tg_user_router.include_router(main_menu_dialog)
 
 
-@tg_user_router.message(F.text == 'Актуально под заказ')
+@tg_user_router.message(F.text == 'Актуально в Цифрохаб')
 async def hub_main(m: Message, dialog_manager: DialogManager):
-    async with db.tg_session() as session:
-        await dialog_manager.start(UserMainMenu.start, data={"parent_id": 1, "session": session})
+    await dialog_manager.start(UserMainMenu.start, mode=StartMode.RESET_STACK)
