@@ -1,5 +1,6 @@
 import logging
 
+from aiogram.exceptions import TelegramRetryAfter, TelegramNetworkError
 from aiogram_dialog import setup_dialogs
 from starlette.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
@@ -27,12 +28,11 @@ async def lifespan(app: FastAPI):
             if not already_add:
                 await add_bot_options(session=session, **{'username': bot_username})
         yield
-    except Exception as e:
+    except (TelegramNetworkError, TelegramRetryAfter) as e:
         logging.error(f"Lifespan startup failed: {e}")
         yield
     finally:
         await bot.session.close()
-
 
 
 app = FastAPI(lifespan=lifespan, docs_url=settings.api.docs_url)

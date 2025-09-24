@@ -31,11 +31,9 @@ async def bot_setup_webhook():
         try:
             await bot.delete_webhook(drop_pending_updates=True, request_timeout=5)
             await asyncio.sleep(3)
-            await bot.set_webhook(
-                url=expected_url,
-                allowed_updates=dp.resolve_used_update_types(),
-                drop_pending_updates=True
-            )
+            await bot.set_webhook(url=expected_url,
+                                  allowed_updates=dp.resolve_used_update_types(),
+                                  drop_pending_updates=True)
         except TelegramRetryAfter as e:
             logging.warning(f"Flood control: retry after {e.retry_after} seconds")
             await asyncio.sleep(e.retry_after)
