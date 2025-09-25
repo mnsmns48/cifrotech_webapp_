@@ -14,7 +14,10 @@ from bot.user.handler_user import tg_user_router
 from config import settings, redis_session
 from engine import db
 
-storage = RedisStorage(redis_session(), key_builder=DefaultKeyBuilder(prefix="Hub_user_bot", with_destiny=True))
+storage = RedisStorage(redis_session(),
+                       key_builder=DefaultKeyBuilder(prefix="Hub_user_bot", with_destiny=True),
+                       state_ttl=settings.bot.ttl_redis_key,
+                       data_ttl=settings.bot.ttl_redis_key)
 bot = Bot(token=settings.bot.bot_token.get_secret_value())
 dp = Dispatcher(storage=storage)
 dp.message.middleware(DBSessionMiddleware(db.session_factory))
