@@ -37,8 +37,8 @@ async def show_sales(m: Message):
             amount.append(activity.sum_)
         if activity.noncash:
             cardpay.append(activity.sum_)
-        formatted_activity = [activity.time_.strftime('%H:%M'), ':-:' if activity.noncash else '',
-                              activity.product, activity.quantity, activity.sum_]
+        formatted_activity = [activity.time_.strftime('%H:%M'), ':-' if activity.noncash else '',
+                              activity.product, f"-{activity.quantity}-", int(activity.sum_)]
         if activity.return_:
             returns.append(formatted_activity)
         else:
@@ -48,7 +48,7 @@ async def show_sales(m: Message):
         res += '\n-Возвраты:\n'
         res += '\n'.join([' '.join(map(str, line)) for line in returns])
     res += '\n'
-    res += f'\nВсего {int(sum(amount))}\n' \
+    res += f'\nВсего {int(sum(amount))}\n\n' \
            f'Наличные {int(sum(amount) - sum(cardpay))}    '
     if sum(cardpay):
         res += f'Картой {int(sum(cardpay))}'
