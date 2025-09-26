@@ -1,3 +1,4 @@
+import html
 from datetime import datetime
 
 from aiogram import Router, F
@@ -28,6 +29,12 @@ async def start(m: Message):
 
 @tg_admin_router.message(F.text == 'Продажи сегодня')
 async def show_sales(m: Message):
+    def format_lines(lines):
+        return '\n'.join([' '.join(line) for line in lines])
+
+    def escape_html(text: str) -> str:
+        return html.escape(text)
+
     async with db.tg_session() as session:
         day_sales = await show_day_sales(session=session, current_date=datetime.now().date())
 
@@ -40,19 +47,13 @@ async def show_sales(m: Message):
             cardpay.append(activity.sum_)
 
         formatted_activity = [
-            activity.time_.strftime('%H\\:\\%M'),
-            '➚' if activity.noncash else '', activity.product,
-            f"_\\-{activity.quantity}\\-_",
-            f"*{int(activity.sum_)}*"
-        ]
+            activity.time_.strftime('%H:%M'), '➚' if activity.noncash else '', escape_html(activity.product),
+            f"<i>-{activity.quantity}-</i>", f"<b>{int(activity.sum_)}</b>"]
 
         if activity.return_:
             returns.append(formatted_activity)
         else:
             sales.append(formatted_activity)
-
-    def format_lines(lines):
-        return '\n'.join([' '.join(line) for line in lines])
 
     res = format_lines(sales)
 
@@ -70,4 +71,4 @@ async def show_sales(m: Message):
 
     res += f'\n\n*Всего {total}*'
 
-    await m.answer(text=res, parse_mode="MarkdownV2")
+    await m.answer(text=res, parse_mode="HTML")
