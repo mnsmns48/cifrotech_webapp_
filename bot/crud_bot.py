@@ -77,6 +77,7 @@ async def get_hubstock_items(session: AsyncSession, path_id: int) -> HubStockRes
         )
         .join(ProductOrigin, ProductOrigin.origin == HUbStock.origin)
         .where(HUbStock.path_id == path_id)
+        .order_by(HUbStock.output_price)
     )
 
     result = await session.execute(stmt)
