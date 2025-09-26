@@ -1,6 +1,6 @@
 import html
 from datetime import datetime
-
+from html import escape
 from aiogram import Router, F
 from aiogram.filters import BaseFilter, CommandStart
 from aiogram.types import Message
@@ -32,9 +32,6 @@ async def show_sales(m: Message):
     def format_lines(lines):
         return '\n'.join([' '.join(line) for line in lines])
 
-    def escape_html(text: str) -> str:
-        return html.escape(text)
-
     async with db.tg_session() as session:
         day_sales = await show_day_sales(session=session, current_date=datetime.now().date())
 
@@ -46,9 +43,8 @@ async def show_sales(m: Message):
         if activity.noncash:
             cardpay.append(activity.sum_)
 
-        formatted_activity = [
-            activity.time_.strftime('%H:%M'), '➚' if activity.noncash else '', escape_html(activity.product),
-            f"<i>-{activity.quantity}-</i>", f"<b>{int(activity.sum_)}</b>"]
+        formatted_activity = [activity.time_.strftime('%H:%M'), '➚' if activity.noncash else '',
+                              escape(activity.product), f"<i>-{activity.quantity}-</i>", f"<b>{int(activity.sum_)}</b>"]
 
         if activity.return_:
             returns.append(formatted_activity)
