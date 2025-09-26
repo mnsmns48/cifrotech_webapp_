@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app_utils import format_datetime_ru
 from bot.user.schemas import HubMenuLevel, HubStockResponse, HubStockItem
-from models import Guests, TgBotOptions, HUbMenuLevel, HUbStock, ProductOrigin
+from models import Guests, TgBotOptions, HUbMenuLevel, HUbStock, ProductOrigin, ProductFeaturesLink
 
 
 async def user_spotted(session: AsyncSession, data: dict) -> None:
@@ -73,11 +73,13 @@ async def get_hubstock_items(session: AsyncSession, path_id: int) -> HubStockRes
             HUbStock.output_price,
             HUbStock.updated_at,
             HUbStock.origin,
-            ProductOrigin.title
+            ProductOrigin.title,
+            ProductFeaturesLink.feature_id
         )
         .join(ProductOrigin, ProductOrigin.origin == HUbStock.origin)
+        .join(ProductFeaturesLink, ProductFeaturesLink.origin == ProductOrigin.origin)
         .where(HUbStock.path_id == path_id)
-        .order_by(ProductOrigin.title, HUbStock.output_price)
+        .order_by(ProductFeaturesLink.feature_id, HUbStock.output_price)
     )
 
     result = await session.execute(stmt)
