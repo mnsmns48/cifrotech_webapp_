@@ -37,7 +37,7 @@ async def show_sales(m: Message):
             amount.append(activity.sum_)
         if activity.noncash:
             cardpay.append(activity.sum_)
-        formatted_activity = [activity.time_.strftime('%H:%M'), ':-' if activity.noncash else '',
+        formatted_activity = [activity.time_.strftime('%H:%M'), '➚' if activity.noncash else '',
                               activity.product, f"-{activity.quantity}-", int(activity.sum_)]
         if activity.return_:
             returns.append(formatted_activity)
