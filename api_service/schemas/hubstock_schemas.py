@@ -60,3 +60,8 @@ class HubItemsChangePriceResponse(BaseModel):
     new_price: float
     updated_at: datetime
     profit_range: Optional[RewardRangeBaseSchema]
+
+
+class HubLoadingResponse(BaseModel):
+    status: bool
+    updated_origins: List[int]

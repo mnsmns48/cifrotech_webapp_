@@ -18,6 +18,7 @@ from api_service.schemas import (
     StockHubItemResult, HubLoadingData, OriginsPayload, HubItemTitlePatch, HubItemsChangePriceRequest,
     HubItemsChangePriceResponse, RewardRangeBaseSchema
 )
+from api_service.schemas.hubstock_schemas import HubLoadingResponse
 from engine import db
 from models import HUbStock, ProductOrigin, VendorSearchLine, RewardRange
 from parsing.utils import cost_process
@@ -62,7 +63,7 @@ async def fetch_stock_hub_items(
     return result
 
 
-@hubstock_router.post("/load_items_in_hub")
+@hubstock_router.post("/load_items_in_hub", response_model=HubLoadingResponse)
 async def create_hub_loading(payload: HubLoadingData,
                              session: AsyncSession = Depends(db.scoped_session_dependency),
                              s3_client: AioBaseClient = Depends(get_s3_client),
@@ -88,7 +89,7 @@ async def create_hub_loading(payload: HubLoadingData,
     await session.commit()
     for item in payload.stocks:
         await sync_images_by_origin(item.origin, session, s3_client, cl_session)
-    return {"status": True}
+    return HubLoadingResponse(status=True, updated_origins=[item.origin for item in payload.stocks])
 
 
 @hubstock_router.patch("/rename_hubstock_obj_title", response_model=HubItemTitlePatch)
