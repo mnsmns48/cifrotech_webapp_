@@ -1,22 +1,18 @@
 import importlib.util
 from pathlib import Path
-from typing import Any, List, Coroutine, Optional
+from typing import List, Optional
 
 from aiobotocore.client import AioBaseClient
-from aiohttp import ClientSession
+
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.sql.annotation import Annotated
 
-from api_service.api_connect import get_one_by_dtube
-from api_service.crud import store_one_item, get_info_by_caching, add_dependencies_link, get_rr_obj, \
-    store_parsing_lines, append_info
+from api_service.crud import get_rr_obj, store_parsing_lines, append_info
 from api_service.s3_helper import build_with_preview
 
-from api_service.schemas import ParsingRequest, ParsingLinesIn
+from api_service.schemas import ParsingLinesIn
 from api_service.schemas.parsing_schemas import SourceContext, ParsingResultOut
 from api_service.schemas.range_reward_schemas import RewardRangeResponseSchema
-from api_service.utils import normalize_origin
 from config import BASE_DIR
 
 from parsing.utils import cost_value_update

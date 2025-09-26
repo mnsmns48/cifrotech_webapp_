@@ -1,17 +1,18 @@
 import json
 import os
-from typing import Optional, List, Dict
+from typing import List
 
 from bs4 import BeautifulSoup, Tag
 from playwright.async_api import async_playwright
 from playwright_stealth import stealth_async
 from pydantic import ValidationError
 from redis.asyncio import Redis
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from api_service.schemas import ParsingLinesIn
 
 from config import BROWSER_HEADERS, BASE_DIR
-from models import Vendor
+from models import Vendor, HUbStock
 from parsing.browser import create_browser, open_page
 
 this_file_name = os.path.basename(__file__).rsplit('.', 1)[0]
@@ -107,28 +108,39 @@ class BaseParser:
         return pages
 
     @staticmethod
-    async def page_data_separation(soup: BeautifulSoup) -> List[ParsingLinesIn]:
-        parsing_lines_result = list()
+    async def page_data_separation(soup: BeautifulSoup, session: AsyncSession) -> List[ParsingLinesIn]:
+        def extract_text(block, selector=None):
+            if not block:
+                return None
+            target = block.find(selector) if selector else block
+            return target.get_text().strip() if target else None
+
         content_list = soup.find_all("div", class_="ty-product-block ty-compact-list__content")
+        origin_map = dict()
         for line in content_list:
+            origin_block = line.find("div", class_="code")
+            origin_text = extract_text(origin_block, "span")
+            if origin_text and origin_text.isdigit():
+                origin = int(origin_text)
+                origin_map[origin] = line
+
+        if not origin_map:
+            return []
+
+        stmt = select(HUbStock.origin).where(HUbStock.origin.in_(origin_map.keys()))
+        result = await session.execute(stmt)
+        hubstock_origins = set(row.origin for row in result)
+
+        parsing_lines_result = list()
+        for origin, line in origin_map.items():
             try:
-                # origin
-                origin_block = line.find("div", class_="code")
-                origin_span = origin_block.find("span") if origin_block else None
-                origin_text = origin_span.get_text().strip() if origin_span else None
-                origin = int(origin_text) if origin_text and origin_text.isdigit() else 0
-                # title & link
                 title_block = line.find("div", class_="category-list-item__title ty-compact-list__title")
-                title = title_block.a.get_text().strip() if title_block and title_block.a else ""
+                title = extract_text(title_block, "a") or ""
                 link = title_block.a.get("href") if title_block and title_block.a else None
-                # shipment
-                shipment_block = line.find("p", class_="delivery")
-                shipment = shipment_block.get_text().strip() if shipment_block else None
-                # warranty
-                warranty_block = line.find("div", class_="divisible-block")
-                warranty_span = warranty_block.find("span") if warranty_block else None
-                warranty = warranty_span.get_text().strip() if warranty_span else None
-                # input_price
+
+                shipment = extract_text(line.find("p", class_="delivery"))
+                warranty = extract_text(line.find("div", class_="divisible-block"), "span")
+
                 price_block = line.find("span", class_="ty-price-num", id=lambda x: x and "sec_discounted_price" in x)
                 if not price_block:
                     continue
@@ -136,20 +148,31 @@ class BaseParser:
                 input_price = float(price_text) if price_text.replace(".", "").isdigit() else None
                 if input_price is None:
                     continue
-                # pics & preview
+
                 pics_block = line.find("div", class_="swiper-wrapper")
                 pics = await BaseParser.extract_pic(pics_block) if pics_block else None
                 preview = pics_block.find("a").get("href") if pics_block and pics_block.find("a") else None
-                # optional
-                optional_block = origin_block.find_next_sibling("div") if origin_block else None
-                optional = optional_block.get_text().strip() if optional_block else None
 
-                item = ParsingLinesIn(origin=origin, title=title,
-                                     link=link, shipment=shipment,
-                                     warranty=warranty, input_price=input_price,
-                                     pics=pics, preview=preview, optional=optional)
-                parsing_lines_result.append(item)
+                optional_block = line.find("div", class_="code")
+                optional = extract_text(optional_block.find_next_sibling("div")) if optional_block else None
 
+                parsing_lines_result.append(
+                    ParsingLinesIn(
+                        origin=origin,
+                        title=title,
+                        link=link,
+                        shipment=shipment,
+                        warranty=warranty,
+                        input_price=input_price,
+                        output_price=None,
+                        pics=pics,
+                        preview=preview,
+                        optional=optional,
+                        features_title=None,
+                        profit_range=None,
+                        in_hub=origin in hubstock_origins
+                    )
+                )
             except (AttributeError, ValueError, TypeError, IndexError, ValidationError):
                 continue
 
@@ -188,7 +211,7 @@ class BaseParser:
 
             opened_page = await open_page(page=self.page, url=url)
             soup = opened_page['soup']
-            lines = await self.page_data_separation(soup=soup)
+            lines = await self.page_data_separation(soup=soup, session=self.session)
             result_lines.extend(lines)
 
             await self.redis.publish(self.progress, f"Страница {page_counter} сохранена")

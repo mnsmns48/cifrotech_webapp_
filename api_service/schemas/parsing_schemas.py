@@ -32,6 +32,7 @@ class ParsingLinesIn(BaseModel):
     optional: Optional[str] = None
     features_title: Optional[list] = None
     profit_range: Optional[RewardRangeBaseSchema] = None
+    in_hub: bool
 
     model_config = {"from_attributes": True, "extra": "ignore"}
 

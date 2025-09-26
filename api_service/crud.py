@@ -245,8 +245,13 @@ async def delete_product_stock_items(session: AsyncSession, origins: List):
 
 async def _get_parsing_result(session: AsyncSession, vsl_id: int) -> List[ParsingLinesIn]:
     stmt = (
-        select(ParsingLine, ProductOrigin)
+        select(
+            ParsingLine,
+            ProductOrigin,
+            HUbStock.origin.label("hub_origin")
+        )
         .join(ProductOrigin, ParsingLine.origin == ProductOrigin.origin)
+        .outerjoin(HUbStock, HUbStock.origin == ParsingLine.origin)
         .options(selectinload(ParsingLine.reward_range))
         .where(
             and_(
@@ -263,13 +268,7 @@ async def _get_parsing_result(session: AsyncSession, vsl_id: int) -> List[Parsin
         return []
 
     parsing_results: List[ParsingLinesIn] = list()
-    for parsing_line, origin in rows:
-        reward_range_obj = parsing_line.reward_range
-        profit_range_obj = (
-            RewardRangeBaseSchema.model_validate(reward_range_obj)
-            if reward_range_obj else None
-        )
-
+    for parsing_line, origin, hub_origin in rows:
         parsing_results.append(
             ParsingLinesIn(
                 origin=parsing_line.origin,
@@ -283,7 +282,9 @@ async def _get_parsing_result(session: AsyncSession, vsl_id: int) -> List[Parsin
                 preview=origin.preview,
                 optional=parsing_line.optional,
                 features_title=None,
-                profit_range=profit_range_obj
+                profit_range=RewardRangeBaseSchema.model_validate(
+                    parsing_line.reward_range) if parsing_line.reward_range else None,
+                in_hub=hub_origin is not None
             )
         )
 
