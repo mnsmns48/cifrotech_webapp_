@@ -58,17 +58,17 @@ async def show_sales(m: Message):
     res = format_lines(sales)
 
     if returns:
-        res += '\n\\-Возвраты\\:\n'
+        res += '\n\n<b>Возвраты:</b>\n'
         res += format_lines(returns)
 
     cash_total = int(sum(amount) - sum(cardpay))
     card_total = int(sum(cardpay))
     total = int(sum(amount))
 
-    res += f'\n\nНаличные *{cash_total}*'
+    res += f'\n\nНаличные: <b>{cash_total}</b>'
     if card_total:
-        res += f'    Картой *{card_total}*'
+        res += f'    Картой: <b>{card_total}</b>'
 
-    res += f'\n\n*Всего {total}*'
+    res += f'\n\n<b>Всего: {total}</b>'
 
     await m.answer(text=res, parse_mode="HTML")
