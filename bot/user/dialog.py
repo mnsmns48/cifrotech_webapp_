@@ -43,7 +43,7 @@ main_hubstock_dialog = Dialog(
         getter=walking_dirs_getter
     ),
     Window(
-        Format("{breadcrumb}\nОбновлено {updated}\n\n{items_text}"),
+        Format("{breadcrumb}\n\n{updated}\n\n{items_text}"),
         Column(
             Button(
                 Const("← Назад"),

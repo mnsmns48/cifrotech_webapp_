@@ -42,7 +42,7 @@ async def hub_items_getter(dialog_manager: DialogManager, session: AsyncSession,
 
     return {
         "items_text": items_text,
-        "updated": hubstock_data.most_common_updated_at or '?',
+        "updated": f"Обновлено {hubstock_data.most_common_updated_at}" or '¿',
         "breadcrumb": breadcrumb,
         "back": True
     }
