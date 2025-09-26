@@ -8,7 +8,6 @@ from bot.crud_bot import show_day_sales
 from config import settings
 from engine import db
 
-
 tg_admin_router = Router()
 
 
@@ -31,25 +30,44 @@ async def start(m: Message):
 async def show_sales(m: Message):
     async with db.tg_session() as session:
         day_sales = await show_day_sales(session=session, current_date=datetime.now().date())
+
     sales, returns, cardpay, amount = [], [], [], []
+
     for activity in day_sales:
         if not activity.return_:
             amount.append(activity.sum_)
         if activity.noncash:
             cardpay.append(activity.sum_)
-        formatted_activity = [activity.time_.strftime('%H:%M'), '➚' if activity.noncash else '',
-                              activity.product, f"-{activity.quantity}-", int(activity.sum_)]
+
+        formatted_activity = [
+            activity.time_.strftime('%H\\:\\%M'),
+            '➚' if activity.noncash else '', activity.product,
+            f"_\\-{activity.quantity}\\-_",
+            f"*{int(activity.sum_)}*"
+        ]
+
         if activity.return_:
             returns.append(formatted_activity)
         else:
             sales.append(formatted_activity)
-    res = '\n'.join([' '.join(map(str, line)) for line in sales])
+
+    def format_lines(lines):
+        return '\n'.join([' '.join(line) for line in lines])
+
+    res = format_lines(sales)
+
     if returns:
-        res += '\n-Возвраты:\n'
-        res += '\n'.join([' '.join(map(str, line)) for line in returns])
-    res += '\n'
-    res += f'\nВсего {int(sum(amount))}\n\n' \
-           f'Наличные {int(sum(amount) - sum(cardpay))}    '
-    if sum(cardpay):
-        res += f'Картой {int(sum(cardpay))}'
-    await m.answer(text=res)
+        res += '\n\\-Возвраты\\:\n'
+        res += format_lines(returns)
+
+    cash_total = int(sum(amount) - sum(cardpay))
+    card_total = int(sum(cardpay))
+    total = int(sum(amount))
+
+    res += f'\n\nНаличные *{cash_total}*'
+    if card_total:
+        res += f'    Картой *{card_total}*'
+
+    res += f'\n\n*Всего {total}*'
+
+    await m.answer(text=res, parse_mode="MarkdownV2")
