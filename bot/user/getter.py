@@ -38,7 +38,7 @@ async def hub_items_getter(dialog_manager: DialogManager, session: AsyncSession,
 
     items_text = "\n".join(
         f"{item.title}:  {int(item.price)} ₽" for item in hubstock_data.items
-    ) if hubstock_data.items else "Нет доступных элементов."
+    ) if hubstock_data.items else "Тут пока пусто. Скоро всё появится"
 
     updated = f"Обновлено {hubstock_data.most_common_updated_at}\n\n" if hubstock_data.most_common_updated_at else ' '
 
