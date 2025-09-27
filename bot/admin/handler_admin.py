@@ -34,6 +34,15 @@ async def start(m: Message):
 
 @tg_admin_router.message(F.text == 'Продажи сегодня')
 async def show_sales(m: Message):
+    def format_grouped(group: dict[str, list[str]]) -> str:
+        blocks: list[str] = list()
+        for time, lines in group.items():
+            time_header = f"<pre>{time}  </pre>"
+            joined_lines = '\n'.join(lines)
+            block = f"{time_header}\n{joined_lines}"
+            blocks.append(block)
+        return '\n\n'.join(blocks)
+
     async with db.tg_session() as session:
         day_sales: List[SaleItemScheme] = await show_day_sales(session=session, current_date=datetime.now().date())
 
@@ -43,8 +52,7 @@ async def show_sales(m: Message):
 
     for sale in day_sales:
         time_key = sale.time_.strftime('%H:%M')
-        line = []
-
+        line = list()
         if sale.noncash:
             line.append('➚')
         line.append(sale.product)
@@ -71,20 +79,12 @@ async def show_sales(m: Message):
             else:
                 cash_total += sale.sum_
 
-    def format_grouped(group: dict[str, list[str]]) -> str:
-        return '\n'.join(
-            f"<pre>{time}  </pre>\n" + '\n'.join(lines)
-            for time, lines in group.items()
-        )
-
     body = format_grouped(grouped_regular)
     if grouped_returns:
         body += '\n\n<b>Возвраты:</b>\n' + format_grouped(grouped_returns)
 
-    summary = (
-        f"\n\nНаличные: {cash_total:.0f}    "
-        f"Картой: {card_total:.0f}\n"
-        f"Всего: <b>{cash_total + card_total:.0f}</b>"
-    )
+    summary = (f"\n\nНаличные: {cash_total:.0f}    "
+               f"Картой: {card_total:.0f}\n"
+               f"Всего: <b>{cash_total + card_total:.0f}</b>")
 
     await m.answer(text=body + summary, parse_mode="HTML")
