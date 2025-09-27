@@ -1,15 +1,17 @@
 from collections import Counter
-from datetime import date
-from typing import List
+from datetime import date, datetime, timedelta
+from typing import List, Dict
 
 import sqlalchemy
-from sqlalchemy import select, Result, update
+from sqlalchemy import select, Result, update, Date, cast, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api_service.schemas.api_v1_schemas import SaleItemScheme
 from app_utils import format_datetime_ru
 from bot.user.schemas import HubMenuLevel, HubStockResponse, HubStockItem
-from models import Guests, TgBotOptions, HUbMenuLevel, HUbStock, ProductOrigin, ProductFeaturesLink
+from models import Guests, TgBotOptions, HUbMenuLevel, HUbStock, ProductOrigin, ProductFeaturesLink, Activity, \
+    StockTable
 
 
 async def user_spotted(session: AsyncSession, data: dict) -> None:
@@ -37,15 +39,41 @@ async def update_bot(session: AsyncSession, **kwargs):
         await session.commit()
 
 
-async def show_day_sales(session: AsyncSession, current_date: date):
-    stmt = sqlalchemy.text(
+async def show_day_sales(session: AsyncSession, current_date: date) -> List[SaleItemScheme]:
+    stmt = text(
         f"""
-        SELECT * from activity
-        where CAST(activity.time_ AS DATE) = '{current_date}'
+        SELECT activity.operation_code,
+               activity.time_,
+               activity.product_code,
+               activity.product,
+               activity.quantity,
+               activity.sum_,
+               activity.noncash,
+               activity.return_,
+               stocktable.quantity AS remain
+        FROM activity
+        LEFT OUTER JOIN stocktable ON stocktable.code = activity.product_code
+        WHERE CAST(activity.time_ AS DATE) = '{current_date}'
         ORDER BY activity.time_
-""")
-    response: Result = await session.execute(stmt)
-    return response.fetchall()
+        """
+    )
+
+    result: Result = await session.execute(stmt)
+    rows = result.all()
+
+    sales: List[SaleItemScheme] = []
+    for row in rows:
+        data = row._mapping
+        sales.append(SaleItemScheme(time_=data["time_"],
+                                    product=data["product"],
+                                    quantity=data["quantity"],
+                                    sum_=data["sum_"],
+                                    noncash=data["noncash"],
+                                    return_=data["return_"],
+                                    remain=data["remain"])
+                     )
+
+    return sales
 
 
 async def get_menu_levels(session: AsyncSession, parent_id: int = 1) -> List[HubMenuLevel]:

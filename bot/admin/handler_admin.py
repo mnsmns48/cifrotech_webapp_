@@ -1,9 +1,14 @@
 import html
+from collections import defaultdict
 from datetime import datetime
 from html import escape
+from typing import Dict, List
+
 from aiogram import Router, F
 from aiogram.filters import BaseFilter, CommandStart
 from aiogram.types import Message
+
+from api_service.schemas.api_v1_schemas import SaleItemScheme
 from bot.admin.keyboards_admin import admin_basic_kb
 from bot.crud_bot import show_day_sales
 from config import settings
@@ -29,42 +34,57 @@ async def start(m: Message):
 
 @tg_admin_router.message(F.text == 'Продажи сегодня')
 async def show_sales(m: Message):
-    def format_lines(lines):
-        return '\n'.join([' '.join(line) for line in lines])
-
     async with db.tg_session() as session:
-        day_sales = await show_day_sales(session=session, current_date=datetime.now().date())
+        day_sales: List[SaleItemScheme] = await show_day_sales(session=session, current_date=datetime.now().date())
 
-    sales, returns, cardpay, amount = [], [], [], []
+    grouped_regular: dict[str, list[str]] = defaultdict(list)
+    grouped_returns: dict[str, list[str]] = defaultdict(list)
+    cash_total, card_total = 0.0, 0.0
 
-    for activity in day_sales:
-        if not activity.return_:
-            amount.append(activity.sum_)
-        if activity.noncash:
-            cardpay.append(activity.sum_)
+    for sale in day_sales:
+        time_key = sale.time_.strftime('%H:%M')
+        line = []
 
-        formatted_activity = [activity.time_.strftime('%H:%M'), '➚' if activity.noncash else '',
-                              escape(activity.product), f"<i>-{activity.quantity}-</i>", f"<b>{int(activity.sum_)}</b>"]
+        if sale.noncash:
+            line.append('➚')
+        line.append(sale.product)
+        line.append(f"-<i>{sale.quantity}</i>-")
 
-        if activity.return_:
-            returns.append(formatted_activity)
+        if sale.return_:
+            line.append(f"<code>-{sale.sum_:.0f}</code>")
         else:
-            sales.append(formatted_activity)
+            line.append(f"<code>{sale.sum_:.0f}</code>")
 
-    res = format_lines(sales)
+        line.append(f" :{sale.remain}" if sale.remain is not None else "")
+        formatted = ' '.join(line)
 
-    if returns:
-        res += '\n\n<b>Возвраты:</b>\n'
-        res += format_lines(returns)
+        if sale.return_:
+            grouped_returns[time_key].append(formatted)
+            if sale.noncash:
+                card_total -= sale.sum_
+            else:
+                cash_total -= sale.sum_
+        else:
+            grouped_regular[time_key].append(formatted)
+            if sale.noncash:
+                card_total += sale.sum_
+            else:
+                cash_total += sale.sum_
 
-    cash_total = int(sum(amount) - sum(cardpay))
-    card_total = int(sum(cardpay))
-    total = int(sum(amount))
+    def format_grouped(group: dict[str, list[str]]) -> str:
+        return '\n'.join(
+            f"<pre>{time}  </pre>\n" + '\n'.join(lines)
+            for time, lines in group.items()
+        )
 
-    res += f'\n\nНаличные: <b>{cash_total}</b>'
-    if card_total:
-        res += f'    Картой: <b>{card_total}</b>'
+    body = format_grouped(grouped_regular)
+    if grouped_returns:
+        body += '\n\n<b>Возвраты:</b>\n' + format_grouped(grouped_returns)
 
-    res += f'\n\n<b>Всего: {total}</b>'
+    summary = (
+        f"\n\nНаличные: {cash_total:.0f}    "
+        f"Картой: {card_total:.0f}\n"
+        f"Всего: <b>{cash_total + card_total:.0f}</b>"
+    )
 
-    await m.answer(text=res, parse_mode="HTML")
+    await m.answer(text=body + summary, parse_mode="HTML")
