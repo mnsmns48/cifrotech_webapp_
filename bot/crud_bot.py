@@ -1,17 +1,13 @@
-from collections import Counter
 from datetime import date, datetime, timedelta
-from typing import List, Dict
-
-import sqlalchemy
-from sqlalchemy import select, Result, update, Date, cast, text
+from typing import List, Optional
+from sqlalchemy import select, Result, update, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.schemas.api_v1_schemas import SaleItemScheme
 from app_utils import format_datetime_ru
 from bot.user.schemas import HubMenuLevel, HubStockResponse, HubStockItem
-from models import Guests, TgBotOptions, HUbMenuLevel, HUbStock, ProductOrigin, ProductFeaturesLink, Activity, \
-    StockTable
+from models import Guests, TgBotOptions, HUbMenuLevel, HUbStock, ProductOrigin, ProductFeaturesLink
 
 
 async def user_spotted(session: AsyncSession, data: dict) -> None:
@@ -95,7 +91,7 @@ async def get_labels_by_ids(session: AsyncSession, ids: list[int]) -> dict[int, 
     return {level.id: level.label for level in levels}
 
 
-async def get_hubstock_items(session: AsyncSession, path_id: int) -> HubStockResponse:
+async def get_hubstock_items(session: AsyncSession, path_id: int) -> Optional[HubStockResponse]:
     stmt = (
         select(
             HUbStock.output_price,
@@ -118,11 +114,10 @@ async def get_hubstock_items(session: AsyncSession, path_id: int) -> HubStockRes
         for row in rows if row.output_price is not None
     ]
 
-    updated_dates = [row.updated_at for row in rows]
-    most_common_updated_at = None
-    if updated_dates:
-        most_common_updated_at = Counter(updated_dates).most_common(1)[0][0]
+    updated_dates: List[datetime] = [row.updated_at for row in rows]
+    latest_updated_at = max(updated_dates) if updated_dates else None
+    if latest_updated_at:
+        latest_updated_at = latest_updated_at + timedelta(hours=3)
+        formatted_date = format_datetime_ru(latest_updated_at) if latest_updated_at else None
 
-    formatted_date = format_datetime_ru(most_common_updated_at) if most_common_updated_at else None
-
-    return HubStockResponse(items=items, most_common_updated_at=formatted_date)
+        return HubStockResponse(items=items, most_common_updated_at=formatted_date)
