@@ -235,12 +235,15 @@ async def add_dependencies_link(session: AsyncSession, origin: int, feature_id: 
     await session.commit()
 
 
-async def delete_product_stock_items(session: AsyncSession, origins: List):
+async def delete_product_stock_items(session: AsyncSession, origins: List[int]) -> List[int]:
     if not origins:
-        return
-    stmt = delete(HUbStock).where(HUbStock.origin.in_(origins))
-    await session.execute(stmt)
+        return []
+
+    stmt = delete(HUbStock).where(HUbStock.origin.in_(origins)).returning(HUbStock.origin)
+    result = await session.execute(stmt)
     await session.commit()
+
+    return [row[0] for row in result.fetchall()]
 
 
 async def _get_parsing_result(session: AsyncSession, vsl_id: int) -> List[ParsingLinesIn]:

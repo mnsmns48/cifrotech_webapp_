@@ -147,9 +147,9 @@ async def recalc_hubstock_items(
 
 @hubstock_router.delete("/delete_stock_items")
 async def delete_stock_items_endpoint(payload: OriginsPayload,
-                                      session: AsyncSession = Depends(db.scoped_session_dependency)) -> bool:
+                                      session: AsyncSession = Depends(db.scoped_session_dependency)) -> List[int]:
     try:
-        await delete_product_stock_items(session, payload.origins)
-        return True
+        deleted_origins = await delete_product_stock_items(session, payload.origins)
+        return deleted_origins
     except SQLAlchemyError:
-        raise HTTPException(status_code=500, detail=f"Ошибка при удалении")
+        raise HTTPException(status_code=500, detail="Ошибка при удалении")
