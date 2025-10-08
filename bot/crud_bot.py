@@ -101,7 +101,7 @@ async def get_hubstock_items(session: AsyncSession, path_id: int) -> Optional[Hu
             ProductFeaturesLink.feature_id
         )
         .join(ProductOrigin, ProductOrigin.origin == HUbStock.origin)
-        .join(ProductFeaturesLink, ProductFeaturesLink.origin == ProductOrigin.origin)
+        .outerjoin(ProductFeaturesLink, ProductFeaturesLink.origin == ProductOrigin.origin)
         .where(HUbStock.path_id == path_id)
         .order_by(ProductFeaturesLink.feature_id, HUbStock.output_price)
     )
