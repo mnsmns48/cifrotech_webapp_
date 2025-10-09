@@ -19,6 +19,13 @@ class HubStockItem(BaseModel):
     origin: int
 
 
-class HubStockResponse(BaseModel):
+class HubStockGroup(BaseModel):
+    id: int
+    label: str
+    sort_order: float
     items: List[HubStockItem]
+
+
+class HubStockResponse(BaseModel):
+    groups: List[HubStockGroup]
     most_common_updated_at: Optional[str]

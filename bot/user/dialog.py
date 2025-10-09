@@ -19,6 +19,7 @@ main_hubstock_dialog = Dialog(
             ),
         ),
         state=UserMainMenu.start,
+        parse_mode="HTML",
         getter=main_menu_getter
     ),
     Window(
@@ -53,6 +54,7 @@ main_hubstock_dialog = Dialog(
             )
         ),
         state=UserMainMenu.hub_items,
+        parse_mode="HTML",
         getter=hub_items_getter
     )
 )

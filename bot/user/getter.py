@@ -5,7 +5,7 @@ from bot.crud_bot import get_menu_levels, get_labels_by_ids, get_hubstock_items
 
 
 def make_breadcrumb(id_to_label: dict[int, str], walk_history: list) -> str:
-    return "  >  ".join([id_to_label.get(i, f"[{i}]") for i in walk_history])
+    return " ➡️📁 ".join([id_to_label.get(i, f"[{i}]") for i in walk_history])
 
 
 async def main_menu_getter(dialog_manager: DialogManager, session: AsyncSession, **kwargs):
@@ -36,11 +36,19 @@ async def hub_items_getter(dialog_manager: DialogManager, session: AsyncSession,
     id_to_label = await get_labels_by_ids(session, walk_history)
     breadcrumb = make_breadcrumb(id_to_label, walk_history)
 
-    items_text = "\n".join(
-        f"{item.title}:  {int(item.price)} ₽" for item in hubstock_data.items
-    ) if hubstock_data.items else "Тут пока пусто. Скоро всё появится"
+    if hubstock_data and hubstock_data.groups:
+        sorted_groups = sorted(hubstock_data.groups, key=lambda g: g.sort_order)
 
-    updated = f"Обновлено {hubstock_data.most_common_updated_at}\n\n" if hubstock_data.most_common_updated_at else ' '
+        group_blocks = list()
+        for group in sorted_groups:
+            items_block = "\n".join(f"🔹{item.title}: <b><u>{int(item.price)}</u></b> ₽" for item in group.items)
+            group_blocks.append(f"{items_block}")
+
+        items_text = "\n\n".join(group_blocks)
+        updated = f"<blockquote>Обновлено {hubstock_data.most_common_updated_at}</blockquote>\n\n" if hubstock_data.most_common_updated_at else ""
+    else:
+        items_text = "Тут пока пусто ➛ скоро всё появится"
+        updated = ''
 
     return {
         "items_text": items_text,

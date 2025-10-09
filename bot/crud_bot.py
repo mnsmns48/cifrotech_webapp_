@@ -6,8 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.schemas.api_v1_schemas import SaleItemScheme
 from app_utils import format_datetime_ru
-from bot.user.schemas import HubMenuLevel, HubStockResponse, HubStockItem
-from models import Guests, TgBotOptions, HUbMenuLevel, HUbStock, ProductOrigin, ProductFeaturesLink
+from bot.user.schemas import HubMenuLevel, HubStockResponse, HubStockItem, HubStockGroup
+from models import Guests, TgBotOptions, HUbMenuLevel, HUbStock, ProductOrigin, ProductFeaturesLink, \
+    ProductFeaturesGlobal
 
 
 async def user_spotted(session: AsyncSession, data: dict) -> None:
@@ -97,11 +98,13 @@ async def get_hubstock_items(session: AsyncSession, path_id: int) -> Optional[Hu
             HUbStock.output_price,
             HUbStock.updated_at,
             HUbStock.origin,
-            ProductOrigin.title,
-            ProductFeaturesLink.feature_id
+            ProductOrigin.title.label("origin_title"),
+            ProductFeaturesLink.feature_id,
+            ProductFeaturesGlobal.title.label("feature_title")
         )
         .join(ProductOrigin, ProductOrigin.origin == HUbStock.origin)
         .outerjoin(ProductFeaturesLink, ProductFeaturesLink.origin == ProductOrigin.origin)
+        .outerjoin(ProductFeaturesGlobal, ProductFeaturesGlobal.id == ProductFeaturesLink.feature_id)
         .where(HUbStock.path_id == path_id)
         .order_by(ProductFeaturesLink.feature_id, HUbStock.output_price)
     )
@@ -109,15 +112,43 @@ async def get_hubstock_items(session: AsyncSession, path_id: int) -> Optional[Hu
     result = await session.execute(stmt)
     rows = result.all()
 
-    items = [
-        HubStockItem(title=row.title, price=row.output_price, origin=row.origin)
-        for row in rows if row.output_price is not None
-    ]
+    updated_dates: List[datetime] = list()
+    groups_dict: dict[int, dict] = dict()
 
-    updated_dates: List[datetime] = [row.updated_at for row in rows]
+    for row in rows:
+        if row.output_price is None:
+            continue
+
+        updated_dates.append(row.updated_at)
+
+        feature_id = row.feature_id if row.feature_id is not None else -1
+        feature_title = row.feature_title if row.feature_title is not None else " "
+
+        item = HubStockItem(
+            title=row.origin_title,
+            price=row.output_price,
+            origin=row.origin
+        )
+
+        if feature_id not in groups_dict:
+            groups_dict[feature_id] = {"id": feature_id,
+                                       "label": feature_title,
+                                       "items": []}
+
+        groups_dict[feature_id]["items"].append(item)
+
+    groups: List[HubStockGroup] = []
+    for group in groups_dict.values():
+        prices = [item.price for item in group["items"]]
+        avg_price = sum(prices) / len(prices) if prices else 0
+        groups.append(HubStockGroup(
+            id=group["id"],
+            label=group["label"],
+            sort_order=avg_price,
+            items=group["items"]
+        ))
+
     latest_updated_at = max(updated_dates) if updated_dates else None
-    if latest_updated_at:
-        latest_updated_at = latest_updated_at + timedelta(hours=3)
-        formatted_date = format_datetime_ru(latest_updated_at) if latest_updated_at else None
+    formatted_date = format_datetime_ru(latest_updated_at + timedelta(hours=3)) if latest_updated_at else None
 
-        return HubStockResponse(items=items, most_common_updated_at=formatted_date)
+    return HubStockResponse(groups=groups, most_common_updated_at=formatted_date)
