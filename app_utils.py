@@ -1,6 +1,8 @@
+import hashlib
+import re
 from datetime import datetime
+from typing import Any, Optional, List, Set
 
-import emoji
 from bs4 import BeautifulSoup
 
 MONTHS_RU = {
@@ -8,10 +10,6 @@ MONTHS_RU = {
     5: "мая", 6: "июня", 7: "июля", 8: "августа",
     9: "сентября", 10: "октября", 11: "ноября", 12: "декабря"
 }
-
-
-def sanitize_emoji(text):
-    return emoji.replace_emoji(text, replace='')
 
 
 def responses(response: str, is_ok: bool, message: str = '') -> dict:
@@ -23,3 +21,34 @@ def responses(response: str, is_ok: bool, message: str = '') -> dict:
 
 def format_datetime_ru(dt: datetime) -> str:
     return f"{dt.day} {MONTHS_RU[dt.month]} в {dt.strftime('%H:%M')}"
+
+
+def safe_int(value: Any, default: Optional[int] = None) -> Optional[int]:
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
+def normalize_pages_list(raw_pages: List[Any]) -> List[int]:
+    nums: Set[int] = set()
+    for p in (raw_pages or []):
+        if isinstance(p, int):
+            nums.add(p)
+            continue
+        try:
+            text = getattr(p, "get_text", lambda: str(p))()
+            m = re.search(r"(\d+)", str(text).strip())
+            if m:
+                nums.add(int(m.group(1)))
+        except (AttributeError, TypeError, ValueError):
+            continue
+    return sorted(nums)
+
+
+def compute_html_hash(html: str) -> str:
+    return hashlib.md5(html.encode()).hexdigest()
+
+
+def count_message(count: int) -> str:
+    return f"data: COUNT={count + 20}"
