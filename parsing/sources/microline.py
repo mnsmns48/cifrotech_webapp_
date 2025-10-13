@@ -119,7 +119,7 @@ class BaseParser:
         if pagination is None:
             return [], 0
 
-        next_candidates: List[Tuple[int, str]] = []
+        next_candidates: List[Tuple[int, str]] = list()
         dom_max = 0
 
         anchors = pagination.find_all("a", attrs={"data-ca-page": True})
@@ -163,8 +163,8 @@ class BaseParser:
             href = a.get("href")
             next_candidates.append((page_num, href))
 
-        seen: Dict[int, str] = {}
-        filtered: List[Tuple[int, str]] = []
+        seen: Dict[int, str] = dict()
+        filtered: List[Tuple[int, str]] = list()
 
         for pair in next_candidates:
             page, href = pair
@@ -178,7 +178,7 @@ class BaseParser:
 
     @staticmethod
     def actual_pagination(soup: BeautifulSoup) -> List[int]:
-        pages: List[int] = []
+        pages: List[int] = list()
         pagination = soup.find("ul", class_="pagination")
         if not pagination:
             return pages
@@ -314,7 +314,7 @@ class BaseParser:
         return opened_page['soup']
 
     async def get_parsed_lines(self) -> List[ParsingLinesIn]:
-        result_lines: List[ParsingLinesIn] = []
+        result_lines: List[ParsingLinesIn] = list()
         visited_pages: Set[int] = set()
         visited_hashes: Set[str] = set()
         safety_iter_limit = 150

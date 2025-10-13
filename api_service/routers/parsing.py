@@ -17,6 +17,7 @@ from api_service.s3_helper import (get_s3_client, get_http_client_session, sync_
 from api_service.schemas import (ParsingRequest, ProductOriginUpdate, ProductDependencyUpdate, ProductResponse,
                                  RecalcPricesRequest)
 from api_service.schemas.parsing_schemas import SourceContext, ParsingResultOut, ParsingLinesIn
+from api_service.schemas.product_schemas import OriginsList
 from api_service.schemas.range_reward_schemas import RewardRangeResponseSchema
 from api_service.utils import AppDependencies
 from config import settings
@@ -337,3 +338,24 @@ async def set_preview_image(origin: int, filename: str,
         product, s3_client, settings.s3.bucket_name, f"{settings.s3.s3_hub_prefix}/{origin}/")
 
     return {"origin": origin, "preview": payload["preview"], "images": payload["images"]}
+
+
+@parsing_router.post("/clear-media-data")
+async def clear_product_media(payload: OriginsList, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    if not payload.origins:
+        return {"cleared": []}
+
+    stmt = select(ProductOrigin).where(ProductOrigin.origin.in_(payload.origins))
+    result = await session.execute(stmt)
+    products = result.scalars().all()
+
+    to_clear = list()
+    for product in products:
+        if product.pics or product.preview:
+            to_clear.append(product.origin)
+
+    if to_clear:
+        clear_stmt = update(ProductOrigin).where(ProductOrigin.origin.in_(to_clear)).values(pics=[], preview=None)
+        await session.execute(clear_stmt)
+        await session.commit()
+        return {"cleared": to_clear}

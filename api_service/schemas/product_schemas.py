@@ -72,3 +72,7 @@ class RecalcPricesResponse(BaseModel):
     datestamp: datetime
     range_reward: int
     data: list
+
+
+class OriginsList(BaseModel):
+    origins: List[int]

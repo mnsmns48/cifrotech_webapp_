@@ -36,16 +36,17 @@ async def get_vendor_and_vsl(session: AsyncSession, vsl_id: int) -> Optional[Sou
 
 async def store_parsing_lines(
         session: AsyncSession, items: List[ParsingLinesIn], vsl_id: int, profit_range_id: int) -> ParsingResultOut:
-    normalized: List[ParsingLinesIn] = list()
+    parsed_items_map: Dict[int, ParsingLinesIn] = dict()
+
     for line in items:
         orig = normalize_origin(line.origin)
         if not orig:
             continue
         line.origin = orig
-        normalized.append(line)
+        parsed_items_map[orig] = line
 
-    if normalized:
-        origins = {ln.origin for ln in normalized}
+    if parsed_items_map:
+        origins = set(parsed_items_map.keys())
         product_origin_query = select(ProductOrigin).where(ProductOrigin.origin.in_(origins))
         product_orig_in_db = await session.execute(product_origin_query)
         product_orig_list = product_orig_in_db.scalars().all()
@@ -57,7 +58,7 @@ async def store_parsing_lines(
 
     filtered, seen_origins = list(), set()
 
-    for line in normalized:
+    for line in parsed_items_map.values():
         origin = line.origin
         if (origin in seen_origins) or (origin in existing and existing[origin].is_deleted):
             continue
@@ -104,13 +105,39 @@ async def store_parsing_lines(
     vsl_stmt = update(VendorSearchLine).where(VendorSearchLine.id == vsl_id).values(dt_parsed=datetime.now())
     await session.execute(vsl_stmt)
     response: List[ParsingLinesIn] = list()
+    to_db_updates: List[dict] = list()
     for line in filtered:
         product_origin = existing[line.origin]
+        parsed_line = parsed_items_map.get(line.origin)
+
+        pics = product_origin.pics
+        preview = product_origin.preview
+
+        update_fields = dict()
+
+        if not any(pics) and parsed_line.pics:
+            pics = parsed_line.pics
+            update_fields["pics"] = pics
+        if not preview and parsed_line.preview:
+            preview = parsed_line.preview
+            update_fields["preview"] = preview
+
+        if update_fields:
+            update_fields["origin"] = line.origin
+            to_db_updates.append(update_fields)
+
         response.append(
             line.model_copy(
                 update={
                     "title": product_origin.title,
-                    "link": product_origin.link, "pics": product_origin.pics, "preview": product_origin.preview}))
+                    "link": product_origin.link,
+                    "pics": pics,
+                    "preview": preview,
+                }
+            )
+        )
+    if to_db_updates:
+        await session.execute(update(ProductOrigin), to_db_updates)
     await session.flush()
     return ParsingResultOut(
         dt_parsed=datetime.now(), profit_range_id=profit_range_id, parsing_result=response, is_ok=False)
@@ -474,3 +501,4 @@ async def update_hubstock_prices(price_map: Dict[int, Dict[str, float]], session
             stock.updated_at = now
     await session.flush()
     return True
+
