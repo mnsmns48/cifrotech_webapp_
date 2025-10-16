@@ -1,6 +1,6 @@
 import asyncio
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Any
 from aiohttp import ClientConnectionError, ClientResponseError
 from botocore.exceptions import ClientError, BotoCoreError
 from aiohttp import ClientSession
@@ -11,22 +11,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.responses import JSONResponse
 from api_service.api_connect import get_items_by_brand, get_one_by_dtube
-from api_service.crud import get_vendor_and_vsl, get_rr_obj, _get_parsing_result
+from api_service.crud import get_vendor_and_vsl, get_rr_obj, _get_parsing_result, get_or_create_product_type, \
+    get_or_create_product_brand, get_or_create_feature, link_origin_to_feature
 from api_service.s3_helper import (get_s3_client, get_http_client_session, sync_images_by_origin,
                                    generate_final_image_payload, build_with_preview)
 from api_service.schemas import (ParsingRequest, ProductOriginUpdate, ProductDependencyUpdate, ProductResponse,
                                  RecalcPricesRequest)
 from api_service.schemas.parsing_schemas import SourceContext, ParsingResultOut, ParsingLinesIn
-from api_service.schemas.product_schemas import OriginsList
+from api_service.schemas.product_schemas import OriginsList, ProductDependencyBatchUpdate
 from api_service.schemas.range_reward_schemas import RewardRangeResponseSchema
 from api_service.utils import AppDependencies
 from config import settings
 from engine import db
 
-from models import ParsingLine, ProductOrigin, ProductType, ProductBrand, ProductFeaturesGlobal, \
-    ProductFeaturesLink
+from models import ParsingLine, ProductOrigin, ProductType, ProductBrand, ProductFeaturesGlobal
 from models.product_dependencies import ProductImage
-from models.vendor import VendorSearchLine, RewardRange, Vendor
+from models.vendor import VendorSearchLine
 from parsing.logic import parsing_core, append_info
 from parsing.utils import cost_process
 
@@ -127,56 +127,40 @@ async def get_parsing_items_dependency_list(origin: int, session: AsyncSession =
     return {"items": data}
 
 
+async def process_dependency_item(item: ProductDependencyUpdate, session: AsyncSession,
+                                  type_cache: dict[str, ProductType], brand_cache: dict[str, ProductBrand],
+                                  title_cache: dict[str, ProductFeaturesGlobal], ) -> dict[str, Any]:
+    prod_type = await get_or_create_product_type(item.product_type, session, type_cache)
+    prod_brand = await get_or_create_product_brand(item.brand, session, brand_cache)
+    feature = await get_or_create_feature(
+        item.title, prod_type.id, prod_brand.id, item.info, item.pros_cons, session, title_cache)
+    await link_origin_to_feature(item.origin, feature.id, session)
+
+    return {"origin": item.origin, "feature_id": feature.id}
+
+
 @parsing_router.post("/update_parsing_item_dependency/")
 async def update_parsing_item_dependency(
-        data: ProductDependencyUpdate,
+        batch: ProductDependencyBatchUpdate,
         session: AsyncSession = Depends(db.scoped_session_dependency)):
-    result_type = await session.execute(
-        select(ProductType).where(ProductType.type == data.product_type)
-    )
-    prod_type = result_type.scalar_one_or_none()
-    if not prod_type:
-        prod_type = ProductType(type=data.product_type)
-        session.add(prod_type)
-        await session.flush()
+    type_cache: dict[str, ProductType] = dict()
+    brand_cache: dict[str, ProductBrand] = dict()
+    title_cache: dict[str, ProductFeaturesGlobal] = dict()
 
-    result_brand = await session.execute(
-        select(ProductBrand).where(ProductBrand.brand == data.brand)
-    )
-    prod_brand = result_brand.scalar_one_or_none()
-    if not prod_brand:
-        prod_brand = ProductBrand(brand=data.brand)
-        session.add(prod_brand)
-        await session.flush()
-
-    result_feature = await session.execute(
-        select(ProductFeaturesGlobal).where(ProductFeaturesGlobal.title == data.title)
-    )
-    feature = result_feature.scalar_one_or_none()
-    if not feature:
-        feature = ProductFeaturesGlobal(
-            title=data.title,
-            type_id=prod_type.id,
-            brand_id=prod_brand.id,
-            info=data.info,
-            pros_cons=data.pros_cons if isinstance(data.pros_cons, dict) else None,
-        )
-        session.add(feature)
-        await session.flush()
-
-    result_link = await session.execute(select(ProductFeaturesLink).where(ProductFeaturesLink.origin == data.origin))
-    existing_link = result_link.scalar_one_or_none()
-    if existing_link:
-        existing_link.feature_id = feature.id
-    else:
-        link = ProductFeaturesLink(origin=data.origin, feature_id=feature.id)
-        session.add(link)
+    success, errors = list(), list()
+    for item in batch.items:
+        try:
+            result = await process_dependency_item(item, session, type_cache, brand_cache, title_cache)
+            success.append(result)
+        except Exception as e:
+            errors.append({"origin": item.origin, "error": str(e)})
     try:
         await session.commit()
-    except SQLAlchemyError as e:
+    except SQLAlchemyError:
         await session.rollback()
-        raise HTTPException(status_code=500, detail="Ошибка добавления зависимости")
-    return {"result": f"{data.origin} - {feature.id}"}
+        raise HTTPException(status_code=500, detail="Ошибка при сохранении зависимостей")
+
+    return {"success": success, "errors": errors}
 
 
 @parsing_router.get("/load_dependency_details/{title}", response_model=ProductResponse)

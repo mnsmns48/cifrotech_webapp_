@@ -502,3 +502,62 @@ async def update_hubstock_prices(price_map: Dict[int, Dict[str, float]], session
     await session.flush()
     return True
 
+
+async def get_or_create_product_type(
+        type_str: str, session: AsyncSession, cache: dict[str, ProductType]) -> ProductType:
+    if type_str in cache:
+        return cache[type_str]
+
+    result = await session.execute(select(ProductType).where(ProductType.type == type_str))
+    prod_type = result.scalar_one_or_none()
+    if not prod_type:
+        prod_type = ProductType(type=type_str)
+        session.add(prod_type)
+        await session.flush()
+    cache[type_str] = prod_type
+    return prod_type
+
+
+async def get_or_create_product_brand(
+        brand_str: str, session: AsyncSession, cache: dict[str, ProductBrand]) -> ProductBrand:
+    if brand_str in cache:
+        return cache[brand_str]
+
+    result = await session.execute(select(ProductBrand).where(ProductBrand.brand == brand_str))
+    prod_brand = result.scalar_one_or_none()
+    if not prod_brand:
+        prod_brand = ProductBrand(brand=brand_str)
+        session.add(prod_brand)
+        await session.flush()
+    cache[brand_str] = prod_brand
+    return prod_brand
+
+
+async def get_or_create_feature(
+        title: str, type_id: int, brand_id: int, info: Any, pros_cons: Any, session: AsyncSession,
+        cache: dict[str, ProductFeaturesGlobal]) -> ProductFeaturesGlobal:
+    if title in cache:
+        return cache[title]
+
+    result = await session.execute(select(ProductFeaturesGlobal).where(ProductFeaturesGlobal.title == title))
+    feature = result.scalar_one_or_none()
+    if not feature:
+        feature = ProductFeaturesGlobal(title=title,
+                                        type_id=type_id,
+                                        brand_id=brand_id,
+                                        info=info if isinstance(info, dict) else None,
+                                        pros_cons=pros_cons if isinstance(pros_cons, dict) else None)
+        session.add(feature)
+        await session.flush()
+    cache[title] = feature
+    return feature
+
+
+async def link_origin_to_feature(origin: int, feature_id: int, session: AsyncSession) -> None:
+    result = await session.execute(select(ProductFeaturesLink).where(ProductFeaturesLink.origin == origin))
+    existing_link = result.scalar_one_or_none()
+    if existing_link:
+        existing_link.feature_id = feature_id
+    else:
+        link = ProductFeaturesLink(origin=origin, feature_id=feature_id)
+        session.add(link)

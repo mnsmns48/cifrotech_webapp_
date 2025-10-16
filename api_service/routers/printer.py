@@ -1,22 +1,15 @@
-from datetime import datetime
 from io import BytesIO
-from fastapi import Depends, APIRouter, Path, HTTPException, Form
+from fastapi import Depends, APIRouter, Form
 from num2words import num2words
 from openpyxl.styles import Alignment
 from openpyxl.workbook import Workbook
 from pydantic import BaseModel, Field
-from sqlalchemy import select, join
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, StreamingResponse
 from xlsxtpl.writerx import BookWriter
 
 from api_service.schemas.parsing_schemas import ParsingResultOut
 from config import BASE_DIR
-from engine import db
-from models import ParsingLine, ProductOrigin
 
 printer_router = APIRouter(tags=['Service-Bill-Printer'])
 

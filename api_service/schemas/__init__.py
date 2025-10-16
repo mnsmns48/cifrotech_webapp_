@@ -8,7 +8,7 @@ from api_service.schemas.comparison_schemas import ComparisonInScheme, Compariso
 from api_service.schemas.parsing_schemas import ParsingRequest, ParsingLinesIn, ParsingToDiffData, SourceContext, \
     ParsingResultOut
 from api_service.schemas.product_schemas import ProductOriginUpdate, ProductDependencyUpdate, ProductResponse, \
-    RecalcPricesRequest, RecalcPricesResponse, ProductOriginCreate
+    RecalcPricesRequest, RecalcPricesResponse, ProductOriginCreate, ProductDependencyBatchUpdate
 from api_service.schemas.range_reward_schemas import RewardRangeLineSchema, RewardRangeSchema, \
     RewardRangeResponseSchema, RewardRangeBaseSchema
 from api_service.schemas.vsl_schemas import VSLScheme
@@ -22,7 +22,7 @@ __all__ += ["ParsingRequest", "ParsingLinesIn", "ParsingToDiffData", "SourceCont
 __all__ += ["RewardRangeLineSchema", "RewardRangeSchema", "RewardRangeResponseSchema", "RewardRangeBaseSchema"]
 __all__ += [
     "ProductOriginUpdate", "ProductDependencyUpdate", "ProductResponse", "RecalcPricesRequest", "RecalcPricesResponse",
-    "ProductOriginCreate"]
+    "ProductOriginCreate", "ProductDependencyBatchUpdate"]
 
 __all__ += ["HubMenuLevelSchema", "RenameRequest", "HubPositionPatchOut", "AddHubLevelScheme", "AddHubLevelOutScheme",
             "HubPositionPatch", "HubLevelPath"]

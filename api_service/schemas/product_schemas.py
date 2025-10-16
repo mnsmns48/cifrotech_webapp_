@@ -52,6 +52,10 @@ class ProductDependencyUpdate(BaseModel):
         return v
 
 
+class ProductDependencyBatchUpdate(BaseModel):
+    items: List[ProductDependencyUpdate]
+
+
 class ProductResponse(BaseModel):
     title: str
     brand: str

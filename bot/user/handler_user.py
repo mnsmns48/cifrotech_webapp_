@@ -18,10 +18,11 @@ tg_user_router.include_routers(main_hubstock_dialog)
 
 
 @tg_user_router.message(CommandStart())
-async def start(m: Message) -> None:
-    hello_text = (f'Привет, {m.from_user.full_name}, '
-                  f'наше приложение покажет актуальные цены и товары, доступные в салоне ЦИФРОТЕХ\n\n'
-                  f'Спросить / узнать / выяснить можно [тут](https://t.me/tser88)')
+async def start(m: Message, dialog_manager: DialogManager) -> None:
+    hello_text = (f'Привет, {m.from_user.full_name}\n\n'
+                  f'Цены "под заказ" снизу\n\n'
+                  f'[Адрес магазина](https://yandex.ru/maps/-/CLV4UFOM)\n\n'
+                  f'Спросить / узнать / выяснить, как заказать можно [тут](https://t.me/cifrotech_mobile)')
     message_data = {'id_': m.from_user.id, 'fullname': m.from_user.full_name, 'username': m.from_user.username}
     async with aiohttp.ClientSession() as client_session, db.tg_session() as pg_session:
         await notify_new_user(
@@ -43,12 +44,14 @@ async def start(m: Message) -> None:
                 token=settings.bot.bot_token.get_secret_value(),
                 chat_id=str(m.chat.id)
             )
-            await m.answer(text=hello_text, reply_markup=user_kb, parse_mode="MarkdownV2")
+            await m.answer(text=hello_text, parse_mode="MarkdownV2", disable_web_page_preview=True)
             await update_bot(session=pg_session, **{'username': bot_username, 'main_pic': pic})
         else:
-            await m.answer_photo(photo=main_pic, caption=hello_text, reply_markup=user_kb, parse_mode="MarkdownV2")
+            await m.answer_photo(photo=main_pic, caption=hello_text, parse_mode="MarkdownV2",
+                                 disable_web_page_preview=True)
 
-
-@tg_user_router.message(F.text == 'Актуально в Цифрохаб')
-async def hub_main(m: Message, dialog_manager: DialogManager):
     await dialog_manager.start(UserMainMenu.start, mode=StartMode.RESET_STACK)
+
+# @tg_user_router.message(F.text == 'Актуально в Цифрохаб')
+# async def hub_main(m: Message, dialog_manager: DialogManager):
+#     await dialog_manager.start(UserMainMenu.start, mode=StartMode.RESET_STACK)
