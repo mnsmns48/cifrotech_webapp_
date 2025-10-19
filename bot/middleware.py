@@ -48,18 +48,15 @@ class UnknownIntentMiddleware(BaseMiddleware):
 
 
 class SpamMiddleware(BaseMiddleware):
-    def __init__(self, cooldown: int = settings.bot.spam_filter_cooldown,
+    def __init__(self,
+                 cooldown: int = settings.bot.spam_filter_cooldown,
                  notify_interval: int = settings.bot.spam_notify_msg):
         self.cooldown = cooldown
         self.notify_interval = notify_interval
         self.redis = redis_session()
 
-    async def __call__(
-            self,
-            handler: Callable[[Message, Dict[str, Any]], Any],
-            event: Message,
-            data: Dict[str, Any]
-    ) -> Any:
+    async def __call__(self, handler: Callable[[Message, Dict[str, Any]], Any], event: Message,
+                       data: Dict[str, Any]) -> Any:
         if event.text != "/start":
             return await handler(event, data)
 
@@ -69,27 +66,31 @@ class SpamMiddleware(BaseMiddleware):
         key_last_start = f"spam:start:{user_id}"
         key_last_notify = f"spam:notify:{user_id}"
         key_spam_message_ids = f"spam:messages:{user_id}"
+        key_handled_flag = f"spam:start:handled:{user_id}"
 
         last_start = await self.redis.get(key_last_start)
+        already_handled = await self.redis.get(key_handled_flag)
 
         if last_start and now - int(last_start) < self.cooldown:
-            last_notify = await self.redis.get(key_last_notify)
+            if already_handled:
+                last_notify = await self.redis.get(key_last_notify)
 
-            if not last_notify or now - int(last_notify) >= self.notify_interval:
-                msg = await event.answer(
-                    "⏱ Вы уже вызывали команду /start недавно.<br>"
-                    "Так часто это делать не нужно — будет срабатывать спам-фильтр.<br>"
-                    "Вам уже доступно главное меню и кнопки перехода под надписью <b>Главная страница</b>",
-                    parse_mode="HTML"
-                )
-                await self.redis.set(key_last_notify, now, ex=self.notify_interval)
+                if not last_notify or now - int(last_notify) >= self.notify_interval:
+                    msg = await event.answer(
+                        "⏱ Вы уже вызывали команду /start недавно.\n"
+                        "Так часто это делать не нужно — будет срабатывать спам-фильтр.\n"
+                        "Вам уже доступно главное меню\nи кнопки перехода под надписью <i>Главная страница</i>",
+                        parse_mode="HTML"
+                    )
+                    await self.redis.set(key_last_notify, now, ex=self.notify_interval)
+                    await self.redis.rpush(key_spam_message_ids, msg.message_id)
+                    await self.redis.expire(key_spam_message_ids, self.cooldown)
 
-                await self.redis.rpush(key_spam_message_ids, msg.message_id)
-                await self.redis.expire(key_spam_message_ids, self.cooldown)
+                    await asyncio.sleep(10)
+                    await event.bot.delete_message(chat_id=event.chat.id, message_id=msg.message_id)
 
-                await asyncio.sleep(10)
-                await event.bot.delete_message(chat_id=event.chat.id, message_id=msg.message_id)
-            return
+                return
 
         await self.redis.set(key_last_start, now, ex=self.cooldown)
+        await self.redis.set(key_handled_flag, "1", ex=self.cooldown)
         return await handler(event, data)
