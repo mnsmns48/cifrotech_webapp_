@@ -67,6 +67,8 @@ class BotSettings(CustomConfigSettings):
     telegram_admin_id: List[int]
     webhook_url: SecretStr
     ttl_redis_key: int
+    spam_filter_cooldown: int
+    spam_notify_msg: int
 
 
 class S3Settings(CustomConfigSettings):

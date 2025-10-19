@@ -9,7 +9,7 @@ from aiogram.types import Update
 from fastapi import APIRouter, Request
 
 from bot.admin.handler_admin import tg_admin_router
-from bot.middleware import DBSessionMiddleware, UnknownIntentMiddleware
+from bot.middleware import DBSessionMiddleware, UnknownIntentMiddleware, SpamMiddleware
 from bot.user.handler_user import tg_user_router
 from config import settings, redis_session
 from engine import db
@@ -23,6 +23,7 @@ dp = Dispatcher(storage=storage)
 dp.message.middleware(DBSessionMiddleware(db.session_factory))
 dp.callback_query.middleware(DBSessionMiddleware(db.session_factory))
 dp.update.middleware(UnknownIntentMiddleware())
+dp.message.middleware(SpamMiddleware())
 dp.include_routers(tg_admin_router, tg_user_router)
 
 
