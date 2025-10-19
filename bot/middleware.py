@@ -76,10 +76,12 @@ class SpamMiddleware(BaseMiddleware):
             last_notify = await self.redis.get(key_last_notify)
 
             if not last_notify or now - int(last_notify) >= self.notify_interval:
-                msg = await event.answer("⏱ Вы уже вызывали команду start недавно.\n"
-                                         "Так часто это делать не нужно. Будет срабатывать спам-фильтр\n"
-                                         "Вам уже доступно главное меню"
-                                         " и кнопки перехода выше под надписью ГЛАВНАЯ СТРАНИЦА")
+                msg = await event.answer(
+                    "⏱ Вы уже вызывали команду /start недавно.<br>"
+                    "Так часто это делать не нужно — будет срабатывать спам-фильтр.<br>"
+                    "Вам уже доступно главное меню и кнопки перехода под надписью <b>Главная страница</b>",
+                    parse_mode="HTML"
+                )
                 await self.redis.set(key_last_notify, now, ex=self.notify_interval)
 
                 await self.redis.rpush(key_spam_message_ids, msg.message_id)
