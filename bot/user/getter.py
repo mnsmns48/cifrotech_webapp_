@@ -30,6 +30,9 @@ async def walking_dirs_getter(dialog_manager: DialogManager, session: AsyncSessi
 
 
 async def hub_items_getter(dialog_manager: DialogManager, session: AsyncSession, **kwargs):
+    MAX_MESSAGE_LENGTH = 3800
+    page = dialog_manager.dialog_data.get("page", 0)
+
     parent_id = dialog_manager.dialog_data["parent_id"]
     walk_history = dialog_manager.dialog_data.get("walk_history", [1])
     hubstock_data = await get_hubstock_items(session, parent_id)
@@ -39,16 +42,47 @@ async def hub_items_getter(dialog_manager: DialogManager, session: AsyncSession,
     if hubstock_data and hubstock_data.groups:
         sorted_groups = sorted(hubstock_data.groups, key=lambda g: g.sort_order)
 
-        group_blocks = list()
+        group_blocks = []
         for group in sorted_groups:
-            items_block = "\n".join(f"🔹{item.title}: <b><u>{int(item.price)}</u></b> ₽" for item in group.items)
-            group_blocks.append(f"{items_block}")
+            items_block = "\n".join(
+                f"🔹{item.title}: <b><u>{int(item.price)}</u></b> ₽"
+                for item in group.items
+            )
+            group_blocks.append(items_block)
 
         items_text = "\n\n".join(group_blocks)
-        updated = f"<blockquote>Обновлено {hubstock_data.most_common_updated_at}</blockquote>\n\n" if hubstock_data.most_common_updated_at else ""
+        updated = (
+            f"<blockquote>Обновлено {hubstock_data.most_common_updated_at}</blockquote>\n"
+            if hubstock_data.most_common_updated_at else ""
+        )
     else:
         items_text = "Тут пока пусто ➛ скоро всё появится"
         updated = ''
+
+    if len(items_text) >= MAX_MESSAGE_LENGTH:
+        text_bulk = []
+        current_chunk = ""
+
+        for part in items_text.split("🔹"):
+            if len(current_chunk) + len(part) + 2 > MAX_MESSAGE_LENGTH:
+                text_bulk.append(current_chunk.strip())
+                current_chunk = ""
+            current_chunk += ("🔹" + part)
+
+        if current_chunk.strip():
+            text_bulk.append(current_chunk.strip())
+
+        dialog_manager.dialog_data["pages_total"] = len(text_bulk)
+
+        return {
+            "breadcrumb": breadcrumb,
+            "updated": updated,
+            "page_text": text_bulk[page],
+            "page": page,
+            "pages_total": len(text_bulk),
+            "back": True,
+            "long_msg": True
+        }
 
     return {
         "items_text": items_text,
