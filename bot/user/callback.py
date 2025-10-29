@@ -1,3 +1,5 @@
+from typing import Any
+
 from aiogram.types import CallbackQuery
 from aiogram_dialog import DialogManager, ShowMode
 from aiogram_dialog.widgets.kbd import Select, Button
@@ -40,5 +42,19 @@ async def on_back_click(callback: CallbackQuery, button: Button, manager: Dialog
 
 async def on_hub_item_click(callback: CallbackQuery, widget, manager: DialogManager, item_id: str):
     title, price = item_id.split(":", 1)
-
     await callback.answer(f"Вы выбрали: {title} — {price} ₽", show_alert=True)
+
+
+async def go_to_prev_page(c: CallbackQuery, widget: Any, dialog_manager: DialogManager):
+    page = dialog_manager.dialog_data.get("page", 0)
+    if page > 0:
+        dialog_manager.dialog_data["page"] = page - 1
+        await dialog_manager.update({})
+
+
+async def go_to_next_page(c: CallbackQuery, widget: Any, dialog_manager: DialogManager):
+    page = dialog_manager.dialog_data.get("page", 0)
+    total = dialog_manager.dialog_data.get("pages_total", 1)
+    if page < total - 1:
+        dialog_manager.dialog_data["page"] = page + 1
+        await dialog_manager.update({})

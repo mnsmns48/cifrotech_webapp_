@@ -2,11 +2,10 @@ import aiohttp
 from aiogram import Router, F
 from aiogram.filters import CommandStart
 from aiogram.types import Message
-from aiogram_dialog import Dialog, DialogManager, StartMode
+from aiogram_dialog import DialogManager, StartMode
 from bot.api import notify_new_user, get_bot_username
 from bot.crud_bot import user_spotted, get_option_value, update_bot
 from bot.api import upload_photo_to_telegram
-from bot.user.keyboards_user import user_kb
 from bot.user.state import UserMainMenu
 from bot.user.dialog import main_hubstock_dialog
 from config import BASE_DIR, settings
@@ -51,7 +50,3 @@ async def start(m: Message, dialog_manager: DialogManager) -> None:
                                  disable_web_page_preview=True)
 
     await dialog_manager.start(UserMainMenu.start, mode=StartMode.RESET_STACK)
-
-# @tg_user_router.message(F.text == 'Актуально в Цифрохаб')
-# async def hub_main(m: Message, dialog_manager: DialogManager):
-#     await dialog_manager.start(UserMainMenu.start, mode=StartMode.RESET_STACK)
