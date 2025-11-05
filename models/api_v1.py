@@ -1,3 +1,5 @@
+from typing import Optional
+
 from sqlalchemy import func, BigInteger
 from sqlalchemy.dialects.postgresql import TIMESTAMP, JSON
 from sqlalchemy.orm import Mapped, mapped_column
@@ -42,3 +44,10 @@ class Sellers(Base):
     name: Mapped[str] = mapped_column(primary_key=True)
     price_1: Mapped[str] = mapped_column(nullable=True)
     price_2: Mapped[str] = mapped_column(nullable=True)
+
+
+class StockTableDependency(Base):
+    code: Mapped[int] = mapped_column(primary_key=True)
+    parent_id: Mapped[int]
+    label: Mapped[str]
+    icon: Mapped[Optional[str]] = mapped_column(nullable=True)

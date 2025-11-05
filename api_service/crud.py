@@ -561,3 +561,8 @@ async def link_origin_to_feature(origin: int, feature_id: int, session: AsyncSes
     else:
         link = ProductFeaturesLink(origin=origin, feature_id=feature_id)
         session.add(link)
+
+
+async def fetch_all_hub_levels(session: AsyncSession) -> List[HUbMenuLevel]:
+    execute = await session.execute(select(HUbMenuLevel))
+    return list(execute.scalars().all())

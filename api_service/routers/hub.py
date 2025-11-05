@@ -1,13 +1,17 @@
+from asyncio import TimeoutError
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from aiohttp import ClientSession, ClientConnectionError, ClientResponseError
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api_service.crud import fetch_all_hub_levels
+from api_service.s3_helper import get_s3_client, get_http_client_session, generate_presigned_image_urls
 from api_service.schemas import RenameRequest, HubMenuLevelSchema, HubPositionPatchOut, AddHubLevelScheme, \
-    AddHubLevelOutScheme, \
-    HubPositionPatch
+    AddHubLevelOutScheme, HubPositionPatch
 
+from config import settings
 from engine import db
 from models import HUbMenuLevel
 
@@ -16,9 +20,26 @@ hub_router = APIRouter(tags=['Hub'])
 
 @hub_router.get("/initial_hub_levels", response_model=List[HubMenuLevelSchema])
 async def get_hub_levels(session: AsyncSession = Depends(db.scoped_session_dependency)):
-    result = await session.execute(select(HUbMenuLevel))
-    items = result.scalars().all()
-    return items
+    return await fetch_all_hub_levels(session)
+
+
+@hub_router.get("/initial_hub_levels_with_preview", response_model=List[HubMenuLevelSchema])
+async def get_hub_levels_with_preview(session: AsyncSession = Depends(db.scoped_session_dependency),
+                                      s3_client=Depends(get_s3_client)):
+    levels: List[HUbMenuLevel] = await fetch_all_hub_levels(session)
+    filenames = {level.icon for level in levels if level.icon}
+    prefix = f"{settings.s3.s3_hub_prefix}/utils/"
+    bucket = settings.s3.bucket_name
+
+    presigned_links = await generate_presigned_image_urls(filenames, prefix, bucket, s3_client)
+
+    link_map = {item["filename"]: item["url"] for item in presigned_links}
+
+    for level in levels:
+        if level.icon and level.icon in link_map:
+            level.icon = link_map[level.icon]
+
+    return levels
 
 
 @hub_router.patch("/rename_hub_level")
@@ -109,3 +130,41 @@ async def delete_hub_level(level_id: int, session: AsyncSession = Depends(db.sco
     )
     await session.commit()
     return {"status": True}
+
+
+@hub_router.post("/loading_one_image")
+async def upload_image_to_origin(code: int = Form(...),
+                                 pathname: str = Form(...),
+                                 file: UploadFile = File(...),
+                                 session: AsyncSession = Depends(db.scoped_session_dependency),
+                                 s3_client=Depends(get_s3_client),
+                                 cl_session: ClientSession = Depends(get_http_client_session)):
+    bucket = settings.s3.bucket_name
+    prefix = f"{settings.s3.s3_hub_prefix}/{pathname}/"
+    key = f"{prefix}{file.filename}"
+    try:
+        put_url = await s3_client.generate_presigned_url(
+            ClientMethod="put_object", Params={"Bucket": bucket, "Key": key}, ExpiresIn=600)
+        body = await file.read()
+    except Exception as e:
+        raise HTTPException(400, f"Не удалось подготовить загрузку: {e}")
+    try:
+        async with cl_session.put(put_url, data=body) as resp:
+            resp.raise_for_status()
+
+    except (ClientConnectionError, ClientResponseError, TimeoutError) as e:
+        raise HTTPException(502, f"Ошибка загрузки в S3: {e}")
+
+    result = await session.execute(select(HUbMenuLevel).where(HUbMenuLevel.id == code))
+    item = result.scalar_one_or_none()
+    if not item:
+        raise HTTPException(404, detail="Уровень не найден")
+    item.icon = file.filename
+    await session.commit()
+    try:
+        presigned_list = await generate_presigned_image_urls({file.filename}, prefix, bucket, s3_client)
+        presigned_url = presigned_list[0]["url"]
+    except Exception as e:
+        raise HTTPException(500, f"Не удалось сгенерировать ссылку: {e}")
+
+    return {"id": code, 'filename': file.filename, 'url': presigned_url}
