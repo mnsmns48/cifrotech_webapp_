@@ -47,3 +47,8 @@ class AddHubLevelOutScheme(BaseModel):
     label: str
     parent_id: int
     sort_order: int
+
+
+class UpdateDeleteImageSchema(BaseModel):
+    code: int
+    icon: Optional[str]

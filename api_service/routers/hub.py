@@ -1,5 +1,5 @@
 from asyncio import TimeoutError
-from typing import List
+from typing import List, Dict
 
 from aiohttp import ClientSession, ClientConnectionError, ClientResponseError
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
@@ -10,6 +10,7 @@ from api_service.crud import fetch_all_hub_levels
 from api_service.s3_helper import get_s3_client, get_http_client_session, generate_presigned_image_urls
 from api_service.schemas import RenameRequest, HubMenuLevelSchema, HubPositionPatchOut, AddHubLevelScheme, \
     AddHubLevelOutScheme, HubPositionPatch
+from api_service.schemas.hub_schemas import UpdateDeleteImageSchema
 
 from config import settings
 from engine import db
@@ -141,30 +142,54 @@ async def upload_image_to_origin(code: int = Form(...),
                                  cl_session: ClientSession = Depends(get_http_client_session)):
     bucket = settings.s3.bucket_name
     prefix = f"{settings.s3.s3_hub_prefix}/{pathname}/"
-    key = f"{prefix}{file.filename}"
-    try:
-        put_url = await s3_client.generate_presigned_url(
-            ClientMethod="put_object", Params={"Bucket": bucket, "Key": key}, ExpiresIn=600)
-        body = await file.read()
-    except Exception as e:
-        raise HTTPException(400, f"Не удалось подготовить загрузку: {e}")
-    try:
-        async with cl_session.put(put_url, data=body) as resp:
-            resp.raise_for_status()
-
-    except (ClientConnectionError, ClientResponseError, TimeoutError) as e:
-        raise HTTPException(502, f"Ошибка загрузки в S3: {e}")
+    new_key = f"{prefix}{file.filename}"
 
     result = await session.execute(select(HUbMenuLevel).where(HUbMenuLevel.id == code))
     item = result.scalar_one_or_none()
     if not item:
         raise HTTPException(404, detail="Уровень не найден")
+
+    old_filename = item.icon
+
+    try:
+        put_url = await s3_client.generate_presigned_url(
+            ClientMethod="put_object", Params={"Bucket": bucket, "Key": new_key}, ExpiresIn=600)
+        body = await file.read()
+    except Exception as e:
+        raise HTTPException(400, f"Не удалось подготовить загрузку: {e}")
+
+    try:
+        async with cl_session.put(put_url, data=body) as resp:
+            resp.raise_for_status()
+    except (ClientConnectionError, ClientResponseError, TimeoutError) as e:
+        raise HTTPException(502, f"Ошибка загрузки в S3: {e}")
+
     item.icon = file.filename
     await session.commit()
+
+    if old_filename and old_filename != file.filename:
+        check_result = await session.execute(
+            select(HUbMenuLevel).where(HUbMenuLevel.icon == old_filename)
+        )
+        still_used = check_result.scalars().first()
+        if not still_used:
+            old_key = f"{prefix}{old_filename}"
+            try:
+                await s3_client.delete_object(Bucket=bucket, Key=old_key)
+            except Exception as e:
+                raise HTTPException(500, f"Не удалось удалить старый файл: {e}")
+
     try:
-        presigned_list = await generate_presigned_image_urls({file.filename}, prefix, bucket, s3_client)
+        presigned_list: List[Dict[str, str]] = await generate_presigned_image_urls({file.filename}, prefix, bucket,
+                                                                                   s3_client)
         presigned_url = presigned_list[0]["url"]
     except Exception as e:
         raise HTTPException(500, f"Не удалось сгенерировать ссылку: {e}")
 
     return {"id": code, 'filename': file.filename, 'url': presigned_url}
+
+@hub_router.post("/update_or_delete_image")
+async def update_or_delete_image(payload: UpdateDeleteImageSchema,
+                                 session: AsyncSession = Depends(db.scoped_session_dependency),
+                                 s3_client=Depends(get_s3_client),
+                                 cl_session: ClientSession = Depends(get_http_client_session)):
