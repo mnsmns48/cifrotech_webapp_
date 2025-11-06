@@ -78,6 +78,7 @@ class S3Settings(CustomConfigSettings):
     s3_secret_access_key: str
     region: str
     s3_hub_prefix: str
+    utils_path: str
 
 
 class Settings(CustomConfigSettings):

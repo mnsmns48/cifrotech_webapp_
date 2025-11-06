@@ -6,11 +6,10 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api_service.crud import fetch_all_hub_levels
+from api_service.crud import fetch_all_hub_levels, is_icon_used_elsewhere, fetch_ctech_pathnames
 from api_service.s3_helper import get_s3_client, get_http_client_session, generate_presigned_image_urls
 from api_service.schemas import RenameRequest, HubMenuLevelSchema, HubPositionPatchOut, AddHubLevelScheme, \
-    AddHubLevelOutScheme, HubPositionPatch
-from api_service.schemas.hub_schemas import UpdateDeleteImageSchema
+    AddHubLevelOutScheme, HubPositionPatch, UpdateDeleteImageScheme, UpdatedImageScheme
 
 from config import settings
 from engine import db
@@ -41,6 +40,11 @@ async def get_hub_levels_with_preview(session: AsyncSession = Depends(db.scoped_
             level.icon = link_map[level.icon]
 
     return levels
+
+
+@hub_router.get("/initial_cifrotech_levels")
+async def initial_cifrotech_levels(session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await fetch_ctech_pathnames(session)
 
 
 @hub_router.patch("/rename_hub_level")
@@ -133,15 +137,14 @@ async def delete_hub_level(level_id: int, session: AsyncSession = Depends(db.sco
     return {"status": True}
 
 
-@hub_router.post("/loading_one_image")
+@hub_router.post("/loading_hub_one_image")
 async def upload_image_to_origin(code: int = Form(...),
-                                 pathname: str = Form(...),
                                  file: UploadFile = File(...),
                                  session: AsyncSession = Depends(db.scoped_session_dependency),
                                  s3_client=Depends(get_s3_client),
                                  cl_session: ClientSession = Depends(get_http_client_session)):
     bucket = settings.s3.bucket_name
-    prefix = f"{settings.s3.s3_hub_prefix}/{pathname}/"
+    prefix = f"{settings.s3.s3_hub_prefix}/{settings.s3.utils_path}/"
     new_key = f"{prefix}{file.filename}"
 
     result = await session.execute(select(HUbMenuLevel).where(HUbMenuLevel.id == code))
@@ -188,8 +191,47 @@ async def upload_image_to_origin(code: int = Form(...),
 
     return {"id": code, 'filename': file.filename, 'url': presigned_url}
 
-@hub_router.post("/update_or_delete_image")
-async def update_or_delete_image(payload: UpdateDeleteImageSchema,
+
+@hub_router.post("/update_or_delete_image", response_model=UpdatedImageScheme)
+async def update_or_delete_image(payload: UpdateDeleteImageScheme,
                                  session: AsyncSession = Depends(db.scoped_session_dependency),
-                                 s3_client=Depends(get_s3_client),
-                                 cl_session: ClientSession = Depends(get_http_client_session)):
+                                 s3_client=Depends(get_s3_client)):
+    bucket = settings.s3.bucket_name
+    prefix = f"{settings.s3.s3_hub_prefix}/{settings.s3.utils_path}/"
+
+    stmt = select(HUbMenuLevel).where(HUbMenuLevel.id == payload.code)
+    result = await session.execute(stmt)
+    menu_level = result.scalar_one_or_none()
+
+    if not menu_level:
+        raise HTTPException(status_code=404, detail="Категория меню не найдена")
+
+    current_icon = menu_level.icon
+    new_icon = payload.icon
+    presigned_url = None
+
+    if new_icon is None:
+        if current_icon:
+            if not await is_icon_used_elsewhere(current_icon, menu_level.id, session):
+                await s3_client.delete_object(Bucket=bucket, Key=f"{prefix}{current_icon}")
+            menu_level.icon = None
+            await session.commit()
+
+    else:
+        try:
+            await s3_client.head_object(Bucket=bucket, Key=f"{prefix}{new_icon}")
+            old_icon = current_icon
+            menu_level.icon = new_icon
+            await session.commit()
+
+            presigned_list = await generate_presigned_image_urls({new_icon}, prefix, bucket, s3_client)
+            presigned_url = presigned_list[0]["url"]
+
+            if old_icon and old_icon != new_icon:
+                if not await is_icon_used_elsewhere(old_icon, menu_level.id, session):
+                    await s3_client.delete_object(Bucket=bucket, Key=f"{prefix}{old_icon}")
+
+        except s3_client.exceptions.ClientError:
+            return UpdatedImageScheme(code=menu_level.id, icon=current_icon or "", url=None)
+
+    return UpdatedImageScheme(code=menu_level.id, icon=menu_level.icon, url=presigned_url)

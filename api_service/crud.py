@@ -17,7 +17,7 @@ from api_service.schemas import ParsingLinesIn, VSLScheme, HubToDiffData, HubLev
 
 from api_service.utils import normalize_origin
 from models import Vendor, ParsingLine, ProductOrigin, ProductType, ProductBrand, ProductFeaturesGlobal, \
-    ProductFeaturesLink, HUbStock, HUbMenuLevel
+    ProductFeaturesLink, HUbStock, HUbMenuLevel, StockTable
 from models.vendor import VendorSearchLine, RewardRangeLine, RewardRange
 
 from sqlalchemy import select
@@ -565,4 +565,15 @@ async def link_origin_to_feature(origin: int, feature_id: int, session: AsyncSes
 
 async def fetch_all_hub_levels(session: AsyncSession) -> List[HUbMenuLevel]:
     execute = await session.execute(select(HUbMenuLevel))
+    return list(execute.scalars().all())
+
+
+async def is_icon_used_elsewhere(icon_name: str, exclude_id: int, session: AsyncSession) -> bool:
+    stmt = select(HUbMenuLevel.id).where(HUbMenuLevel.icon == icon_name, HUbMenuLevel.id != exclude_id).limit(1)
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none() is not None
+
+
+async def fetch_ctech_pathnames(session: AsyncSession) -> List[StockTable]:
+    execute = await session.execute(select(StockTable).where(StockTable.ispath == True))
     return list(execute.scalars().all())
