@@ -47,6 +47,6 @@ class Sellers(Base):
 
 
 class StockTableDependency(Base):
+    __tablename__ = "stocktable_dependency"
     code: Mapped[int] = mapped_column(primary_key=True)
-    parent_id: Mapped[int]
-    icon: Mapped[Optional[str]] = mapped_column(nullable=True)
+    icon: Mapped[str]

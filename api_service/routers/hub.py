@@ -30,9 +30,7 @@ async def get_hub_levels_with_preview(session: AsyncSession = Depends(db.scoped_
     filenames = {level.icon for level in levels if level.icon}
     prefix = f"{settings.s3.s3_hub_prefix}/utils/"
     bucket = settings.s3.bucket_name
-
     presigned_links = await generate_presigned_image_urls(filenames, prefix, bucket, s3_client)
-
     link_map = {item["filename"]: item["url"] for item in presigned_links}
 
     for level in levels:
@@ -43,8 +41,19 @@ async def get_hub_levels_with_preview(session: AsyncSession = Depends(db.scoped_
 
 
 @hub_router.get("/initial_cifrotech_levels")
-async def initial_cifrotech_levels(session: AsyncSession = Depends(db.scoped_session_dependency)):
-    return await fetch_ctech_pathnames(session)
+async def initial_cifrotech_levels(
+        session: AsyncSession = Depends(db.scoped_session_dependency), s3_client=Depends(get_s3_client)):
+    levels = [dict(row) for row in await fetch_ctech_pathnames(session)]
+    filenames = {level["icon"] for level in levels if level.get("icon")}
+    prefix = f"{settings.s3.s3_hub_prefix}/utils/"
+    bucket = settings.s3.bucket_name
+    presigned_links = await generate_presigned_image_urls(filenames, prefix, bucket, s3_client)
+    link_map = {item["filename"]: item["url"] for item in presigned_links}
+    for level in levels:
+        icon = level.get("icon")
+        if icon and icon in link_map:
+            level["icon"] = link_map[icon]
+    return levels
 
 
 @hub_router.patch("/rename_hub_level")
@@ -138,11 +147,13 @@ async def delete_hub_level(level_id: int, session: AsyncSession = Depends(db.sco
 
 
 @hub_router.post("/loading_hub_one_image")
-async def upload_image_to_origin(code: int = Form(...),
-                                 file: UploadFile = File(...),
-                                 session: AsyncSession = Depends(db.scoped_session_dependency),
-                                 s3_client=Depends(get_s3_client),
-                                 cl_session: ClientSession = Depends(get_http_client_session)):
+async def upload_image_to_origin(
+        code: int = Form(...),
+        file: UploadFile = File(...),
+        session: AsyncSession = Depends(db.scoped_session_dependency),
+        s3_client=Depends(get_s3_client),
+        cl_session: ClientSession = Depends(get_http_client_session)
+):
     bucket = settings.s3.bucket_name
     prefix = f"{settings.s3.s3_hub_prefix}/{settings.s3.utils_path}/"
     new_key = f"{prefix}{file.filename}"
@@ -156,7 +167,10 @@ async def upload_image_to_origin(code: int = Form(...),
 
     try:
         put_url = await s3_client.generate_presigned_url(
-            ClientMethod="put_object", Params={"Bucket": bucket, "Key": new_key}, ExpiresIn=600)
+            ClientMethod="put_object",
+            Params={"Bucket": bucket, "Key": new_key},
+            ExpiresIn=600
+        )
         body = await file.read()
     except Exception as e:
         raise HTTPException(400, f"Не удалось подготовить загрузку: {e}")
@@ -171,10 +185,7 @@ async def upload_image_to_origin(code: int = Form(...),
     await session.commit()
 
     if old_filename and old_filename != file.filename:
-        check_result = await session.execute(
-            select(HUbMenuLevel).where(HUbMenuLevel.icon == old_filename)
-        )
-        still_used = check_result.scalars().first()
+        still_used = await is_icon_used_elsewhere(old_filename, exclude_id=code, session=session)
         if not still_used:
             old_key = f"{prefix}{old_filename}"
             try:
@@ -183,16 +194,17 @@ async def upload_image_to_origin(code: int = Form(...),
                 raise HTTPException(500, f"Не удалось удалить старый файл: {e}")
 
     try:
-        presigned_list: List[Dict[str, str]] = await generate_presigned_image_urls({file.filename}, prefix, bucket,
-                                                                                   s3_client)
+        presigned_list: List[Dict[str, str]] = await generate_presigned_image_urls(
+            {file.filename}, prefix, bucket, s3_client
+        )
         presigned_url = presigned_list[0]["url"]
     except Exception as e:
         raise HTTPException(500, f"Не удалось сгенерировать ссылку: {e}")
 
-    return {"id": code, 'filename': file.filename, 'url': presigned_url}
+    return {"id": code, "filename": file.filename, "url": presigned_url}
 
 
-@hub_router.post("/update_or_delete_image", response_model=UpdatedImageScheme)
+@hub_router.post("/update_or_delete_hub_image", response_model=UpdatedImageScheme)
 async def update_or_delete_image(payload: UpdateDeleteImageScheme,
                                  session: AsyncSession = Depends(db.scoped_session_dependency),
                                  s3_client=Depends(get_s3_client)):

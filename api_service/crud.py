@@ -18,6 +18,7 @@ from api_service.schemas import ParsingLinesIn, VSLScheme, HubToDiffData, HubLev
 from api_service.utils import normalize_origin
 from models import Vendor, ParsingLine, ProductOrigin, ProductType, ProductBrand, ProductFeaturesGlobal, \
     ProductFeaturesLink, HUbStock, HUbMenuLevel, StockTable
+from models.api_v1 import StockTableDependency
 from models.vendor import VendorSearchLine, RewardRangeLine, RewardRange
 
 from sqlalchemy import select
@@ -565,15 +566,34 @@ async def link_origin_to_feature(origin: int, feature_id: int, session: AsyncSes
 
 async def fetch_all_hub_levels(session: AsyncSession) -> List[HUbMenuLevel]:
     execute = await session.execute(select(HUbMenuLevel))
-    return list(execute.scalars().all())
+    result = list(execute.scalars().all())
+    return result
 
 
 async def is_icon_used_elsewhere(icon_name: str, exclude_id: int, session: AsyncSession) -> bool:
-    stmt = select(HUbMenuLevel.id).where(HUbMenuLevel.icon == icon_name, HUbMenuLevel.id != exclude_id).limit(1)
+    stmt_hub = select(HUbMenuLevel.id).where(
+        HUbMenuLevel.icon == icon_name,
+        HUbMenuLevel.id != exclude_id).limit(1)
+    result_hub = await session.execute(stmt_hub)
+    found_in_hub = result_hub.scalar_one_or_none() is not None
+
+    stmt_stock = select(StockTableDependency.code).where(
+        StockTableDependency.icon == icon_name).limit(1)
+    result_stock = await session.execute(stmt_stock)
+    found_in_stock = result_stock.scalar_one_or_none() is not None
+
+    return found_in_hub or found_in_stock
+
+
+async def fetch_ctech_pathnames(session: AsyncSession):
+    stmt = (
+        select(StockTable.code,
+               StockTable.parent,
+               StockTable.name,
+               StockTableDependency.icon)
+        .outerjoin(StockTableDependency, StockTable.code == StockTableDependency.code)
+        .where(StockTable.ispath == True)
+    )
     result = await session.execute(stmt)
-    return result.scalar_one_or_none() is not None
-
-
-async def fetch_ctech_pathnames(session: AsyncSession) -> List[StockTable]:
-    execute = await session.execute(select(StockTable).where(StockTable.ispath == True))
-    return list(execute.scalars().all())
+    res = result.mappings().all()
+    return res
