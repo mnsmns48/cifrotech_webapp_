@@ -571,14 +571,15 @@ async def fetch_all_hub_levels(session: AsyncSession) -> List[HUbMenuLevel]:
 
 
 async def is_icon_used_elsewhere(icon_name: str, exclude_id: int, session: AsyncSession) -> bool:
-    stmt_hub = select(HUbMenuLevel.id).where(
-        HUbMenuLevel.icon == icon_name,
-        HUbMenuLevel.id != exclude_id).limit(1)
+    stmt_hub = select(HUbMenuLevel.id).where(and_(
+        HUbMenuLevel.icon == icon_name),
+        (HUbMenuLevel.id != exclude_id)).limit(1)
     result_hub = await session.execute(stmt_hub)
     found_in_hub = result_hub.scalar_one_or_none() is not None
 
-    stmt_stock = select(StockTableDependency.code).where(
-        StockTableDependency.icon == icon_name).limit(1)
+    stmt_stock = select(StockTableDependency.code).where(and_(
+        StockTableDependency.icon == icon_name),
+        (StockTableDependency.code != exclude_id)).limit(1)
     result_stock = await session.execute(stmt_stock)
     found_in_stock = result_stock.scalar_one_or_none() is not None
 

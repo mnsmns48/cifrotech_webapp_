@@ -3,7 +3,8 @@ from typing import List, Dict
 
 from aiohttp import ClientSession, ClientConnectionError, ClientResponseError
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
-from sqlalchemy import select, update
+from sqlalchemy import select, update, and_, outerjoin, delete
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.crud import fetch_all_hub_levels, is_icon_used_elsewhere, fetch_ctech_pathnames
@@ -13,7 +14,8 @@ from api_service.schemas import RenameRequest, HubMenuLevelSchema, HubPositionPa
 
 from config import settings
 from engine import db
-from models import HUbMenuLevel
+from models import HUbMenuLevel, StockTable
+from models.api_v1 import StockTableDependency
 
 hub_router = APIRouter(tags=['Hub'])
 
@@ -40,8 +42,8 @@ async def get_hub_levels_with_preview(session: AsyncSession = Depends(db.scoped_
     return levels
 
 
-@hub_router.get("/initial_cifrotech_levels")
-async def initial_cifrotech_levels(
+@hub_router.get("/initial_home_levels")
+async def initial_home_levels(
         session: AsyncSession = Depends(db.scoped_session_dependency), s3_client=Depends(get_s3_client)):
     levels = [dict(row) for row in await fetch_ctech_pathnames(session)]
     filenames = {level["icon"] for level in levels if level.get("icon")}
@@ -147,13 +149,10 @@ async def delete_hub_level(level_id: int, session: AsyncSession = Depends(db.sco
 
 
 @hub_router.post("/loading_hub_one_image")
-async def upload_image_to_origin(
-        code: int = Form(...),
-        file: UploadFile = File(...),
-        session: AsyncSession = Depends(db.scoped_session_dependency),
-        s3_client=Depends(get_s3_client),
-        cl_session: ClientSession = Depends(get_http_client_session)
-):
+async def upload_image_utils_image_to_hub(code: int = Form(...), file: UploadFile = File(...),
+                                          session: AsyncSession = Depends(db.scoped_session_dependency),
+                                          s3_client=Depends(get_s3_client),
+                                          cl_session: ClientSession = Depends(get_http_client_session)):
     bucket = settings.s3.bucket_name
     prefix = f"{settings.s3.s3_hub_prefix}/{settings.s3.utils_path}/"
     new_key = f"{prefix}{file.filename}"
@@ -161,7 +160,7 @@ async def upload_image_to_origin(
     result = await session.execute(select(HUbMenuLevel).where(HUbMenuLevel.id == code))
     item = result.scalar_one_or_none()
     if not item:
-        raise HTTPException(404, detail="Уровень не найден")
+        raise HTTPException(404, detail="Папка не найдена")
 
     old_filename = item.icon
 
@@ -182,6 +181,71 @@ async def upload_image_to_origin(
         raise HTTPException(502, f"Ошибка загрузки в S3: {e}")
 
     item.icon = file.filename
+    await session.commit()
+
+    if old_filename and old_filename != file.filename:
+        still_used = await is_icon_used_elsewhere(old_filename, exclude_id=code, session=session)
+        if not still_used:
+            old_key = f"{prefix}{old_filename}"
+            try:
+                await s3_client.delete_object(Bucket=bucket, Key=old_key)
+            except Exception as e:
+                raise HTTPException(500, f"Не удалось удалить старый файл: {e}")
+
+    try:
+        presigned_list: List[Dict[str, str]] = await generate_presigned_image_urls(
+            {file.filename}, prefix, bucket, s3_client
+        )
+        presigned_url = presigned_list[0]["url"]
+    except Exception as e:
+        raise HTTPException(500, f"Не удалось сгенерировать ссылку: {e}")
+
+    return {"id": code, "filename": file.filename, "url": presigned_url}
+
+
+@hub_router.post("/loading_home_one_image")
+async def upload_image_utils_image_to_home(code: int = Form(...), file: UploadFile = File(...),
+                                           session: AsyncSession = Depends(db.scoped_session_dependency),
+                                           s3_client=Depends(get_s3_client),
+                                           cl_session: ClientSession = Depends(get_http_client_session)):
+    bucket = settings.s3.bucket_name
+    prefix = f"{settings.s3.s3_hub_prefix}/{settings.s3.utils_path}/"
+    new_key = f"{prefix}{file.filename}"
+
+    stock_code = await session.execute(select(StockTable)
+    .where(and_(
+        (StockTable.code == code), (StockTable.ispath == True))))
+    item = stock_code.scalar_one_or_none()
+    if not item:
+        raise HTTPException(404, detail="Такого уровня нет")
+
+    try:
+        put_url = await s3_client.generate_presigned_url(
+            ClientMethod="put_object",
+            Params={"Bucket": bucket, "Key": new_key},
+            ExpiresIn=600
+        )
+        body = await file.read()
+    except Exception as e:
+        raise HTTPException(400, f"Не удалось подготовить загрузку: {e}")
+
+    try:
+        async with cl_session.put(put_url, data=body) as resp:
+            resp.raise_for_status()
+    except (ClientConnectionError, ClientResponseError, TimeoutError) as e:
+        raise HTTPException(502, f"Ошибка загрузки в S3: {e}")
+
+    stock_dependensy_obj = await session.execute(select(StockTableDependency).where(StockTableDependency.code == code))
+    item = stock_dependensy_obj.scalar_one_or_none()
+    old_filename = ''
+
+    if not item:
+        stmt = insert(StockTableDependency).values({"code": code, "icon": file.filename})
+        await session.execute(stmt)
+    else:
+        old_filename = item.icon
+        item.icon = file.filename
+
     await session.commit()
 
     if old_filename and old_filename != file.filename:
@@ -247,3 +311,58 @@ async def update_or_delete_image(payload: UpdateDeleteImageScheme,
             return UpdatedImageScheme(code=menu_level.id, icon=current_icon or "", url=None)
 
     return UpdatedImageScheme(code=menu_level.id, icon=menu_level.icon, url=presigned_url)
+
+
+@hub_router.post("/update_or_delete_home_image")
+async def update_or_delete_image(payload: UpdateDeleteImageScheme,
+                                 session: AsyncSession = Depends(db.scoped_session_dependency),
+                                 s3_client=Depends(get_s3_client)):
+    bucket = settings.s3.bucket_name
+    prefix = f"{settings.s3.s3_hub_prefix}/{settings.s3.utils_path}/"
+
+    stmt = (select(StockTable.code,
+                   StockTable.parent,
+                   StockTable.name,
+                   StockTableDependency.icon)
+            .outerjoin(StockTableDependency, StockTable.code == StockTableDependency.code)
+            .where((StockTable.code == payload.code)))
+
+    execute = await session.execute(stmt)
+    raw = execute.mappings().one()
+    menu_level = dict(raw) if raw else None
+
+    if not menu_level:
+        raise HTTPException(status_code=404, detail="Категория меню не найдена")
+
+    current_icon = menu_level.get('icon')
+    new_icon = payload.icon
+    presigned_url = None
+
+    if new_icon is None:
+        if current_icon:
+            if not await is_icon_used_elsewhere(current_icon, menu_level.get('code'), session):
+                await s3_client.delete_object(Bucket=bucket, Key=f"{prefix}{current_icon}")
+            await session.execute(delete(StockTableDependency).where(StockTableDependency.code == payload.code))
+            await session.commit()
+            menu_level['icon'] = None
+
+    else:
+        try:
+            await s3_client.head_object(Bucket=bucket, Key=f"{prefix}{new_icon}")
+            old_icon = current_icon
+            menu_level['icon'] = new_icon
+            await session.execute(update(StockTableDependency)
+                                  .where(StockTableDependency.code == payload.code).values(icon=new_icon))
+            await session.commit()
+
+            presigned_list = await generate_presigned_image_urls({new_icon}, prefix, bucket, s3_client)
+            presigned_url = presigned_list[0]["url"]
+
+            if old_icon and old_icon != new_icon:
+                if not await is_icon_used_elsewhere(old_icon, menu_level.get('code'), session):
+                    await s3_client.delete_object(Bucket=bucket, Key=f"{prefix}{old_icon}")
+
+        except s3_client.exceptions.ClientError:
+            return UpdatedImageScheme(code=menu_level.get('code'), icon=current_icon or "", url=None)
+
+    return UpdatedImageScheme(code=menu_level.get('code'), icon=menu_level.get('icon'), url=presigned_url)
