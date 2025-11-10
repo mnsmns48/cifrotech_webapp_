@@ -598,3 +598,48 @@ async def fetch_ctech_pathnames(session: AsyncSession):
     result = await session.execute(stmt)
     res = result.mappings().all()
     return res
+
+
+async def get_hub_item(session: AsyncSession, code: int):
+    stmt = select(HUbMenuLevel).where(HUbMenuLevel.id == code)
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none()
+
+
+async def get_home_item(session: AsyncSession, code: int):
+    stmt = select(StockTable).where(and_(StockTable.code == code, StockTable.ispath == True))
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none()
+
+
+async def upsert_home_dependency(session: AsyncSession, code: int, filename: str) -> str | None:
+    stmt = select(StockTableDependency).where(StockTableDependency.code == code)
+    res = await session.execute(stmt)
+    dependency = res.scalar_one_or_none()
+    old_filename = None
+    if dependency:
+        old_filename = dependency.icon
+        dependency.icon = filename
+    else:
+        await session.execute(insert(StockTableDependency).values({"code": code, "icon": filename}))
+    await session.commit()
+    return old_filename
+
+
+async def get_home_menu_level(session: AsyncSession, code: int) -> dict | None:
+    stmt = (select(StockTable.code, StockTable.parent, StockTable.name, StockTableDependency.icon)
+            .outerjoin(StockTableDependency, StockTable.code == StockTableDependency.code)
+            .where(StockTable.code == code))
+    result = await session.execute(stmt)
+    raw = result.mappings().first()
+    return dict(raw) if raw else None
+
+
+async def update_home_icon(session: AsyncSession, code: int, new_icon: str | None):
+    if new_icon is None:
+        await session.execute(delete(StockTableDependency).where(StockTableDependency.code == code))
+    else:
+        await session.execute(
+            update(StockTableDependency).where(StockTableDependency.code == code).values(icon=new_icon)
+        )
+    await session.commit()

@@ -3,7 +3,7 @@ import aioboto3
 import os
 
 from asyncio import gather, create_task
-from typing import List, Dict, Any, AsyncGenerator
+from typing import List, Dict, Any, AsyncGenerator, Callable
 from urllib.parse import urlparse
 from aiobotocore.client import AioBaseClient
 from aiohttp import ClientSession, ClientConnectionError, ClientResponseError, ClientTimeout
@@ -15,7 +15,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from api_service.schemas import ParsingLinesIn
+from api_service.crud import is_icon_used_elsewhere
+from api_service.schemas import ParsingLinesIn, UpdatedImageScheme
 from config import settings
 from models import ProductOrigin
 from models.product_dependencies import ProductImage
@@ -285,3 +286,29 @@ async def generate_final_image_payload(
     }
 
 
+async def process_image_update(code: int, current_icon: str | None, new_icon: str | None,
+                               s3_client, session: AsyncSession, bucket: str, prefix: str,
+                               update_db_icon: Callable) -> UpdatedImageScheme:
+    if new_icon is None:
+        if current_icon:
+            if not await is_icon_used_elsewhere(current_icon, code, session):
+                await s3_client.delete_object(Bucket=bucket, Key=f"{prefix}{current_icon}")
+            await update_db_icon(None)
+        return UpdatedImageScheme(code=code, icon=None, url=None)
+
+    try:
+        await s3_client.head_object(Bucket=bucket, Key=f"{prefix}{new_icon}")
+        old_icon = current_icon
+        await update_db_icon(new_icon)
+
+        presigned_list = await generate_presigned_image_urls({new_icon}, prefix, bucket, s3_client)
+        presigned_url = presigned_list[0]["url"]
+
+        if old_icon and old_icon != new_icon:
+            if not await is_icon_used_elsewhere(old_icon, code, session):
+                await s3_client.delete_object(Bucket=bucket, Key=f"{prefix}{old_icon}")
+
+    except s3_client.exceptions.ClientError:
+        return UpdatedImageScheme(code=code, icon=current_icon or "", url=None)
+
+    return UpdatedImageScheme(code=code, icon=new_icon, url=presigned_url)
