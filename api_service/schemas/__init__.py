@@ -4,7 +4,8 @@ from api_service.schemas.hubstock_schemas import (HubLoadingData, StockHubItemRe
                                                   HubItemTitlePatch, HubItemsChangePriceRequest,
                                                   HubItemsChangePriceResponse)
 from api_service.schemas.comparison_schemas import ComparisonInScheme, ComparisonOutScheme, ParsingLine, \
-    ConsentProcessScheme, ParsingHubDiffOut, HubToDiffData, RecalcScheme, RecomputedResult, RecomputedNewPriceLines
+    ConsentProcessScheme, ParsingHubDiffOut, HubToDiffData, RecalcScheme, RecomputedResult, RecomputedNewPriceLines, \
+    ParsingHubDiffItem
 from api_service.schemas.parsing_schemas import ParsingRequest, ParsingLinesIn, ParsingToDiffData, SourceContext, \
     ParsingResultOut
 from api_service.schemas.product_schemas import ProductOriginUpdate, ProductDependencyUpdate, ProductResponse, \
@@ -32,4 +33,5 @@ __all__ += [
     "HubItemsChangePriceResponse"]
 
 __all__ += ["ComparisonInScheme", "ComparisonOutScheme", "ParsingLine", "ConsentProcessScheme",
-            "ParsingHubDiffOut", "HubToDiffData", "RecalcScheme", "RecomputedResult", "RecomputedNewPriceLines"]
+            "ParsingHubDiffOut", "HubToDiffData", "RecalcScheme", "RecomputedResult", "RecomputedNewPriceLines",
+            "ParsingHubDiffItem"]

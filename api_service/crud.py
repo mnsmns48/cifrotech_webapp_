@@ -5,23 +5,20 @@ from typing import List, Optional, Sequence, Dict, Union, Any
 from aiohttp import ClientSession
 from fastapi import HTTPException
 from redis.asyncio import Redis
-from sqlalchemy import delete, update, and_
+from sqlalchemy import delete, update, and_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from api_service.api_connect import get_one_by_dtube
-from api_service.schemas import ParsingLinesIn, VSLScheme, HubToDiffData, HubLevelPath, RecomputedNewPriceLines, \
-    RecomputedResult, SourceContext, ParsingResultOut, ParsingToDiffData, ProductOriginCreate, \
-    RewardRangeResponseSchema, RewardRangeLineSchema, RewardRangeBaseSchema
 
 from api_service.utils import normalize_origin
-from models import Vendor, ParsingLine, ProductOrigin, ProductType, ProductBrand, ProductFeaturesGlobal, \
-    ProductFeaturesLink, HUbStock, HUbMenuLevel, StockTable
-from models.api_v1 import StockTableDependency
-from models.vendor import VendorSearchLine, RewardRangeLine, RewardRange
-
-from sqlalchemy import select
+from models import Vendor, VendorSearchLine, ProductOrigin, ParsingLine, RewardRange, RewardRangeLine, \
+    ProductFeaturesLink, ProductFeaturesGlobal, ProductType, ProductBrand, HUbStock, HUbMenuLevel, StockTableDependency, \
+    StockTable
+from api_service.schemas import SourceContext, ParsingLinesIn, ParsingResultOut, ProductOriginCreate, \
+    RewardRangeResponseSchema, RewardRangeLineSchema, RewardRangeBaseSchema, HubLevelPath, VSLScheme, ParsingToDiffData, \
+    HubToDiffData, RecomputedResult, RecomputedNewPriceLines
 
 
 async def get_vendor_and_vsl(session: AsyncSession, vsl_id: int) -> Optional[SourceContext]:
@@ -546,7 +543,7 @@ async def get_or_create_feature(
         feature = ProductFeaturesGlobal(title=title,
                                         type_id=type_id,
                                         brand_id=brand_id,
-                                        info=info if isinstance(info, dict) else None,
+                                        info=info,
                                         pros_cons=pros_cons if isinstance(pros_cons, dict) else None)
         session.add(feature)
         await session.flush()

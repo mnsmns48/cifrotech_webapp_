@@ -3,10 +3,10 @@ import aioboto3
 import os
 
 from asyncio import gather, create_task
-from typing import List, Dict, Any, AsyncGenerator, Callable
+from typing import List, Dict, Any, AsyncGenerator
 from urllib.parse import urlparse
 from aiobotocore.client import AioBaseClient
-from aiohttp import ClientSession, ClientConnectionError, ClientResponseError, ClientTimeout
+from aiohttp import ClientSession, ClientConnectionError, ClientResponseError, ClientTimeout, ClientError
 from botocore.config import Config
 from botocore.exceptions import ClientError, BotoCoreError
 from fastapi import HTTPException
@@ -15,11 +15,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from api_service.crud import is_icon_used_elsewhere
-from api_service.schemas import ParsingLinesIn, UpdatedImageScheme
+from api_service.schemas import ParsingLinesIn
 from config import settings
-from models import ProductOrigin
-from models.product_dependencies import ProductImage
+from models import ProductOrigin, ProductImage
 
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tiff", ".tif", ".svg"}
 
@@ -246,31 +244,22 @@ async def sync_images_by_origin(
     return {"origin": origin, "preview": preview_url, "images": final_images}
 
 
-async def generate_final_image_payload(
-        product: ProductOrigin,
-        s3_client,
-        bucket: str,
-        prefix: str
-) -> dict:
-    keys = []
+async def generate_final_image_payload(product: ProductOrigin, s3_client, bucket: str, prefix: str) -> dict:
+    keys = list()
     for img in product.images:
         keys.append(img.key)
 
     presigned_list = await generate_presigned_image_urls(set(keys), prefix, bucket, s3_client)
 
-    presigned_map = {}
+    presigned_map = dict()
     for item in presigned_list:
         key = item["filename"]
         url = item["url"]
         presigned_map[key] = url
 
-    final_images = []
+    final_images = list()
     for img in product.images:
-        image_data = {
-            "filename": img.key,
-            "url": presigned_map.get(img.key),
-            "is_preview": img.is_preview
-        }
+        image_data = {"filename": img.key, "url": presigned_map.get(img.key), "is_preview": img.is_preview}
         final_images.append(image_data)
 
     preview_url = None
@@ -280,35 +269,4 @@ async def generate_final_image_payload(
             preview_url = presigned_map.get(key)
             break
 
-    return {
-        "images": final_images,
-        "preview": preview_url
-    }
-
-
-async def process_image_update(code: int, current_icon: str | None, new_icon: str | None,
-                               s3_client, session: AsyncSession, bucket: str, prefix: str,
-                               update_db_icon: Callable) -> UpdatedImageScheme:
-    if new_icon is None:
-        if current_icon:
-            if not await is_icon_used_elsewhere(current_icon, code, session):
-                await s3_client.delete_object(Bucket=bucket, Key=f"{prefix}{current_icon}")
-            await update_db_icon(None)
-        return UpdatedImageScheme(code=code, icon=None, url=None)
-
-    try:
-        await s3_client.head_object(Bucket=bucket, Key=f"{prefix}{new_icon}")
-        old_icon = current_icon
-        await update_db_icon(new_icon)
-
-        presigned_list = await generate_presigned_image_urls({new_icon}, prefix, bucket, s3_client)
-        presigned_url = presigned_list[0]["url"]
-
-        if old_icon and old_icon != new_icon:
-            if not await is_icon_used_elsewhere(old_icon, code, session):
-                await s3_client.delete_object(Bucket=bucket, Key=f"{prefix}{old_icon}")
-
-    except s3_client.exceptions.ClientError:
-        return UpdatedImageScheme(code=code, icon=current_icon or "", url=None)
-
-    return UpdatedImageScheme(code=code, icon=new_icon, url=presigned_url)
+    return {"images": final_images, "preview": preview_url}

@@ -141,8 +141,7 @@ async def process_dependency_item(item: ProductDependencyUpdate, session: AsyncS
 
 @parsing_router.post("/update_parsing_item_dependency/")
 async def update_parsing_item_dependency(
-        batch: ProductDependencyBatchUpdate,
-        session: AsyncSession = Depends(db.scoped_session_dependency)):
+        batch: ProductDependencyBatchUpdate, session: AsyncSession = Depends(db.scoped_session_dependency)):
     type_cache: dict[str, ProductType] = dict()
     brand_cache: dict[str, ProductBrand] = dict()
     title_cache: dict[str, ProductFeaturesGlobal] = dict()
@@ -164,7 +163,7 @@ async def update_parsing_item_dependency(
 
 
 @parsing_router.get("/load_dependency_details/{title}", response_model=ProductResponse)
-async def update_parsing_item_dependency(title: str):
+async def load_dependency_by_title(title: str):
     async with ClientSession() as session:
         data = await get_one_by_dtube(session, title=title)
         if not data:

@@ -9,6 +9,7 @@ __all__ = (
     "ProductFeaturesGlobal",
     "ProductOrigin",
     "ProductType",
+    "ProductImage",
     "RewardRange",
     "RewardRangeLine",
     "Sellers",
@@ -19,19 +20,20 @@ __all__ = (
     "VendorSearchLine",
     "HUbMenuLevel",
     "HUbStock",
+    "StockTableDependency"
 )
 
 from .base import Base
-from .api_v1 import Activity, StockTable, Guests, Sellers
+from .api_v1 import Activity, StockTable, Guests, Sellers, StockTableDependency
 from .hub import HUbMenuLevel, HUbStock
 from .parsing import ParsingLine
 from .product_dependencies import (ProductFeaturesLink,
                                    ProductOrigin,
                                    ProductFeaturesGlobal,
                                    ProductBrand,
-                                   ProductType)
+                                   ProductType, ProductImage)
 from .telegram_bot import TgBotOptions
-from .vendor import RewardRange, RewardRangeLine, VendorSearchLine, Vendor
+from .vendor import RewardRange, RewardRangeLine, VendorSearchLine, Vendor, VendorSearchLine, RewardRangeLine
 
 from .user import User
 from .access_token import AccessToken
