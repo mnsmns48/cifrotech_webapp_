@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api_common.routers import general_router
+from api_miniapp.routers import miniapp_router
 from api_service.routers import service_router
 from api_users.routers import auth_api_router
 from api_v2.routers import api_v2_router
@@ -41,6 +42,7 @@ app.add_middleware(CORSMiddleware, allow_origins=settings.cors,
                    allow_headers=["*"],
                    allow_credentials=True)
 
+app.include_router(miniapp_router, tags=['Telegram Mini App'])
 app.include_router(api_v2_router, tags=["Api V2"])
 app.include_router(bot_fastapi_router, tags=["TG Bot Router"])
 app.include_router(router=auth_api_router)

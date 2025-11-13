@@ -222,7 +222,7 @@ async def upload_image_to_origin(
     key = f"{prefix}{filename}"
     try:
         put_url = await s3_client.generate_presigned_url(
-            ClientMethod="put_object", Params={"Bucket": bucket, "Key": key}, ExpiresIn=600)
+            ClientMethod="put_object", Params={"Bucket": bucket, "Key": key, "ACL": "public-read"}, ExpiresIn=600)
         body = await file.read()
     except Exception as e:
         raise HTTPException(400, f"Не удалось подготовить загрузку: {e}")

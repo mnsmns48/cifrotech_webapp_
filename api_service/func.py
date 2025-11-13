@@ -79,7 +79,7 @@ async def process_image_upload(code: int, file: UploadFile,
     try:
         put_url = await s3_client.generate_presigned_url(
             ClientMethod="put_object",
-            Params={"Bucket": bucket, "Key": new_key},
+            Params={"Bucket": bucket, "Key": new_key, "ACL": "public-read"},
             ExpiresIn=600,
         )
         body = await file.read()
@@ -87,7 +87,7 @@ async def process_image_upload(code: int, file: UploadFile,
         raise HTTPException(400, f"Не удалось подготовить загрузку: {e}")
 
     try:
-        async with cl_session.put(put_url, data=body) as resp:
+        async with cl_session.put(put_url, data=body, headers={"x-amz-acl": "public-read"}  ) as resp:
             resp.raise_for_status()
     except (ClientConnectionError, ClientResponseError, TimeoutError, ClientError) as e:
         raise HTTPException(502, f"Ошибка загрузки в S3: {e}")
