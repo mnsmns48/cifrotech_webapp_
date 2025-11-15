@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import select, literal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -7,17 +7,38 @@ from models import HUbMenuLevel
 
 
 async def fetch_hub_levels(session: AsyncSession):
-    base = select(HUbMenuLevel).where(HUbMenuLevel.parent_id == 1).cte(name="menu_cte", recursive=True)
+    base = (
+        select(
+            HUbMenuLevel.id,
+            HUbMenuLevel.label,
+            HUbMenuLevel.icon,
+            HUbMenuLevel.parent_id,
+            HUbMenuLevel.sort_order,
+            literal(0).label("depth")
+        )
+        .where(HUbMenuLevel.parent_id == 1)
+        .cte(name="menu_cte", recursive=True)
+    )
 
     child = aliased(HUbMenuLevel, name="child")
 
-    recursive = select(child).join(base, child.parent_id == base.c.id)
+    recursive = select(
+        child.id,
+        child.label,
+        child.icon,
+        child.parent_id,
+        child.sort_order,
+        (base.c.depth + 1).label("depth")
+    ).join(base, child.parent_id == base.c.id)
+
     menu_cte = base.union_all(recursive)
 
-    result = await session.execute(select(menu_cte))
+    result = await session.execute(
+        select(menu_cte).order_by(menu_cte.c.depth, menu_cte.c.sort_order)
+    )
     rows = result.mappings().all()
 
-    data = list()
+    data = []
     for row in rows:
         row_dict = dict(row)
         if row_dict.get("icon"):
@@ -25,3 +46,4 @@ async def fetch_hub_levels(session: AsyncSession):
         data.append(row_dict)
 
     return data
+

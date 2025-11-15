@@ -2,6 +2,8 @@ import logging
 
 from aiogram.exceptions import TelegramRetryAfter, TelegramNetworkError
 from aiogram_dialog import setup_dialogs
+from fastapi_cache import FastAPICache
+from fastapi_cache.backends.redis import RedisBackend
 from starlette.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import uvicorn
@@ -15,7 +17,7 @@ from api_users.routers import auth_api_router
 from api_v2.routers import api_v2_router
 from bot.bot_main import bot_setup_webhook, bot_fastapi_router, bot, dp
 from bot.crud_bot import get_option_value, add_bot_options
-from config import settings
+from config import settings, redis_session
 from engine import db
 
 
@@ -23,6 +25,8 @@ from engine import db
 async def lifespan(app: FastAPI):
     setup_dialogs(dp)
     try:
+        redis = redis_session()
+        FastAPICache.init(RedisBackend(redis), prefix="cache")
         bot_username = await bot_setup_webhook()
         async with db.tg_session() as session:
             already_add = await get_option_value(session=session, username=bot_username, field='username')
