@@ -35,3 +35,7 @@ async def fetch_hub_levels(session: AsyncSession):
         data.append(row_dict)
 
     return data
+
+#
+# async def fetch_products_by_path(path: int, session: AsyncSession):
+#
