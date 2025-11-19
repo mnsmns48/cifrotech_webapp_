@@ -1,16 +1,14 @@
+import time
 from typing import List
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi_cache.decorator import cache
-from sqlalchemy import select, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased
 
-from api_miniapp.crud import fetch_hub_levels
-from api_miniapp.schemas import HubLevelScheme
-from api_miniapp.schemas.hub_prod_scheme import HubProductScheme
+from api_miniapp.crud import fetch_hub_levels, fetch_products_by_path
+from api_miniapp.schemas import HubLevelScheme, HubProductScheme, HubProductResponse
+from api_miniapp.utils import get_pathname_icon_url
 from engine import db
-from models import HUbStock, ProductOrigin, ProductImage
 
 hub_product = APIRouter()
 
@@ -21,55 +19,27 @@ async def get_levels(session: AsyncSession = Depends(db.scoped_session_dependenc
     return await fetch_hub_levels(session)
 
 
-@hub_product.post("/get_products_by_path", response_model=List[HubProductScheme])
-async def get_products_by_parent(path_id: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
-    from sqlalchemy import select, and_, func
-    from sqlalchemy.orm import aliased
+@hub_product.get("/products_by_path_ids", response_model=HubProductResponse)
+@cache(expire=300)
+async def products_by_path(ids: list[int] = Query(...), session: AsyncSession = Depends(db.scoped_session_dependency)):
+    start = time.monotonic()
 
-    Image = aliased(ProductImage)
-    PreviewImage = aliased(ProductImage)
-
-    stmt = (
-        select(
-            HUbStock.id,
-            HUbStock.origin,
-            HUbStock.warranty,
-            HUbStock.output_price,
-            ProductOrigin.title,
-
-            func.array_agg(Image.key).filter(Image.key.isnot(None)).label("pics"),
-
-            PreviewImage.key.label("preview"),
-        )
-        .join(ProductOrigin, ProductOrigin.origin == HUbStock.origin)
-
-        # все картинки
-        .outerjoin(ProductImage, ProductImage.origin_id == ProductOrigin.origin)
-
-        # только preview-картинка
-        .outerjoin(
-            PreviewImage,
-            and_(
-                PreviewImage.origin_id == ProductOrigin.origin,
-                PreviewImage.is_preview == True
-            )
-        )
-        .where(
-            HUbStock.path_id == path_id,
-            ProductOrigin.is_deleted == False
-        )
-        .group_by(
-            HUbStock.id,
-            ProductOrigin.title,
-            PreviewImage.key
-        )
-    )
-
-    execute = await session.execute(stmt)
-    rows = execute.mappings().all()
+    products = await fetch_products_by_path(ids, session)
     result = list()
 
-    for row in rows:
-        result.append(HubProductScheme.model_validate(row))
+    for product in products:
+        pics = product.get("pics")
+        preview = product.get("preview")
+        model = product.get("model")
 
-    return result
+        if pics:
+            pics = [get_pathname_icon_url(icon=icon, path=product.get("origin")) for icon in pics]
+        if preview:
+            preview = get_pathname_icon_url(icon=preview, path=product.get("origin"))
+
+        transformed = {**product, "pics": pics, "preview": preview, "model": model}
+        result.append(HubProductScheme.model_validate(transformed))
+
+    duration_ms = int((time.monotonic() - start) * 1000)
+
+    return HubProductResponse(products=result, duration_ms=duration_ms)

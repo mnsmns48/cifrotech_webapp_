@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Union
 
 from pydantic import BaseModel
 
@@ -11,6 +11,7 @@ class HubLevelScheme(BaseModel):
     parent_id: int
     depth: int
 
+
 class HubProductScheme(BaseModel):
     id: int
     origin: int
@@ -19,3 +20,9 @@ class HubProductScheme(BaseModel):
     title: str
     pics: Optional[List[str]]
     preview: Optional[str]
+    model: Optional[str]
+
+
+class HubProductResponse(BaseModel):
+    products: List[HubProductScheme]
+    duration_ms: int

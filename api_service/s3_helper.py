@@ -158,7 +158,7 @@ async def sync_images_from_pics(
                 try:
                     put_url = await s3_client.generate_presigned_url(
                         "put_object",
-                        Params={"Bucket": bucket, "Key": key, "ACL": "public-read"},
+                        Params={"Bucket": bucket, "Key": key},
                         ExpiresIn=600
                     )
                     async with cl_session.put(put_url, data=blob) as put_resp:
