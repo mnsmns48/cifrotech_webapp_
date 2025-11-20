@@ -5,6 +5,8 @@ from typing import Any, Optional, List, Set
 
 from bs4 import BeautifulSoup
 
+from config import settings
+
 MONTHS_RU = {
     1: "января", 2: "февраля", 3: "марта", 4: "апреля",
     5: "мая", 6: "июня", 7: "июля", 8: "августа",
@@ -52,3 +54,9 @@ def compute_html_hash(html: str) -> str:
 
 def count_message(count: int) -> str:
     return f"data: COUNT={count + 20}"
+
+
+def get_url_from_s3(filename: str, path: str) -> str:
+    s3 = settings.s3
+    base_url = s3.s3_url.removeprefix("https://").rstrip("/")
+    return f"https://{s3.bucket_name}.{base_url}/{s3.s3_hub_prefix}/{path}/{filename}"

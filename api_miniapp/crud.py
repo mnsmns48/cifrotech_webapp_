@@ -3,7 +3,7 @@ from sqlalchemy import select, literal, func, case, RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from api_miniapp.utils import get_pathname_icon_url
+from app_utils import get_url_from_s3
 from config import settings
 from models import HUbMenuLevel, HUbStock, ProductOrigin, ProductImage, ProductFeaturesGlobal, ProductFeaturesLink
 
@@ -33,7 +33,7 @@ async def fetch_hub_levels(session: AsyncSession):
     for row in rows:
         row_dict = dict(row)
         if row_dict.get("icon"):
-            row_dict["icon"] = get_pathname_icon_url(icon=row_dict["icon"], path=settings.s3.utils_path)
+            row_dict["icon"] = get_url_from_s3(filename=row_dict["icon"], path=settings.s3.utils_path)
         data.append(row_dict)
 
     return data
@@ -66,5 +66,3 @@ async def fetch_products_by_path(path_ids: list, session: AsyncSession) -> Seque
     execute = await session.execute(stmt)
     rows = execute.mappings().all()
     return rows
-
-

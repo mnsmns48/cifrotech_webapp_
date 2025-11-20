@@ -20,7 +20,8 @@ __all__ = (
     "VendorSearchLine",
     "HUbMenuLevel",
     "HUbStock",
-    "StockTableDependency"
+    "StockTableDependency",
+    "ServiceImage"
 )
 
 from .base import Base
@@ -37,3 +38,4 @@ from .vendor import RewardRange, RewardRangeLine, VendorSearchLine, Vendor, Vend
 
 from .user import User
 from .access_token import AccessToken
+from .service_image import ServiceImage

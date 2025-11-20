@@ -8,14 +8,14 @@ from redis.asyncio import Redis
 from sqlalchemy import delete, update, and_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, InstrumentedAttribute
 
 from api_service.api_connect import get_one_by_dtube
 
 from api_service.utils import normalize_origin
 from models import Vendor, VendorSearchLine, ProductOrigin, ParsingLine, RewardRange, RewardRangeLine, \
     ProductFeaturesLink, ProductFeaturesGlobal, ProductType, ProductBrand, HUbStock, HUbMenuLevel, StockTableDependency, \
-    StockTable
+    StockTable, ServiceImage
 from api_service.schemas import SourceContext, ParsingLinesIn, ParsingResultOut, ProductOriginCreate, \
     RewardRangeResponseSchema, RewardRangeLineSchema, RewardRangeBaseSchema, HubLevelPath, VSLScheme, ParsingToDiffData, \
     HubToDiffData, RecomputedResult, RecomputedNewPriceLines
@@ -639,4 +639,52 @@ async def update_home_icon(session: AsyncSession, code: int, new_icon: str | Non
         await session.execute(
             update(StockTableDependency).where(StockTableDependency.code == code).values(icon=new_icon)
         )
+    await session.commit()
+
+
+async def fetch_utils_images(session: AsyncSession):
+    stmt = select(ServiceImage)
+    result = await session.execute(stmt)
+    return result.scalars().all()
+
+
+async def check_service_image(session: AsyncSession, column: InstrumentedAttribute, value: any,
+                              raise_if_not_found: bool = True) -> ServiceImage | None:
+    result = await session.execute(select(ServiceImage).where(column == value))
+    item = result.scalar_one_or_none()
+    if not item and raise_if_not_found:
+        raise HTTPException(status_code=404, detail="ServiceImage not found")
+    return item
+
+
+async def create_service_image(session: AsyncSession, var: str, value: str) -> ServiceImage:
+    existing = await check_service_image(session, ServiceImage.var, var, raise_if_not_found=False)
+    if existing:
+        raise HTTPException(status_code=400, detail=f"ServiceImage with '{var}' already exists")
+
+    new_item = ServiceImage(var=var, value=value)
+    session.add(new_item)
+    await session.commit()
+    await session.refresh(new_item)
+    return new_item
+
+
+async def update_service_image(session: AsyncSession, item_id: int, var: str | None = None,
+                               value: str | None = None) -> ServiceImage:
+    item = await check_service_image(session, ServiceImage.id, item_id)
+
+    if var is not None:
+        item.var = var
+    if value is not None:
+        item.value = value
+
+    session.add(item)
+    await session.commit()
+    await session.refresh(item)
+    return item
+
+
+async def delete_service_image(session: AsyncSession, item_id: int) -> None:
+    item = await check_service_image(session, ServiceImage.id, item_id)
+    await session.delete(item)
     await session.commit()
