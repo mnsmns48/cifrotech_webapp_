@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api_service.schemas import ServiceImageResponse, ServiceImageCreate, ServiceImageUpdate
 from app_utils import get_url_from_s3
 from api_service.crud import fetch_utils_images, check_service_image
+from config import settings
 from engine import db
 from models import ServiceImage
 
@@ -25,7 +26,7 @@ async def get_utils_images(session: AsyncSession = Depends(db.scoped_session_dep
                 id=item.id,
                 var=item.var,
                 value=item.value,
-                image=get_url_from_s3(filename=item.value, path="utils")
+                image=get_url_from_s3(filename=item.value, path=settings.s3.utils_path)
             )
         )
     return response
@@ -44,7 +45,8 @@ async def create_service_image_endpoint(payload: ServiceImageCreate,
     await session.refresh(new_item)
 
     return ServiceImageResponse(id=new_item.id, var=new_item.var,
-                                value=new_item.value, image=get_url_from_s3(filename=new_item.value, path="utils"))
+                                value=new_item.value,
+                                image=get_url_from_s3(filename=new_item.value, path=settings.s3.utils_path))
 
 
 @utils_router.put("/update_service_image/{item_id}", response_model=ServiceImageResponse)
@@ -61,7 +63,7 @@ async def update_service_image_endpoint(item_id: int, payload: ServiceImageUpdat
     await session.refresh(item)
 
     return ServiceImageResponse(id=item.id, var=item.var, value=item.value,
-                                image=get_url_from_s3(filename=item.value, path="utils"))
+                                image=get_url_from_s3(filename=item.value, path=settings.s3.utils_path))
 
 
 @utils_router.delete("/update_service_image/{item_id}")

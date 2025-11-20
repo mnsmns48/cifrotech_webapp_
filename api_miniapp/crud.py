@@ -5,7 +5,8 @@ from sqlalchemy.orm import aliased
 
 from app_utils import get_url_from_s3
 from config import settings
-from models import HUbMenuLevel, HUbStock, ProductOrigin, ProductImage, ProductFeaturesGlobal, ProductFeaturesLink
+from models import HUbMenuLevel, HUbStock, ProductOrigin, ProductImage, ProductFeaturesGlobal, ProductFeaturesLink, \
+    ServiceImage
 
 
 async def fetch_hub_levels(session: AsyncSession):
@@ -66,3 +67,9 @@ async def fetch_products_by_path(path_ids: list, session: AsyncSession) -> Seque
     execute = await session.execute(stmt)
     rows = execute.mappings().all()
     return rows
+
+
+async def fetch_no_img_pic(session: AsyncSession, var: str):
+    stmt = select(ServiceImage).where(ServiceImage.var == var)
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none()
