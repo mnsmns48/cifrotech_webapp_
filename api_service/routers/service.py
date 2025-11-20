@@ -25,7 +25,7 @@ async def get_utils_images(session: AsyncSession = Depends(db.scoped_session_dep
                 id=item.id,
                 var=item.var,
                 value=item.value,
-                image=get_url_from_s3(icon=item.value, path="utils")
+                image=get_url_from_s3(filename=item.value, path="utils")
             )
         )
     return response
