@@ -37,3 +37,11 @@ class ProductFeaturesSchema(BaseModel):
     pros_cons: Optional[Dict] = None
 
     model_config = {"from_attributes": True}
+
+
+class ServiceImageSchema(BaseModel):
+    id: int
+    var: str
+    value: str
+
+    model_config = {"from_attributes": True}
