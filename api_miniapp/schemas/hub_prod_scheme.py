@@ -1,4 +1,4 @@
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Dict
 
 from pydantic import BaseModel
 
@@ -26,3 +26,14 @@ class HubProductScheme(BaseModel):
 class HubProductResponse(BaseModel):
     products: List[HubProductScheme]
     duration_ms: int
+
+
+class ProductFeaturesSchema(BaseModel):
+    id: int
+    title: str
+    type_id: int
+    brand_id: int
+    info: Optional[List[Dict]] = None
+    pros_cons: Optional[Dict] = None
+
+    model_config = {"from_attributes": True}

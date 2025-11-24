@@ -73,3 +73,13 @@ async def fetch_no_img_pic(session: AsyncSession, var: str):
     stmt = select(ServiceImage).where(ServiceImage.var == var)
     result = await session.execute(stmt)
     return result.scalar_one_or_none()
+
+
+async def get_features_by_origin(session: AsyncSession, origin_id: int):
+    stmt = (select(ProductFeaturesGlobal)
+            .join(ProductFeaturesLink, ProductFeaturesLink.feature_id == ProductFeaturesGlobal.id)
+            .where(ProductFeaturesLink.origin == origin_id)
+            .order_by(ProductFeaturesGlobal.id))
+
+    result = await session.execute(stmt)
+    return result.scalars().all()
