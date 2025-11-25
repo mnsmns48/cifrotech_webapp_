@@ -68,4 +68,4 @@ def get_url_from_s3(filename: Union[str, List[str]], path: str) -> Union[str, Li
     elif isinstance(filename, list):
         return [build_url(name) for name in filename]
     else:
-        raise TypeError("filename must be str or list[str]")
+        raise TypeError("Передавать аругментом filename нужно либо список, либо строку")

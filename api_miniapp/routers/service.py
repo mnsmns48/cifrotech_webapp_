@@ -12,9 +12,12 @@ service_mini_app = APIRouter()
 
 @service_mini_app.get('/get_no_img_pic')
 @cache(expire=3600)
-async def get_no_img_pic(session: AsyncSession = Depends(db.scoped_session_dependency),
-                         var: str = 'no_img'):
-    response = await fetch_no_img_pic(session, var)
+async def get_no_img_pic(session: AsyncSession = Depends(db.scoped_session_dependency)):
+    response = await fetch_no_img_pic(session)
     if response is None:
         return None
-    return get_url_from_s3(filename=response.value, path=settings.s3.utils_path)
+    result = {
+        item.var: get_url_from_s3(item.value, settings.s3.utils_path)
+        for item in response
+    }
+    return result

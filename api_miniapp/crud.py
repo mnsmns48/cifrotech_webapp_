@@ -69,10 +69,10 @@ async def fetch_products_by_path(path_ids: list, session: AsyncSession) -> Seque
     return rows
 
 
-async def fetch_no_img_pic(session: AsyncSession, var: str):
-    stmt = select(ServiceImage).where(ServiceImage.var == var)
+async def fetch_no_img_pic(session: AsyncSession):
+    stmt = select(ServiceImage)
     result = await session.execute(stmt)
-    return result.scalar_one_or_none()
+    return result.scalars().all()
 
 
 async def get_features_by_origin(session: AsyncSession, origin_id: int):
