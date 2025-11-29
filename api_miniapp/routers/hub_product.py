@@ -4,8 +4,9 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from fastapi_cache.decorator import cache
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api_miniapp.crud import fetch_hub_levels, fetch_products_by_path, get_features_by_origin
-from api_miniapp.schemas import HubLevelScheme, HubProductScheme, HubProductResponse, ProductFeaturesSchema
+from api_miniapp.crud import fetch_hub_levels, fetch_products_by_path, get_feature_by_origin
+from api_miniapp.schemas import HubLevelScheme, HubProductScheme, HubProductResponse
+from api_miniapp.schemas.hub_prod_scheme import ProductFeaturesResponse
 from api_miniapp.utils import cache_with_duration
 from app_utils import get_url_from_s3
 from engine import db
@@ -45,10 +46,8 @@ async def products_by_path(ids: list[int] = Query(...), session: AsyncSession = 
     return HubProductResponse(products=result, duration_ms=duration_ms)
 
 
-@hub_product.get("/get_product_features/{origin}", response_model=List[ProductFeaturesSchema])
-@cache(expire=300)
+@hub_product.get("/get_product_features/{origin}", response_model=ProductFeaturesResponse)
+# @cache(expire=300)
 async def get_product_features(origin: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
-    features = await get_features_by_origin(session, origin)
-    if not features:
-        raise HTTPException(status_code=404, detail="Для этого товара не добавлены характеристики")
-    return features
+    feature = await get_feature_by_origin(session, origin)
+    return ProductFeaturesResponse(features=feature)

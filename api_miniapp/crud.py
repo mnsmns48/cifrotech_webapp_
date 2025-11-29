@@ -75,11 +75,11 @@ async def fetch_no_img_pic(session: AsyncSession):
     return result.scalars().all()
 
 
-async def get_features_by_origin(session: AsyncSession, origin_id: int):
+async def get_feature_by_origin(session: AsyncSession, origin_id: int):
     stmt = (select(ProductFeaturesGlobal)
             .join(ProductFeaturesLink, ProductFeaturesLink.feature_id == ProductFeaturesGlobal.id)
             .where(ProductFeaturesLink.origin == origin_id)
             .order_by(ProductFeaturesGlobal.id))
 
     result = await session.execute(stmt)
-    return result.scalars().all()
+    return result.scalars().first()

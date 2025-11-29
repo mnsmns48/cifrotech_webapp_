@@ -39,6 +39,10 @@ class ProductFeaturesSchema(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ProductFeaturesResponse(BaseModel):
+    features: ProductFeaturesSchema | None
+
+
 class ServiceImageSchema(BaseModel):
     id: int
     var: str
