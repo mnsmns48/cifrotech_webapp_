@@ -11,7 +11,7 @@ service_mini_app = APIRouter()
 
 
 @service_mini_app.get('/get_no_img_pic')
-# @cache(expire=3600)
+@cache(expire=180)
 async def get_no_img_pic(session: AsyncSession = Depends(db.scoped_session_dependency)):
     response = await fetch_no_img_pic(session)
     if response is None:

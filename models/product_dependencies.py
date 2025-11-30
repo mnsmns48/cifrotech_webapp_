@@ -35,6 +35,7 @@ class ProductFeaturesGlobal(Base):
     brand_id: Mapped[int] = mapped_column(ForeignKey("product_brand.id"), nullable=False)
     info: Mapped[dict | None] = mapped_column(JSONB)
     pros_cons: Mapped[dict | None] = mapped_column(JSONB)
+    source: Mapped[str | None] = mapped_column(nullable=True)
     type: Mapped["ProductType"] = relationship(back_populates="features")
     brand: Mapped["ProductBrand"] = relationship(back_populates="features")
 

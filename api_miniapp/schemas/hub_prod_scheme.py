@@ -33,6 +33,7 @@ class ProductFeaturesSchema(BaseModel):
     title: str
     type_id: int
     brand_id: int
+    source: Optional[str]
     info: Optional[List[Dict]] = None
     pros_cons: Optional[Dict] = None
 

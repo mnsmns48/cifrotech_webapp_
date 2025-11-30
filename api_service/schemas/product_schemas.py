@@ -33,6 +33,7 @@ class ProductDependencyUpdate(BaseModel):
     title: str
     brand: str
     product_type: str
+    source: str
     info: Union[List[Dict[str, Any]], str]
     pros_cons: Optional[Union[Dict[str, List[str]], str]] = Field(default_factory=dict)
 
@@ -60,6 +61,7 @@ class ProductResponse(BaseModel):
     title: str
     brand: str
     product_type: str
+    source: Optional[str]
     info: Dict[str, Dict[str, Any]]
     pros_cons: Optional[dict]
     source: str

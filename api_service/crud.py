@@ -242,6 +242,7 @@ async def store_one_item(session: AsyncSession, data: dict):
             title=data["title"],
             type_id=product_type.id,
             brand_id=product_brand.id,
+            source=data["source"],
             info=data["info"],
             pros_cons=data["pros_cons"]
         ).on_conflict_do_nothing(index_elements=["title"]).returning(ProductFeaturesGlobal.id))
@@ -532,7 +533,7 @@ async def get_or_create_product_brand(
 
 
 async def get_or_create_feature(
-        title: str, type_id: int, brand_id: int, info: Any, pros_cons: Any, session: AsyncSession,
+        title: str, type_id: int, brand_id: int, source: Optional[str], info: Any, pros_cons: Any, session: AsyncSession,
         cache: dict[str, ProductFeaturesGlobal]) -> ProductFeaturesGlobal:
     if title in cache:
         return cache[title]
@@ -543,6 +544,7 @@ async def get_or_create_feature(
         feature = ProductFeaturesGlobal(title=title,
                                         type_id=type_id,
                                         brand_id=brand_id,
+                                        source=source,
                                         info=info,
                                         pros_cons=pros_cons if isinstance(pros_cons, dict) else None)
         session.add(feature)

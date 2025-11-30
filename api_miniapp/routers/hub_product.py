@@ -15,13 +15,13 @@ hub_product = APIRouter()
 
 
 @hub_product.get("/hub_levels", response_model=List[HubLevelScheme])
-@cache(expire=300)
+@cache(expire=180)
 async def get_levels(session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await fetch_hub_levels(session)
 
 
 @hub_product.get("/products_by_path_ids", response_model=HubProductResponse)
-@cache_with_duration(expire=300)
+@cache_with_duration(expire=180)
 async def products_by_path(ids: list[int] = Query(...), session: AsyncSession = Depends(db.scoped_session_dependency)):
     start = time.monotonic()
 
@@ -47,7 +47,7 @@ async def products_by_path(ids: list[int] = Query(...), session: AsyncSession = 
 
 
 @hub_product.get("/get_product_features/{origin}", response_model=ProductFeaturesResponse)
-# @cache(expire=300)
+@cache(expire=180)
 async def get_product_features(origin: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
     feature = await get_feature_by_origin(session, origin)
     return ProductFeaturesResponse(features=feature)

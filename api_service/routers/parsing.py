@@ -133,7 +133,7 @@ async def process_dependency_item(item: ProductDependencyUpdate, session: AsyncS
     prod_type = await get_or_create_product_type(item.product_type, session, type_cache)
     prod_brand = await get_or_create_product_brand(item.brand, session, brand_cache)
     feature = await get_or_create_feature(
-        item.title, prod_type.id, prod_brand.id, item.info, item.pros_cons, session, title_cache)
+        item.title, prod_type.id, prod_brand.id, item.source, item.info, item.pros_cons, session, title_cache)
     await link_origin_to_feature(item.origin, feature.id, session)
 
     return {"origin": item.origin, "feature_id": feature.id}
