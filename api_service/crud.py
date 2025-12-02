@@ -533,7 +533,8 @@ async def get_or_create_product_brand(
 
 
 async def get_or_create_feature(
-        title: str, type_id: int, brand_id: int, source: Optional[str], info: Any, pros_cons: Any, session: AsyncSession,
+        title: str, type_id: int, brand_id: int, source: Optional[str], info: Any, pros_cons: Any,
+        session: AsyncSession,
         cache: dict[str, ProductFeaturesGlobal]) -> ProductFeaturesGlobal:
     if title in cache:
         return cache[title]
@@ -555,6 +556,7 @@ async def get_or_create_feature(
 
 async def link_origin_to_feature(origin: int, feature_id: int, session: AsyncSession) -> None:
     result = await session.execute(select(ProductFeaturesLink).where(ProductFeaturesLink.origin == origin))
+
     existing_link = result.scalar_one_or_none()
     if existing_link:
         existing_link.feature_id = feature_id

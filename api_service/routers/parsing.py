@@ -30,6 +30,9 @@ from models.vendor import VendorSearchLine
 from parsing.logic import parsing_core, append_info
 from parsing.utils import cost_process
 
+import logging
+
+logger = logging.getLogger(__name__)
 parsing_router = APIRouter(tags=['Service-Parsing'])
 
 
@@ -145,7 +148,7 @@ async def update_parsing_item_dependency(
     type_cache: dict[str, ProductType] = dict()
     brand_cache: dict[str, ProductBrand] = dict()
     title_cache: dict[str, ProductFeaturesGlobal] = dict()
-
+    logger.info(f"Обработан batch: {batch}")
     success, errors = list(), list()
     for item in batch.items:
         try:
