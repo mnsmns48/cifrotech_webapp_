@@ -41,7 +41,7 @@ class UnknownIntentMiddleware(BaseMiddleware):
             if bot_name:
                 await bot.send_message(
                     chat_id=user.id,
-                    text="Пожалуйста, начните заново:",
+                    text="Нужно начать заново",
                     reply_markup=keyboard
                 )
             return None
@@ -78,8 +78,7 @@ class SpamMiddleware(BaseMiddleware):
                 if not last_notify or now - int(last_notify) >= self.notify_interval:
                     msg = await event.answer(
                         "⏱ Вы уже вызывали команду /start недавно.\n"
-                        "Так часто это делать не нужно — будет срабатывать спам-фильтр.\n"
-                        "Вам уже доступно главное меню\nи кнопки перехода под надписью <i>Главная страница</i>",
+                        "Так часто это делать не нужно — будет срабатывать спам-фильтр.\n",
                         parse_mode="HTML"
                     )
                     await self.redis.set(key_last_notify, now, ex=self.notify_interval)

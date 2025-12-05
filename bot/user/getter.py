@@ -1,5 +1,4 @@
 from aiogram_dialog import DialogManager
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from bot.crud_bot import get_menu_levels, get_labels_by_ids, get_hubstock_items
 
