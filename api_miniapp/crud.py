@@ -3,10 +3,11 @@ from sqlalchemy import select, literal, func, case, RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from api_miniapp.schemas import ProductFeaturesSchema
 from app_utils import get_url_from_s3
 from config import settings
 from models import HUbMenuLevel, HUbStock, ProductOrigin, ProductImage, ProductFeaturesGlobal, ProductFeaturesLink, \
-    ServiceImage
+    ServiceImage, ProductType, ProductBrand
 
 
 async def fetch_hub_levels(session: AsyncSession):
@@ -76,10 +77,34 @@ async def fetch_no_img_pic(session: AsyncSession):
 
 
 async def get_feature_by_origin(session: AsyncSession, origin_id: int):
-    stmt = (select(ProductFeaturesGlobal)
-            .join(ProductFeaturesLink, ProductFeaturesLink.feature_id == ProductFeaturesGlobal.id)
-            .where(ProductFeaturesLink.origin == origin_id)
-            .order_by(ProductFeaturesGlobal.id))
+    stmt = (
+        select(
+            ProductFeaturesGlobal,
+            ProductType.type.label("type_name"),
+            ProductBrand.brand.label("brand_name")
+        )
+        .join(ProductFeaturesLink, ProductFeaturesLink.feature_id == ProductFeaturesGlobal.id)
+        .join(ProductType, ProductType.id == ProductFeaturesGlobal.type_id)
+        .join(ProductBrand, ProductBrand.id == ProductFeaturesGlobal.brand_id)
+        .where(ProductFeaturesLink.origin == origin_id)
+        .order_by(ProductFeaturesGlobal.id)
+    )
 
     result = await session.execute(stmt)
-    return result.scalars().first()
+    row = result.first()
+
+    if not row:
+        return None
+
+    feature, type_name, brand_name = row
+
+    return ProductFeaturesSchema(
+        id=feature.id,
+        title=feature.title,
+        type=type_name,
+        brand=brand_name,
+        source=feature.source,
+        info=feature.info,
+        pros_cons=feature.pros_cons,
+    )
+

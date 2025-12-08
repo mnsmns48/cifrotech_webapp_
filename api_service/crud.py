@@ -692,3 +692,18 @@ async def delete_service_image(session: AsyncSession, item_id: int) -> None:
     item = await check_service_image(session, ServiceImage.id, item_id)
     await session.delete(item)
     await session.commit()
+
+
+async def clear_features_dependencies(session: AsyncSession, origins: list) -> List:
+    safe_origins = [o for o in origins if isinstance(o, int)]
+    if not safe_origins:
+        return []
+
+    stmt = (delete(ProductFeaturesLink).where(ProductFeaturesLink.origin.in_(safe_origins))
+            .returning(ProductFeaturesLink.origin))
+
+    result = await session.execute(stmt)
+    await session.commit()
+
+    deleted = [row[0] for row in result.fetchall()]
+    return deleted

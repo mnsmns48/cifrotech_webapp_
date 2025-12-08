@@ -10,13 +10,13 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.responses import JSONResponse
-from api_service.api_connect import get_items_by_brand, get_one_by_dtube
+from api_service.api_connect import get_items_by_params, get_one_by_dtube
 from api_service.crud import get_vendor_and_vsl, get_rr_obj, _get_parsing_result, get_or_create_product_type, \
-    get_or_create_product_brand, get_or_create_feature, link_origin_to_feature
+    get_or_create_product_brand, get_or_create_feature, link_origin_to_feature, clear_features_dependencies
 from api_service.s3_helper import (get_s3_client, get_http_client_session, sync_images_by_origin,
                                    generate_final_image_payload, build_with_preview)
 from api_service.schemas import (ParsingRequest, ProductOriginUpdate, ProductDependencyUpdate, ProductResponse,
-                                 RecalcPricesRequest)
+                                 RecalcPricesRequest, OriginsPayload)
 from api_service.schemas.parsing_schemas import SourceContext, ParsingResultOut, ParsingLinesIn
 from api_service.schemas.product_schemas import OriginsList, ProductDependencyBatchUpdate
 from api_service.schemas.range_reward_schemas import RewardRangeResponseSchema
@@ -25,7 +25,7 @@ from config import settings
 from engine import db
 
 from models import ParsingLine, ProductOrigin, ProductType, ProductBrand, ProductFeaturesGlobal
-from models.product_dependencies import ProductImage
+from models.product_dependencies import ProductImage, ProductFeaturesLink
 from models.vendor import VendorSearchLine
 from parsing.logic import parsing_core, append_info
 from parsing.utils import cost_process
@@ -117,13 +117,16 @@ async def delete_parsing_items(origins: list[int], session: AsyncSession = Depen
 async def get_parsing_items_dependency_list(origin: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
     stmt = select(ProductOrigin.title).where(ProductOrigin.origin == origin)
     result = await session.execute(stmt)
-    title = result.scalar_one_or_none()
-    if not title:
+    item = result.scalar_one_or_none()
+    if not item:
         raise HTTPException(status_code=404, detail="origin не найден")
+    await session.close()
     async with ClientSession() as client_session:
-        data = await get_items_by_brand(client_session, title)
+        data = await get_items_by_params(client_session, item)
+
     if data is None:
         raise HTTPException(status_code=502, detail="Нет данных")
+
     return {"items": data}
 
 
@@ -341,3 +344,10 @@ async def clear_product_media(payload: OriginsList, session: AsyncSession = Depe
         await session.execute(clear_stmt)
         await session.commit()
         return {"cleared": to_clear}
+
+
+@parsing_router.delete("/clear_features_dependencies")
+async def clear_features_dependencies_endpoint(payload: OriginsPayload,
+                                               session: AsyncSession = Depends(db.scoped_session_dependency)):
+    deleted = await clear_features_dependencies(session, payload.origins)
+    return {"deleted": deleted}

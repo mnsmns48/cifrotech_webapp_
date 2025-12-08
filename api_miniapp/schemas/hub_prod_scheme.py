@@ -31,8 +31,8 @@ class HubProductResponse(BaseModel):
 class ProductFeaturesSchema(BaseModel):
     id: int
     title: str
-    type_id: int
-    brand_id: int
+    type: str
+    brand: str
     source: Optional[str]
     info: Optional[List[Dict]] = None
     pros_cons: Optional[Dict] = None
