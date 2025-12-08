@@ -1,6 +1,6 @@
 import asyncio
 import re
-from typing import Optional
+from typing import Optional, Any
 
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api_service.s3_helper import get_s3_client
 from config import redis_session
 from engine import db
+from models import ProductFeaturesGlobal
 
 
 class AppDependencies:
@@ -43,3 +44,24 @@ def normalize_origin(raw_number: str | int) -> Optional[int]:
         return raw_number
     parsed = only_digits.sub("", raw_number)
     return int(parsed) if parsed else None
+
+
+def update_feature_if_changed(
+        feature: ProductFeaturesGlobal, source: Optional[str], info: Any, pros_cons: Any) -> bool:
+    updated = False
+
+    if feature.source != source:
+        feature.source = source
+        updated = True
+
+    if feature.info != info:
+        feature.info = info
+        updated = True
+
+    normalized_pros_cons = pros_cons if isinstance(pros_cons, dict) else None
+
+    if feature.pros_cons != normalized_pros_cons:
+        feature.pros_cons = normalized_pros_cons
+        updated = True
+
+    return updated

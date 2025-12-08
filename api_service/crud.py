@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload, InstrumentedAttribute
 
 from api_service.api_connect import get_one_by_dtube
 
-from api_service.utils import normalize_origin
+from api_service.utils import normalize_origin, update_feature_if_changed
 from models import Vendor, VendorSearchLine, ProductOrigin, ParsingLine, RewardRange, RewardRangeLine, \
     ProductFeaturesLink, ProductFeaturesGlobal, ProductType, ProductBrand, HUbStock, HUbMenuLevel, StockTableDependency, \
     StockTable, ServiceImage
@@ -532,16 +532,24 @@ async def get_or_create_product_brand(
     return prod_brand
 
 
-async def get_or_create_feature(
-        title: str, type_id: int, brand_id: int, source: Optional[str], info: Any, pros_cons: Any,
-        session: AsyncSession,
-        cache: dict[str, ProductFeaturesGlobal]) -> ProductFeaturesGlobal:
+async def get_or_create_feature(title: str, type_id: int, brand_id: int,
+                                source: Optional[str], info: Any, pros_cons: Any,
+                                session: AsyncSession,
+                                cache: dict[str, ProductFeaturesGlobal]) -> ProductFeaturesGlobal:
     if title in cache:
-        return cache[title]
-
-    result = await session.execute(select(ProductFeaturesGlobal).where(ProductFeaturesGlobal.title == title))
+        feature = cache[title]
+        if update_feature_if_changed(feature, source, info, pros_cons):
+            await session.flush()
+        return feature
+    result = await session.execute(
+        select(ProductFeaturesGlobal).where(ProductFeaturesGlobal.title == title)
+    )
     feature = result.scalar_one_or_none()
-    if not feature:
+
+    if feature:
+        if update_feature_if_changed(feature, source, info, pros_cons):
+            await session.flush()
+    else:
         feature = ProductFeaturesGlobal(title=title,
                                         type_id=type_id,
                                         brand_id=brand_id,
@@ -550,6 +558,7 @@ async def get_or_create_feature(
                                         pros_cons=pros_cons if isinstance(pros_cons, dict) else None)
         session.add(feature)
         await session.flush()
+
     cache[title] = feature
     return feature
 
