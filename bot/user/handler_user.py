@@ -23,8 +23,6 @@ async def start(m: Message, dialog_manager: DialogManager) -> None:
     #               f'Спросить / узнать / выяснить, как заказать можно [тут](https://t.me/cifrotech_mobile)')
     message_data = {'id_': m.from_user.id, 'fullname': m.from_user.full_name, 'username': m.from_user.username}
 
-
-
     async with aiohttp.ClientSession() as client_session, db.tg_session() as pg_session:
         await notify_new_user(
             session=client_session,
@@ -51,4 +49,4 @@ async def start(m: Message, dialog_manager: DialogManager) -> None:
         #     await m.answer_photo(photo=main_pic, caption=hello_text, parse_mode="MarkdownV2",
         #                          disable_web_page_preview=True, reply_markup=webapp_kb)
     await m.answer('Теперь всё в приложении', reply_markup=webapp_kb)
-    #await dialog_manager.start(UserMainMenu.start, mode=StartMode.RESET_STACK)
+    # await dialog_manager.start(UserMainMenu.start, mode=StartMode.RESET_STACK)

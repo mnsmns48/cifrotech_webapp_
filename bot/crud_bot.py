@@ -1,6 +1,6 @@
 from datetime import date, datetime, timedelta
 from typing import List, Optional
-from sqlalchemy import select, Result, update, text
+from sqlalchemy import select, Result, update, text, desc, func
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +14,26 @@ from models import Guests, TgBotOptions, HUbMenuLevel, HUbStock, ProductOrigin, 
 async def user_spotted(session: AsyncSession, data: dict) -> None:
     await session.execute(insert(Guests), data)
     await session.commit()
+
+
+async def get_last_guests(session: AsyncSession) -> list[dict]:
+    stmt = (
+        select(
+            Guests.fullname,
+            Guests.username,
+            func.to_char(Guests.time_, 'DD-MM HH24:MI').label('date')
+        )
+        .order_by(desc(Guests.time_))
+        .limit(10)
+    )
+
+    result = await session.execute(stmt)
+
+    return [
+        {"fullname": fullname,
+         "username": username,
+         "date": date} for fullname, username, date in result.all()
+    ]
 
 
 async def get_option_value(session: AsyncSession, username, field):

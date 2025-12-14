@@ -10,7 +10,7 @@ from aiogram.types import Message
 
 from api_service.schemas.api_v1_schemas import SaleItemScheme
 from bot.admin.keyboards_admin import admin_basic_kb
-from bot.crud_bot import show_day_sales
+from bot.crud_bot import show_day_sales, get_last_guests
 from config import settings
 from engine import db
 
@@ -88,3 +88,23 @@ async def show_sales(m: Message):
                f"Всего: <b>{cash_total + card_total:.0f}</b>")
 
     await m.answer(text=body + summary, parse_mode="HTML")
+
+
+@tg_admin_router.message(F.text == 'Последние гости')
+async def show_sales(m: Message):
+    async with db.tg_session() as pg_session:
+        guests = await get_last_guests(session=pg_session)
+
+    if not guests:
+        await m.answer("Нет гостей")
+        return
+
+    text = ["<b>Последние гости:</b>\n"]
+
+    for g in guests:
+        fullname = g["fullname"] or ""
+        username = f"@{g['username']}" if g["username"] else ""
+
+        text.append(f"<b>{g['date']}</b> {fullname} {username}")
+
+    await m.answer("\n".join(text), parse_mode="HTML")
