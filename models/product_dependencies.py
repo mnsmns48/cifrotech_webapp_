@@ -1,23 +1,28 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
+from . import Base
 from sqlalchemy import ForeignKey, String, BigInteger, Index, func
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from models import Base
 from datetime import datetime
 
 if TYPE_CHECKING:
-    from .parsing import ParsingLine
-    from .hub import HUbStock
+    from models import (AttributeLink,
+                        AttributeModelOption,
+                        AttributeOriginValue,
+                        HUbStock,
+                        ParsingLine)
 
 
 class ProductType(Base):
     __tablename__ = "product_type"
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
     type: Mapped[str] = mapped_column(nullable=False, unique=True)
+
     features: Mapped[list["ProductFeaturesGlobal"]] = relationship(back_populates="type")
+    attr_link: Mapped[list["AttributeLink"]] = relationship(back_populates="product_type", cascade="all, delete-orphan")
 
 
 class ProductBrand(Base):
@@ -39,6 +44,9 @@ class ProductFeaturesGlobal(Base):
     type: Mapped["ProductType"] = relationship(back_populates="features")
     brand: Mapped["ProductBrand"] = relationship(back_populates="features")
 
+    attribute_options: Mapped[list["AttributeModelOption"]] = relationship(back_populates="model",
+                                                                           cascade="all, delete-orphan")
+
 
 class ProductOrigin(Base):
     __tablename__ = "product_origin"
@@ -53,6 +61,8 @@ class ProductOrigin(Base):
     parsing_lines: Mapped[list["ParsingLine"]] = relationship("ParsingLine", back_populates="product_origin")
     stocks: Mapped[list[HUbStock]] = relationship(
         "HUbStock", back_populates="product_origin", cascade="all, delete-orphan")
+    attribute_values: Mapped[list["AttributeOriginValue"]] = relationship(back_populates="origin",
+                                                                           cascade="all, delete-orphan")
 
 
 class ProductImage(Base):
