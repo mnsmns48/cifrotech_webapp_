@@ -29,7 +29,9 @@ class ProductBrand(Base):
     __tablename__ = "product_brand"
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
     brand: Mapped[str] = mapped_column(nullable=False, unique=True)
+
     features: Mapped[list["ProductFeaturesGlobal"]] = relationship(back_populates="brand")
+    attr_link: Mapped[list["AttributeLink"]] = relationship(back_populates="brand", cascade="all, delete-orphan")
 
 
 class ProductFeaturesGlobal(Base):
@@ -62,7 +64,7 @@ class ProductOrigin(Base):
     stocks: Mapped[list[HUbStock]] = relationship(
         "HUbStock", back_populates="product_origin", cascade="all, delete-orphan")
     attribute_values: Mapped[list["AttributeOriginValue"]] = relationship(back_populates="origin",
-                                                                           cascade="all, delete-orphan")
+                                                                          cascade="all, delete-orphan")
 
 
 class ProductImage(Base):

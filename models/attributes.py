@@ -1,7 +1,7 @@
 from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from models import Base, ProductType, ProductFeaturesGlobal, ProductOrigin
+from models import Base, ProductType, ProductFeaturesGlobal, ProductOrigin, ProductBrand
 
 
 class AttributeKey(Base):
@@ -17,11 +17,17 @@ class AttributeKey(Base):
 class AttributeLink(Base):
     __tablename__ = "attribute_link"
 
-    product_type_id: Mapped[int] = mapped_column(ForeignKey("product_type.id", ondelete="CASCADE"), primary_key=True)
-    attr_key_id: Mapped[int] = mapped_column(ForeignKey("attribute_key.id", ondelete="CASCADE"), primary_key=True)
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
 
-    attr_key: Mapped["AttributeKey"] = relationship(back_populates="attr_link")
+    product_type_id: Mapped[int] = mapped_column(ForeignKey("product_type.id", ondelete="CASCADE"), nullable=False)
+    brand_id: Mapped[int | None] = mapped_column(ForeignKey("product_brand.id", ondelete="CASCADE"), nullable=True)
+    attr_key_id: Mapped[int] = mapped_column(ForeignKey("attribute_key.id", ondelete="CASCADE"), nullable=False)
+
     product_type: Mapped["ProductType"] = relationship(back_populates="attr_link")
+    brand: Mapped["ProductBrand"] = relationship(back_populates="attr_link")
+    attr_key: Mapped["AttributeKey"] = relationship(back_populates="attr_link")
+
+    __table_args__ = (UniqueConstraint("product_type_id", "brand_id", "attr_key_id", name="uq_type_brand_attr"),)
 
 
 class AttributeModelOption(Base):
