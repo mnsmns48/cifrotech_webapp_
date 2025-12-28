@@ -13,7 +13,8 @@ if TYPE_CHECKING:
                         AttributeModelOption,
                         AttributeOriginValue,
                         HUbStock,
-                        ParsingLine)
+                        ParsingLine,
+                        BrandAttributeRule)
 
 
 class ProductType(Base):
@@ -23,6 +24,8 @@ class ProductType(Base):
 
     features: Mapped[list["ProductFeaturesGlobal"]] = relationship(back_populates="type")
     attr_link: Mapped[list["AttributeLink"]] = relationship(back_populates="product_type", cascade="all, delete-orphan")
+    brand_overrides: Mapped[list["BrandAttributeRule"]] = relationship(
+        back_populates="product_type", cascade="all, delete-orphan")
 
 
 class ProductBrand(Base):
@@ -31,7 +34,7 @@ class ProductBrand(Base):
     brand: Mapped[str] = mapped_column(nullable=False, unique=True)
 
     features: Mapped[list["ProductFeaturesGlobal"]] = relationship(back_populates="brand")
-    attr_link: Mapped[list["AttributeLink"]] = relationship(back_populates="brand", cascade="all, delete-orphan")
+    overrides: Mapped[list["BrandAttributeRule"]] = relationship(back_populates="brand", cascade="all, delete-orphan")
 
 
 class ProductFeaturesGlobal(Base):

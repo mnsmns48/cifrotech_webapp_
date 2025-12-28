@@ -1,7 +1,14 @@
-from sqlalchemy import ForeignKey, UniqueConstraint
+import enum
+
+from sqlalchemy import ForeignKey, UniqueConstraint, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models import Base, ProductType, ProductFeaturesGlobal, ProductOrigin, ProductBrand
+
+
+class OverrideType(enum.Enum):
+    include = "include"
+    exclude = "exclude"
 
 
 class AttributeKey(Base):
@@ -17,17 +24,26 @@ class AttributeKey(Base):
 class AttributeLink(Base):
     __tablename__ = "attribute_link"
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-
-    product_type_id: Mapped[int] = mapped_column(ForeignKey("product_type.id", ondelete="CASCADE"), nullable=False)
-    brand_id: Mapped[int | None] = mapped_column(ForeignKey("product_brand.id", ondelete="CASCADE"), nullable=True)
-    attr_key_id: Mapped[int] = mapped_column(ForeignKey("attribute_key.id", ondelete="CASCADE"), nullable=False)
+    product_type_id: Mapped[int] = mapped_column(ForeignKey("product_type.id", ondelete="CASCADE"),
+                                                 nullable=False, primary_key=True)
+    attr_key_id: Mapped[int] = mapped_column(ForeignKey("attribute_key.id", ondelete="CASCADE"),
+                                             nullable=False, primary_key=True)
 
     product_type: Mapped["ProductType"] = relationship(back_populates="attr_link")
-    brand: Mapped["ProductBrand"] = relationship(back_populates="attr_link")
     attr_key: Mapped["AttributeKey"] = relationship(back_populates="attr_link")
 
-    __table_args__ = (UniqueConstraint("product_type_id", "brand_id", "attr_key_id", name="uq_type_brand_attr"),)
+
+class AttributeBrandRule(Base):
+    __tablename__ = "attribute_brand_rule"
+
+    product_type_id: Mapped[int] = mapped_column(ForeignKey("product_type.id", ondelete="CASCADE"), primary_key=True)
+    brand_id: Mapped[int] = mapped_column(ForeignKey("product_brand.id", ondelete="CASCADE"), primary_key=True)
+    attr_key_id: Mapped[int] = mapped_column(ForeignKey("attribute_key.id", ondelete="CASCADE"), primary_key=True)
+    rule_type: Mapped[OverrideType] = mapped_column(Enum(OverrideType), nullable=False)
+
+    product_type = relationship("ProductType", back_populates="brand_overrides")
+    brand = relationship("ProductBrand", back_populates="overrides")
+    attr_key = relationship("AttributeKey", back_populates="override_links")
 
 
 class AttributeModelOption(Base):
