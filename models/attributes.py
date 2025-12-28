@@ -19,6 +19,8 @@ class AttributeKey(Base):
 
     attr_link: Mapped[list["AttributeLink"]] = relationship(back_populates="attr_key")
     values: Mapped[list["AttributeValue"]] = relationship(back_populates="attr_key", cascade="all, delete-orphan")
+    rule_overrides: Mapped[list["AttributeBrandRule"]] = relationship(back_populates="attr_key",
+                                                                      cascade="all, delete-orphan")
 
 
 class AttributeLink(Base):
@@ -41,9 +43,9 @@ class AttributeBrandRule(Base):
     attr_key_id: Mapped[int] = mapped_column(ForeignKey("attribute_key.id", ondelete="CASCADE"), primary_key=True)
     rule_type: Mapped[OverrideType] = mapped_column(Enum(OverrideType), nullable=False)
 
-    product_type = relationship("ProductType", back_populates="brand_overrides")
-    brand = relationship("ProductBrand", back_populates="overrides")
-    attr_key = relationship("AttributeKey", back_populates="override_links")
+    product_type = relationship("ProductType", back_populates="rule_overrides")
+    brand = relationship("ProductBrand", back_populates="rule_overrides")
+    attr_key = relationship("AttributeKey", back_populates="rule_overrides")
 
 
 class AttributeModelOption(Base):
