@@ -11,7 +11,7 @@ class AttributeKey(Base):
     key: Mapped[str] = mapped_column(nullable=False, unique=True)
 
     attr_link: Mapped[list["AttributeLink"]] = relationship(back_populates="attr_key")
-    values: Mapped[list["AttributeValue"]] = relationship(back_populates="attr_key")
+    values: Mapped[list["AttributeValue"]] = relationship(back_populates="attr_key", cascade="all, delete-orphan")
 
 
 class AttributeLink(Base):
