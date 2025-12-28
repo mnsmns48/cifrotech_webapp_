@@ -1,9 +1,15 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 import enum
 
 from sqlalchemy import ForeignKey, UniqueConstraint, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from models import Base, ProductType, ProductFeaturesGlobal, ProductOrigin, ProductBrand
+from models import Base
+
+if TYPE_CHECKING:
+    from models import ProductType, ProductFeaturesGlobal, ProductOrigin
 
 
 class OverrideType(enum.Enum):
