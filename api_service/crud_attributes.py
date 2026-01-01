@@ -3,11 +3,11 @@ from sqlalchemy import select, update, delete
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from starlette import status
 
-from api_service.schemas.attribute_schemas import CreateAttribute
-from models.attributes import AttributeKey, AttributeValue
+from api_service.schemas.attribute_schemas import CreateAttribute, AttributeBrandRuleLink
+from models import ProductType, AttributeKey, AttributeValue, AttributeLink, AttributeBrandRule, ProductBrand
 
 
 async def fetch_all_attribute_keys(session: AsyncSession):
@@ -153,3 +153,60 @@ async def delete_attribute_value(session: AsyncSession, value_id: int) -> bool |
         await session.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                             detail=f"Cannot delete attribute value {value_id}: it is referenced by other objects")
+
+
+async def fetch_types_with_rules(session: AsyncSession):
+    stmt = (
+        select(ProductType)
+        .options(
+            selectinload(ProductType.attr_link).options(selectinload(AttributeLink.attr_key)),
+            selectinload(ProductType.rule_overrides).options(selectinload(AttributeBrandRule.brand),
+                                                             selectinload(AttributeBrandRule.attr_key)),
+        )
+    )
+    result = await session.execute(stmt)
+    return result.scalars().all()
+
+
+async def fetch_all_brands(session: AsyncSession):
+    result = await session.execute(select(ProductBrand))
+    return result.scalars().all()
+
+
+async def add_type_dependency_db(session: AsyncSession, type_id: int, attr_key_id: int):
+    link = AttributeLink(product_type_id=type_id, attr_key_id=attr_key_id)
+    session.add(link)
+    await session.commit()
+    await session.refresh(link)
+    return link
+
+
+async def delete_type_dependency_db(session: AsyncSession, type_id: int, attr_key_id: int):
+    stmt = delete(AttributeLink).where(AttributeLink.product_type_id == type_id,
+                                       AttributeLink.attr_key_id == attr_key_id)
+    await session.execute(stmt)
+    await session.commit()
+    return {"type_id": type_id, "attr_key_id": attr_key_id}
+
+
+async def add_attribute_brand_link_db(session: AsyncSession, data: AttributeBrandRuleLink):
+    rule = AttributeBrandRule(product_type_id=data.product_type_id,
+                              brand_id=data.brand_id,
+                              attr_key_id=data.attr_key_id,
+                              rule_type=data.rule_type)
+    session.add(rule)
+    await session.commit()
+    await session.refresh(rule)
+    return AttributeBrandRuleLink(product_type_id=rule.product_type_id, brand_id=rule.brand_id,
+                                  attr_key_id=rule.attr_key_id, rule_type=rule.rule_type)
+
+
+async def delete_attribute_brand_link_db(session: AsyncSession, obj: AttributeBrandRuleLink):
+    stmt = (delete(AttributeBrandRule).where(AttributeBrandRule.product_type_id == obj.product_type_id,
+                                             AttributeBrandRule.brand_id == obj.brand_id,
+                                             AttributeBrandRule.attr_key_id == obj.attr_key_id,
+                                             AttributeBrandRule.rule_type == obj.rule_type))
+
+    await session.execute(stmt)
+    await session.commit()
+    return obj

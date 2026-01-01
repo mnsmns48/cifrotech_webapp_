@@ -25,7 +25,9 @@ __all__ = (
     "AttributeLink",
     "AttributeOriginValue",
     "AttributeModelOption",
-    "AttributeBrandRule"
+    "AttributeBrandRule",
+    "AttributeKey",
+    "AttributeValue",
 
 )
 
@@ -44,4 +46,5 @@ from .vendor import RewardRange, RewardRangeLine, VendorSearchLine, Vendor, Vend
 from .user import User
 from .access_token import AccessToken
 from .service_image import ServiceImage
-from .attributes import AttributeLink, AttributeOriginValue, AttributeModelOption, AttributeBrandRule
+from .attributes import AttributeLink, AttributeOriginValue, AttributeModelOption, AttributeBrandRule, AttributeValue, \
+    AttributeKey

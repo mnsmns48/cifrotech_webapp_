@@ -1,11 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.crud_attributes import fetch_all_attribute_keys, create_attribute_key, update_attribute_key, \
     delete_attribute_key, fetch_all_attribute_values_with_keys, create_attribute, update_attribute_value, \
-    delete_attribute_value
-from api_service.schemas.attribute_schemas import CreateAttribute, UpdateAttribute
+    delete_attribute_value, fetch_types_with_rules, fetch_all_brands, add_type_dependency_db, delete_type_dependency_db, \
+    delete_attribute_brand_link_db, add_attribute_brand_link_db
+from api_service.schemas import CreateAttribute, UpdateAttribute, TypesDependenciesResponse, TypeDependencyLink, \
+    AttributeBrandRuleLink
 from engine import db
+from models.attributes import OverrideType
 
 attributes_router = APIRouter(tags=['Attributes'])
 
@@ -83,3 +86,41 @@ async def delete_attribute_item(value_id: int, session: AsyncSession = Depends(d
     result = await delete_attribute_value(session, value_id)
     if result:
         return {"status": "ok", "deleted_id": value_id}
+
+
+@attributes_router.get("/attributes/get_types_dependencies", response_model=TypesDependenciesResponse)
+async def get_type_dependencies(session: AsyncSession = Depends(db.scoped_session_dependency)):
+    types_map = await fetch_types_with_rules(session)
+    keys = await fetch_all_attribute_keys(session)
+    brands = await fetch_all_brands(session)
+    return TypesDependenciesResponse(types_map=types_map, keys=keys, brands=brands)
+
+
+@attributes_router.post("/attributes/add_types_dependencies")
+async def add_type_dependencies(payload: TypeDependencyLink,
+                                session: AsyncSession = Depends(db.scoped_session_dependency)):
+    link = await add_type_dependency_db(session=session, type_id=payload.type_id, attr_key_id=payload.attr_key_id)
+    return TypeDependencyLink(type_id=link.product_type_id, attr_key_id=link.attr_key_id)
+
+
+@attributes_router.delete("/attributes/delete_types_dependencies")
+async def delete_type_dependencies(
+        type_id: int, attr_key_id: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    deleted = await delete_type_dependency_db(session=session, type_id=type_id, attr_key_id=attr_key_id)
+    return TypeDependencyLink(**deleted)
+
+
+@attributes_router.post("/attributes/add_attribute_brand_link")
+async def add_attribute_brand_link(payload: AttributeBrandRuleLink,
+                                   session: AsyncSession = Depends(db.scoped_session_dependency)):
+    link = await add_attribute_brand_link_db(session=session, data=payload)
+    return link
+
+
+@attributes_router.delete("/attributes/delete_attribute_brand_link")
+async def delete_attribute_brand_link(product_type_id: int, brand_id: int, attr_key_id: int, rule_type: OverrideType,
+                                      session: AsyncSession = Depends(db.scoped_session_dependency)):
+    obj = AttributeBrandRuleLink(product_type_id=product_type_id, brand_id=brand_id, attr_key_id=attr_key_id,
+                                 rule_type=rule_type)
+    deleted = await delete_attribute_brand_link_db(session=session, obj=obj)
+    return deleted
