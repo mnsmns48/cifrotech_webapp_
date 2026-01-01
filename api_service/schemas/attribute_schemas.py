@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel, field_validator, ConfigDict
 
@@ -33,6 +33,12 @@ class Brand(BaseModel):
     id: int
     brand: str
 
+    model_config = ConfigDict(from_attributes=True)
+
+
+class Types(BaseModel):
+    id: int
+    type: str
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -89,3 +95,18 @@ class AttributeBrandRuleLink(BaseModel):
     brand_id: int
     attr_key_id: int
     rule_type: OverrideType
+
+
+class TypeAndBrandPayload(BaseModel):
+    type_id: int
+    brand_ids: list[int] | None = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ProductFeaturesGlobalResponse(BaseModel):
+    id: int
+    title: str
+    type_id: int
+    brand_id: int
+    brand: str
+    model_config = ConfigDict(from_attributes=True)

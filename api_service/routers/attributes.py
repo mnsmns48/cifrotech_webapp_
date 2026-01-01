@@ -1,12 +1,13 @@
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.crud_attributes import fetch_all_attribute_keys, create_attribute_key, update_attribute_key, \
     delete_attribute_key, fetch_all_attribute_values_with_keys, create_attribute, update_attribute_value, \
     delete_attribute_value, fetch_types_with_rules, fetch_all_brands, add_type_dependency_db, delete_type_dependency_db, \
-    delete_attribute_brand_link_db, add_attribute_brand_link_db
+    delete_attribute_brand_link_db, add_attribute_brand_link_db, fetch_all_types, fetch_product_global
 from api_service.schemas import CreateAttribute, UpdateAttribute, TypesDependenciesResponse, TypeDependencyLink, \
-    AttributeBrandRuleLink
+    AttributeBrandRuleLink, TypeAndBrandPayload, ProductFeaturesGlobalResponse, Types
 from engine import db
 from models.attributes import OverrideType
 
@@ -124,3 +125,25 @@ async def delete_attribute_brand_link(product_type_id: int, brand_id: int, attr_
                                  rule_type=rule_type)
     deleted = await delete_attribute_brand_link_db(session=session, obj=obj)
     return deleted
+
+
+@attributes_router.get("/attributes/get_all_types", response_model=List[Types])
+async def get_model_dependencies(session: AsyncSession = Depends(db.scoped_session_dependency)):
+    types = await fetch_all_types(session)
+    return list(types)
+
+
+@attributes_router.post("/attributes/get_product_global_list",
+                        response_model=list[ProductFeaturesGlobalResponse])
+async def get_product_global_list(payload: TypeAndBrandPayload,
+                                  session: AsyncSession = Depends(db.scoped_session_dependency)):
+    items = await fetch_product_global(
+        session=session, product_type_id=payload.type_id, brand_ids=payload.brand_ids
+    )
+
+    return [
+        ProductFeaturesGlobalResponse(
+            id=i.id, title=i.title, type_id=i.type_id, brand_id=i.brand_id, brand=i.brand.brand
+        )
+        for i in items
+    ]

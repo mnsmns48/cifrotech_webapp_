@@ -1,5 +1,5 @@
 from fastapi import HTTPException
-from sqlalchemy import select, update, delete
+from sqlalchemy import select, update, delete, and_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,7 +7,8 @@ from sqlalchemy.orm import joinedload, selectinload
 from starlette import status
 
 from api_service.schemas.attribute_schemas import CreateAttribute, AttributeBrandRuleLink
-from models import ProductType, AttributeKey, AttributeValue, AttributeLink, AttributeBrandRule, ProductBrand
+from models import ProductType, AttributeKey, AttributeValue, AttributeLink, AttributeBrandRule, ProductBrand, \
+    ProductFeaturesGlobal
 
 
 async def fetch_all_attribute_keys(session: AsyncSession):
@@ -210,3 +211,24 @@ async def delete_attribute_brand_link_db(session: AsyncSession, obj: AttributeBr
     await session.execute(stmt)
     await session.commit()
     return obj
+
+
+async def fetch_all_types(session: AsyncSession):
+    result = await session.execute(select(ProductType))
+    return result.scalars().all()
+
+
+async def fetch_product_global(session: AsyncSession, product_type_id: int, brand_ids: list[int] | None = None):
+    stmt = (
+        select(ProductFeaturesGlobal)
+        .options(selectinload(ProductFeaturesGlobal.brand))
+        .where(ProductFeaturesGlobal.type_id == product_type_id)
+        .order_by(ProductFeaturesGlobal.title.asc())
+    )
+
+    if brand_ids:
+        stmt = stmt.where(ProductFeaturesGlobal.brand_id.in_(brand_ids))
+
+    result = await session.execute(stmt)
+    return result.scalars().all()
+
