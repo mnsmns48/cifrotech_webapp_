@@ -16,7 +16,9 @@ from api_service.schemas.vsl_schemas import VSLScheme
 from api_service.schemas.vendor_schemas import VendorSchema
 from api_service.schemas.service import ServiceImageResponse, ServiceImageCreate, ServiceImageUpdate
 from api_service.schemas.attribute_schemas import CreateAttribute, UpdateAttribute, TypesDependenciesResponse, \
-    TypeDependencyLink, AttributeBrandRuleLink, TypeAndBrandPayload, ProductFeaturesGlobalResponse, Types
+    TypeDependencyLink, AttributeBrandRuleLink, TypeAndBrandPayload, ProductFeaturesGlobalResponse, Types, \
+    ProductDependenciesKeysValuesScheme, AttributeKeySchema, AttributeValueSchema, ProductDependenciesSchema, \
+    AttributeModelOptionLink
 
 __all__ = list()
 
@@ -42,4 +44,6 @@ __all__ += ["ComparisonInScheme", "ComparisonOutScheme", "ParsingLine", "Consent
 __all__ += ["ServiceImageResponse", "ServiceImageCreate", "ServiceImageUpdate"]
 
 __all__ += ["CreateAttribute", "UpdateAttribute", "TypesDependenciesResponse", "TypeDependencyLink",
-            "AttributeBrandRuleLink", "TypeAndBrandPayload", "ProductFeaturesGlobalResponse", "Types"]
+            "AttributeBrandRuleLink", "TypeAndBrandPayload", "ProductFeaturesGlobalResponse", "Types",
+            "ProductDependenciesKeysValuesScheme", "AttributeKeySchema", "AttributeValueSchema",
+            "ProductDependenciesSchema", "AttributeModelOptionLink"]

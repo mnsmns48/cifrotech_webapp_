@@ -110,3 +110,31 @@ class ProductFeaturesGlobalResponse(BaseModel):
     brand_id: int
     brand: str
     model_config = ConfigDict(from_attributes=True)
+
+
+class ProductDependenciesKeysValuesScheme(BaseModel):
+    product_type_id: int
+    brand_id: int
+
+
+class AttributeValueSchema(BaseModel):
+    id: int
+    value: str
+    alias: Optional[str]
+
+
+class AttributeKeySchema(BaseModel):
+    key_id: int
+    key: str
+    values: list[AttributeValueSchema]
+
+
+class ProductDependenciesSchema(BaseModel):
+    product_type_id: int
+    brand_id: int
+    keys: list[AttributeKeySchema]
+
+
+class AttributeModelOptionLink(BaseModel):
+    model_ids: list[int]
+    attribute_value_id: int

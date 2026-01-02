@@ -6,9 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 from starlette import status
 
-from api_service.schemas.attribute_schemas import CreateAttribute, AttributeBrandRuleLink
+from api_service.schemas.attribute_schemas import CreateAttribute, AttributeBrandRuleLink, \
+    ProductDependenciesKeysValuesScheme, AttributeValueSchema, AttributeKeySchema, ProductDependenciesSchema, \
+    AttributeModelOptionLink
 from models import ProductType, AttributeKey, AttributeValue, AttributeLink, AttributeBrandRule, ProductBrand, \
     ProductFeaturesGlobal
+from models.attributes import OverrideType, AttributeModelOption
 
 
 async def fetch_all_attribute_keys(session: AsyncSession):
@@ -232,3 +235,76 @@ async def fetch_product_global(session: AsyncSession, product_type_id: int, bran
     result = await session.execute(stmt)
     return result.scalars().all()
 
+
+async def product_dependencies_keys_values(session: AsyncSession, payload: ProductDependenciesKeysValuesScheme):
+    base_keys_stmt = (select(AttributeKey.id).join(AttributeLink, AttributeLink.attr_key_id == AttributeKey.id)
+                      .where(AttributeLink.product_type_id == payload.product_type_id))
+
+    base_key_ids = set((await session.scalars(base_keys_stmt)).all())
+    rules_stmt = select(AttributeBrandRule.attr_key_id, AttributeBrandRule.rule_type).where(
+        AttributeBrandRule.product_type_id == payload.product_type_id,
+        AttributeBrandRule.brand_id == payload.brand_id)
+    result = await session.execute(rules_stmt)
+    rules = result.all()
+
+    include_ids = {r[0] for r in rules if r[1] == OverrideType.include}
+    exclude_ids = {r[0] for r in rules if r[1] == OverrideType.exclude}
+
+    final_key_ids = (base_key_ids - exclude_ids) | include_ids
+
+    if not final_key_ids:
+        return []
+
+    keys_stmt = select(AttributeKey).where(AttributeKey.id.in_(final_key_ids)).order_by(AttributeKey.key)
+    keys = (await session.scalars(keys_stmt)).all()
+
+    values_stmt = select(AttributeValue).where(AttributeValue.attr_key_id.in_(final_key_ids)).order_by(
+        AttributeValue.value)
+    values = (await session.scalars(values_stmt)).all()
+
+    values_by_key = dict()
+    for v in values:
+        values_by_key.setdefault(v.attr_key_id, []).append(v)
+
+    keys_list = list()
+
+    for key in keys:
+        values_list = list()
+
+        values_for_key = values_by_key.get(key.id, [])
+        for v in values_for_key:
+            values_list.append(AttributeValueSchema(id=v.id, value=v.value, alias=v.alias))
+
+        keys_list.append(AttributeKeySchema(
+            key_id=key.id,
+            key=key.key,
+            values=values_list
+        ))
+
+    result = ProductDependenciesSchema(product_type_id=payload.product_type_id, brand_id=payload.brand_id,
+                                       keys=keys_list)
+
+    return result
+
+
+async def add_product_attribute_value_option(payload: AttributeModelOptionLink, session: AsyncSession):
+    for model_id in payload.model_ids:
+        option = AttributeModelOption(model_id=model_id,
+                                      attr_value_id=payload.attribute_value_id)
+        session.add(option)
+    try:
+        await session.commit()
+        return payload
+    except IntegrityError:
+        await session.rollback()
+
+
+async def delete_product_attribute_value_option(payload: AttributeModelOptionLink, session: AsyncSession):
+    stmt = delete(AttributeModelOption).where(AttributeModelOption.model_id.in_(payload.model_ids),
+                                              AttributeModelOption.attr_value_id == payload.attribute_value_id)
+    try:
+        await session.execute(stmt)
+        await session.commit()
+        return payload
+    except IntegrityError:
+        await session.rollback()
