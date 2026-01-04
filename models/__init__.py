@@ -21,7 +21,14 @@ __all__ = (
     "HUbMenuLevel",
     "HUbStock",
     "StockTableDependency",
-    "ServiceImage"
+    "ServiceImage",
+    "AttributeLink",
+    "AttributeOriginValue",
+    "AttributeModelOption",
+    "AttributeBrandRule",
+    "AttributeKey",
+    "AttributeValue",
+
 )
 
 from .base import Base
@@ -39,3 +46,5 @@ from .vendor import RewardRange, RewardRangeLine, VendorSearchLine, Vendor, Vend
 from .user import User
 from .access_token import AccessToken
 from .service_image import ServiceImage
+from .attributes import AttributeLink, AttributeOriginValue, AttributeModelOption, AttributeBrandRule, AttributeValue, \
+    AttributeKey
