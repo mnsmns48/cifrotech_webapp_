@@ -1,17 +1,20 @@
+from collections import defaultdict
+
 from fastapi import HTTPException
-from sqlalchemy import select, update, delete, and_
+from sqlalchemy import select, update, delete, and_, func, case
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 from starlette import status
 
-from api_service.schemas.attribute_schemas import CreateAttribute, AttributeBrandRuleLink, \
-    ProductDependenciesKeysValuesScheme, AttributeValueSchema, AttributeKeySchema, ProductDependenciesSchema, \
+from api_service.schemas import CreateAttribute, AttributeBrandRuleLink, ProductFeaturesAttributeOptions, \
+    AttributeValueSchema, ModelAttributeValuesSchema, ModelAttributesRequest, ModelAttributesResponse, \
     AttributeModelOptionLink
+
 from models import ProductType, AttributeKey, AttributeValue, AttributeLink, AttributeBrandRule, ProductBrand, \
-    ProductFeaturesGlobal
-from models.attributes import OverrideType, AttributeModelOption
+    ProductFeaturesGlobal, AttributeModelOption
+from models.attributes import OverrideType
 
 
 async def fetch_all_attribute_keys(session: AsyncSession):
@@ -221,70 +224,126 @@ async def fetch_all_types(session: AsyncSession):
     return result.scalars().all()
 
 
-async def fetch_product_global(session: AsyncSession, product_type_id: int, brand_ids: list[int] | None = None):
-    stmt = (
-        select(ProductFeaturesGlobal)
-        .options(selectinload(ProductFeaturesGlobal.brand))
-        .where(ProductFeaturesGlobal.type_id == product_type_id)
-        .order_by(ProductFeaturesGlobal.title.asc())
-    )
-
-    if brand_ids:
-        stmt = stmt.where(ProductFeaturesGlobal.brand_id.in_(brand_ids))
+async def load_model_attribute_options_db(session: AsyncSession,
+                                          product_type_id: int) -> list[ProductFeaturesAttributeOptions]:
+    stmt = (select(ProductFeaturesGlobal).where(ProductFeaturesGlobal.type_id == product_type_id)
+            .order_by(ProductFeaturesGlobal.title)
+            .options(selectinload(ProductFeaturesGlobal.brand), selectinload(ProductFeaturesGlobal.attribute_options)
+                     .selectinload(AttributeModelOption.attr_value).selectinload(AttributeValue.attr_key)))
 
     result = await session.execute(stmt)
-    return result.scalars().all()
+    models = result.scalars().all()
+
+    response: list[ProductFeaturesAttributeOptions] = list()
+
+    for model in models:
+        grouped: dict[int, dict] = dict()
+
+        for option in model.attribute_options:
+            attr_value = option.attr_value
+            attr_key = attr_value.attr_key
+
+            if attr_key.id not in grouped:
+                grouped[attr_key.id] = {"key_id": attr_key.id,
+                                        "key": attr_key.key,
+                                        "attr_value_ids": []}
+
+            grouped[attr_key.id]["attr_value_ids"].append(
+                AttributeValueSchema(id=attr_value.id, value=attr_value.value, alias=attr_value.alias)
+            )
+
+        response.append(
+            ProductFeaturesAttributeOptions(model_id=model.id,
+                                            title=model.title,
+                                            brand_id=model.brand.id,
+                                            brand=model.brand.brand,
+                                            model_attribute_values=[ModelAttributeValuesSchema(**data)
+                                                                    for data in grouped.values()],
+                                            )
+        )
+
+    return response
 
 
-async def product_dependencies_keys_values(session: AsyncSession, payload: ProductDependenciesKeysValuesScheme):
-    base_keys_stmt = (select(AttributeKey.id).join(AttributeLink, AttributeLink.attr_key_id == AttributeKey.id)
-                      .where(AttributeLink.product_type_id == payload.product_type_id))
+async def product_dependencies_db(session: AsyncSession, payload: ModelAttributesRequest) -> ModelAttributesResponse:
+    product_type_id = payload.product_type_id
+    brand_id = payload.brand_id
 
-    base_key_ids = set((await session.scalars(base_keys_stmt)).all())
-    rules_stmt = select(AttributeBrandRule.attr_key_id, AttributeBrandRule.rule_type).where(
-        AttributeBrandRule.product_type_id == payload.product_type_id,
-        AttributeBrandRule.brand_id == payload.brand_id)
-    result = await session.execute(rules_stmt)
-    rules = result.all()
+    stmt_base = (
+        select(AttributeKey.id, AttributeKey.key).join(AttributeLink, AttributeLink.attr_key_id == AttributeKey.id)
+        .where(AttributeLink.product_type_id == product_type_id).order_by(AttributeKey.key)
+    )
+    base_rows = (await session.execute(stmt_base)).all()
 
-    include_ids = {r[0] for r in rules if r[1] == OverrideType.include}
-    exclude_ids = {r[0] for r in rules if r[1] == OverrideType.exclude}
+    base_keys: dict[int, str] = {row.id: row.key for row in base_rows}
 
-    final_key_ids = (base_key_ids - exclude_ids) | include_ids
+    stmt_rules = (
+        select(AttributeBrandRule.attr_key_id, AttributeBrandRule.rule_type)
+        .where(
+            AttributeBrandRule.product_type_id == product_type_id,
+            AttributeBrandRule.brand_id == brand_id,
+        )
+    )
+    rule_rows = (await session.execute(stmt_rules)).all()
 
-    if not final_key_ids:
-        return []
+    include_keys: set[int] = set()
+    exclude_keys: set[int] = set()
 
-    keys_stmt = select(AttributeKey).where(AttributeKey.id.in_(final_key_ids)).order_by(AttributeKey.key)
-    keys = (await session.scalars(keys_stmt)).all()
+    for key_id, rule_type in rule_rows:
+        if rule_type == OverrideType.include:
+            include_keys.add(key_id)
+        elif rule_type == OverrideType.exclude:
+            exclude_keys.add(key_id)
 
-    values_stmt = select(AttributeValue).where(AttributeValue.attr_key_id.in_(final_key_ids)).order_by(
-        AttributeValue.value)
-    values = (await session.scalars(values_stmt)).all()
+    allowed_keys: set[int] = set(base_keys.keys())
+    allowed_keys -= exclude_keys
+    allowed_keys |= include_keys
 
-    values_by_key = dict()
-    for v in values:
-        values_by_key.setdefault(v.attr_key_id, []).append(v)
+    if not allowed_keys:
+        return ModelAttributesResponse(
+            product_type_id=product_type_id,
+            brand_id=brand_id,
+            titles=payload.titles,
+            model_ids=payload.model_ids,
+            model_attribute_values=[],
+            model_attribute_values_exists=payload.model_attribute_values,
+        )
 
-    keys_list = list()
+    missing_key_ids = allowed_keys - set(base_keys.keys())
+    if missing_key_ids:
+        stmt_missing = (
+            select(AttributeKey.id, AttributeKey.key)
+            .where(AttributeKey.id.in_(missing_key_ids))
+        )
+        missing_rows = (await session.execute(stmt_missing)).all()
+        for row in missing_rows:
+            base_keys[row.id] = row.key
 
-    for key in keys:
-        values_list = list()
+    stmt_values = (select(AttributeValue.id,
+                          AttributeValue.value,
+                          AttributeValue.alias,
+                          AttributeValue.attr_key_id)
+                   .where(AttributeValue.attr_key_id.in_(allowed_keys))
+                   .order_by(AttributeValue.attr_key_id, AttributeValue.value))
+    value_rows = (await session.execute(stmt_values)).all()
 
-        values_for_key = values_by_key.get(key.id, [])
-        for v in values_for_key:
-            values_list.append(AttributeValueSchema(id=v.id, value=v.value, alias=v.alias))
+    grouped_values: dict[int, list[AttributeValueSchema]] = dict()
+    for row in value_rows:
+        key_id = row.attr_key_id
+        grouped_values.setdefault(key_id, []).append(AttributeValueSchema(id=row.id, value=row.value, alias=row.alias))
 
-        keys_list.append(AttributeKeySchema(
-            key_id=key.id,
-            key=key.key,
-            values=values_list
-        ))
+    model_attribute_values: list[ModelAttributeValuesSchema] = list()
 
-    result = ProductDependenciesSchema(product_type_id=payload.product_type_id, brand_id=payload.brand_id,
-                                       keys=keys_list)
+    for key_id in sorted(allowed_keys):
+        model_attribute_values.append(
+            ModelAttributeValuesSchema(key_id=key_id,
+                                       key=base_keys.get(key_id, f"key_{key_id}"),
+                                       attr_value_ids=grouped_values.get(key_id, [])))
 
-    return result
+    return ModelAttributesResponse(product_type_id=product_type_id, brand_id=brand_id,
+                                   titles=payload.titles, model_ids=payload.model_ids,
+                                   model_attribute_values=model_attribute_values,
+                                   model_attribute_values_exists=payload.model_attribute_values)
 
 
 async def add_product_attribute_value_option(payload: AttributeModelOptionLink, session: AsyncSession):

@@ -5,11 +5,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api_service.crud_attributes import fetch_all_attribute_keys, create_attribute_key, update_attribute_key, \
     delete_attribute_key, fetch_all_attribute_values_with_keys, create_attribute, update_attribute_value, \
     delete_attribute_value, fetch_types_with_rules, fetch_all_brands, add_type_dependency_db, delete_type_dependency_db, \
-    delete_attribute_brand_link_db, add_attribute_brand_link_db, fetch_all_types, fetch_product_global, \
-    product_dependencies_keys_values, add_product_attribute_value_option, delete_product_attribute_value_option
+    delete_attribute_brand_link_db, add_attribute_brand_link_db, fetch_all_types, load_model_attribute_options_db, \
+    product_dependencies_db, add_product_attribute_value_option, delete_product_attribute_value_option
+
 from api_service.schemas import CreateAttribute, UpdateAttribute, TypesDependenciesResponse, TypeDependencyLink, \
-    AttributeBrandRuleLink, TypeAndBrandPayload, ProductFeaturesGlobalResponse, Types, \
-    ProductDependenciesKeysValuesScheme, ProductDependenciesSchema, AttributeModelOptionLink
+    AttributeBrandRuleLink, ProductFeaturesAttributeOptions, Types, ModelAttributesRequest, ModelAttributesResponse, \
+    AttributeModelOptionLink
 from engine import db
 from models.attributes import OverrideType
 
@@ -135,21 +136,18 @@ async def get_model_dependencies(session: AsyncSession = Depends(db.scoped_sessi
     return list(types)
 
 
-@attributes_router.post("/attributes/product_global_list", response_model=list[ProductFeaturesGlobalResponse])
-async def get_product_global_list(payload: TypeAndBrandPayload,
-                                  session: AsyncSession = Depends(db.scoped_session_dependency)):
-    items = await fetch_product_global(session=session, product_type_id=payload.type_id, brand_ids=payload.brand_ids)
-    result = list()
-    for i in items:
-        result.append(ProductFeaturesGlobalResponse(id=i.id, title=i.title, type_id=i.type_id,
-                                                    brand_id=i.brand_id, brand=i.brand.brand))
-    return result
+@attributes_router.get("/attributes/load_model_attribute_options/{product_type_id}",
+                       response_model=List[ProductFeaturesAttributeOptions])
+async def load_model_attribute_options(product_type_id: int,
+                                       session: AsyncSession = Depends(db.scoped_session_dependency)):
+    items = await load_model_attribute_options_db(session=session, product_type_id=product_type_id)
+    return items
 
 
-@attributes_router.post("/attributes/product_dependencies_scheme", response_model=ProductDependenciesSchema)
-async def product_dependencies_scheme(payload: ProductDependenciesKeysValuesScheme,
+@attributes_router.post("/attributes/model_attributes_request", response_model=ModelAttributesResponse)
+async def product_dependencies_scheme(payload: ModelAttributesRequest,
                                       session: AsyncSession = Depends(db.scoped_session_dependency)):
-    return await product_dependencies_keys_values(session=session, payload=payload)
+    return await product_dependencies_db(session=session, payload=payload)
 
 
 @attributes_router.post("/attributes/add_product_attribute_value_option_link")

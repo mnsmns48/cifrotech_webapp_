@@ -103,36 +103,41 @@ class TypeAndBrandPayload(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ProductFeaturesGlobalResponse(BaseModel):
-    id: int
-    title: str
-    type_id: int
-    brand_id: int
-    brand: str
-    model_config = ConfigDict(from_attributes=True)
-
-
-class ProductDependenciesKeysValuesScheme(BaseModel):
-    product_type_id: int
-    brand_id: int
-
-
 class AttributeValueSchema(BaseModel):
     id: int
     value: str
     alias: Optional[str]
 
 
-class AttributeKeySchema(BaseModel):
+class ModelAttributeValuesSchema(BaseModel):
     key_id: int
     key: str
-    values: list[AttributeValueSchema]
+    attr_value_ids: list[AttributeValueSchema]
 
 
-class ProductDependenciesSchema(BaseModel):
+class ProductFeaturesAttributeOptions(BaseModel):
+    model_id: int
+    title: str
+    brand_id: int
+    brand: str
+    model_attribute_values: list[ModelAttributeValuesSchema]
+
+
+class ModelAttributesRequest(BaseModel):
+    titles: list[str]
+    model_ids: list[int]
     product_type_id: int
     brand_id: int
-    keys: list[AttributeKeySchema]
+    model_attribute_values: list[ModelAttributeValuesSchema]
+
+
+class ModelAttributesResponse(BaseModel):
+    product_type_id: int
+    brand_id: int
+    titles: list[str]
+    model_ids: list[int]
+    model_attribute_values: list[ModelAttributeValuesSchema]
+    model_attribute_values_exists: list[ModelAttributeValuesSchema]
 
 
 class AttributeModelOptionLink(BaseModel):
