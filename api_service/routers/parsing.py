@@ -16,16 +16,16 @@ from api_service.crud import get_vendor_and_vsl, get_rr_obj, _get_parsing_result
 from api_service.s3_helper import (get_s3_client, get_http_client_session, sync_images_by_origin,
                                    generate_final_image_payload, build_with_preview)
 from api_service.schemas import (ParsingRequest, ProductOriginUpdate, ProductDependencyUpdate, ProductResponse,
-                                 RecalcPricesRequest, OriginsPayload)
-from api_service.schemas.parsing_schemas import SourceContext, ParsingResultOut, ParsingLinesIn
-from api_service.schemas.product_schemas import OriginsList, ProductDependencyBatchUpdate
+                                 RecalcPricesRequest, OriginsPayload, SourceContext, ParsingResultOut, ParsingLinesIn,
+                                 OriginsList, ProductDependencyBatchUpdate)
+
 from api_service.schemas.range_reward_schemas import RewardRangeResponseSchema
 from api_service.utils import AppDependencies
 from config import settings
 from engine import db
 
 from models import ParsingLine, ProductOrigin, ProductType, ProductBrand, ProductFeaturesGlobal
-from models.product_dependencies import ProductImage, ProductFeaturesLink
+from models.product_dependencies import ProductImage
 from models.vendor import VendorSearchLine
 from parsing.logic import parsing_core, append_info
 from parsing.utils import cost_process
@@ -75,8 +75,10 @@ async def fetch_previous_parsing_results(data: ParsingRequest, deps: AppDependen
 
     profit_range_id = first_id if all_same else None
 
-    return ParsingResultOut(
-        dt_parsed=vsl.dt_parsed, profit_range_id=profit_range_id, is_ok=True, parsing_result=parsed_lines)
+    return ParsingResultOut(dt_parsed=vsl.dt_parsed,
+                            profit_range_id=profit_range_id,
+                            is_ok=True,
+                            parsing_result=parsed_lines)
 
 
 @parsing_router.post("/previous_parsing_results")

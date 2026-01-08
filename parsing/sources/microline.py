@@ -12,11 +12,11 @@ from redis.asyncio import Redis
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from api_service.schemas import ParsingLinesIn
+from api_service.schemas import ParsingLinesIn, ParsingResultAttributeResponse, AttributeValueSchema
 from app_utils import safe_int, normalize_pages_list, compute_html_hash, count_message
 
 from config import BROWSER_HEADERS, BASE_DIR
-from models import Vendor, HUbStock
+from models import Vendor, HUbStock, ProductFeaturesLink, AttributeValue, ProductOrigin, AttributeOriginValue
 from parsing.browser import create_browser, open_page
 
 this_file_name = os.path.basename(__file__).rsplit('.', 1)[0]
@@ -236,22 +236,59 @@ class BaseParser:
             return target.get_text().strip() if target else None
 
         content_list = soup.find_all("div", class_="ty-product-block ty-compact-list__content")
-        origin_map = dict()
+        origin_map = {}
         for line in content_list:
             origin_block = line.find("div", class_="code")
             origin_text = extract_text(origin_block, "span")
             if origin_text and origin_text.isdigit():
-                origin = int(origin_text)
-                origin_map[origin] = line
+                origin_map[int(origin_text)] = line
 
         if not origin_map:
             return []
 
         stmt = select(HUbStock.origin).where(HUbStock.origin.in_(origin_map.keys()))
         result = await session.execute(stmt)
-        hubstock_origins = set(row.origin for row in result)
+        hubstock_origins = {row.origin for row in result}
 
-        parsing_lines_result = list()
+        attributes_map: dict[int, ParsingResultAttributeResponse] = {}
+
+        stmt_attr = (
+            select(
+                ProductFeaturesLink.origin,
+                ProductFeaturesLink.feature_id,
+                AttributeValue.id,
+                AttributeValue.value,
+                AttributeValue.alias
+            )
+            .join(ProductOrigin, ProductOrigin.origin == ProductFeaturesLink.origin)
+            .outerjoin(AttributeOriginValue, AttributeOriginValue.origin_id == ProductOrigin.origin)
+            .outerjoin(AttributeValue, AttributeValue.id == AttributeOriginValue.attr_value_id)
+            .where(ProductFeaturesLink.origin.in_(origin_map.keys()))
+        )
+
+        result_attr = await session.execute(stmt_attr)
+
+        temp: dict[int, dict] = {}
+
+        for origin, feature_id, av_id, av_value, av_alias in result_attr:
+            if origin not in temp:
+                temp[origin] = {
+                    "model_id": feature_id,
+                    "values": []
+                }
+            if av_id:
+                temp[origin]["values"].append(
+                    AttributeValueSchema(id=av_id, value=av_value, alias=av_alias)
+                )
+
+        for origin, data in temp.items():
+            attributes_map[origin] = ParsingResultAttributeResponse(
+                model_id=data["model_id"],
+                attr_value_ids=data["values"]
+            )
+
+        parsing_lines_result = []
+
         for origin, line in origin_map.items():
             try:
                 title_block = line.find("div", class_="category-list-item__title ty-compact-list__title")
@@ -276,22 +313,25 @@ class BaseParser:
                 optional_block = line.find("div", class_="code")
                 optional = extract_text(optional_block.find_next_sibling("div")) if optional_block else None
 
-                parsing_lines_result.append(ParsingLinesIn(
-                    origin=origin,
-                    title=title,
-                    link=link,
-                    shipment=shipment,
-                    warranty=warranty,
-                    input_price=input_price,
-                    output_price=None,
-                    pics=pics,
-                    preview=preview,
-                    optional=optional,
-                    features_title=None,
-                    profit_range=None,
-                    in_hub=origin in hubstock_origins)
+                parsing_lines_result.append(
+                    ParsingLinesIn(
+                        origin=origin,
+                        title=title,
+                        link=link,
+                        shipment=shipment,
+                        warranty=warranty,
+                        input_price=input_price,
+                        output_price=None,
+                        pics=pics,
+                        preview=preview,
+                        optional=optional,
+                        features_title=None,
+                        profit_range=None,
+                        in_hub=origin in hubstock_origins,
+                        attributes=attributes_map.get(origin)
+                    )
                 )
-            except (AttributeError, ValueError, TypeError, IndexError, ValidationError):
+            except Exception:
                 continue
 
         return parsing_lines_result
@@ -462,50 +502,3 @@ class BaseParser:
                 break
 
         return result_lines
-
-    # async def get_parsed_lines(self) -> List[ParsingLinesIn]:
-    #     opened_page = await open_page(page=self.page, url=self.url)
-    #     soup = opened_page['soup']
-    #     self.pages = self.actual_pagination(soup)
-    #     await self.redis.publish(self.progress, f"{len(self.pages) + 1} страниц для сбора информации")
-    #     if not await self.check_auth(text=soup):
-    #         await self.redis.publish(self.progress, "Авторизация не пройдена")
-    #         await self.authorization()
-    #         await self.page.close()
-    #         context = await self.browser.new_context()
-    #         with open(cookie_file, "r") as file:
-    #             storage_state = json.load(file)
-    #         await context.add_cookies(storage_state["cookies"])
-    #         self.page = await context.new_page()
-    #         await stealth_async(self.page)
-    #         opened_page = await open_page(page=self.page, url=self.url)
-    #         soup = opened_page['soup']
-    #         self.pages = self.actual_pagination(soup)
-    #
-    #     visited_urls = set()
-    #     urls_to_visit = [self.url] + [page.a.get("href") for page in self.pages if page.a]
-    #
-    #     result_lines: List[ParsingLinesIn] = list()
-    #     page_counter = 1
-    #
-    #     while urls_to_visit:
-    #         url = urls_to_visit.pop(0)
-    #         if url in visited_urls:
-    #             continue
-    #         visited_urls.add(url)
-    #
-    #         opened_page = await open_page(page=self.page, url=url)
-    #         soup = opened_page['soup']
-    #         lines = await self.page_data_separation(soup=soup, session=self.session)
-    #         result_lines.extend(lines)
-    #
-    #         await self.redis.publish(self.progress, f"Страница {page_counter} сохранена")
-    #         page_counter += 1
-    #
-    #         new_pages = self.actual_pagination(soup)
-    #         for page in new_pages:
-    #             href = page.a.get("href") if page.a else None
-    #             if href and href not in visited_urls and href not in urls_to_visit:
-    #                 urls_to_visit.append(href)
-    #
-    #     return result_lines

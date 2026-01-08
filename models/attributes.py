@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 import enum
 
-from sqlalchemy import ForeignKey, UniqueConstraint, Enum
+from sqlalchemy import ForeignKey, UniqueConstraint, Enum, Text, String, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models import Base
@@ -54,17 +54,6 @@ class AttributeBrandRule(Base):
     attr_key = relationship("AttributeKey", back_populates="rule_overrides")
 
 
-class AttributeModelOption(Base):
-    __tablename__ = "attribute_model_option"
-
-    model_id: Mapped[int] = mapped_column(ForeignKey("product_features_global.id", ondelete="CASCADE"),
-                                          primary_key=True)
-    attr_value_id: Mapped[int] = mapped_column(ForeignKey("attribute_value.id", ondelete="CASCADE"), primary_key=True)
-
-    model: Mapped["ProductFeaturesGlobal"] = relationship(back_populates="attribute_options")
-    attr_value: Mapped["AttributeValue"] = relationship(back_populates="model_options")
-
-
 class AttributeValue(Base):
     __tablename__ = "attribute_value"
 
@@ -79,6 +68,17 @@ class AttributeValue(Base):
     product_values: Mapped[list["AttributeOriginValue"]] = relationship(back_populates="attr_value")
 
     __table_args__ = (UniqueConstraint("attr_key_id", "value", name="uq_attr_value"),)
+
+
+class AttributeModelOption(Base):
+    __tablename__ = "attribute_model_option"
+
+    model_id: Mapped[int] = mapped_column(ForeignKey("product_features_global.id", ondelete="CASCADE"),
+                                          primary_key=True)
+    attr_value_id: Mapped[int] = mapped_column(ForeignKey("attribute_value.id", ondelete="CASCADE"), primary_key=True)
+
+    model: Mapped["ProductFeaturesGlobal"] = relationship(back_populates="attribute_options")
+    attr_value: Mapped["AttributeValue"] = relationship(back_populates="model_options")
 
 
 class AttributeOriginValue(Base):

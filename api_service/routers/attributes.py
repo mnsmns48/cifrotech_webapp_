@@ -6,11 +6,12 @@ from api_service.crud_attributes import fetch_all_attribute_keys, create_attribu
     delete_attribute_key, fetch_all_attribute_values_with_keys, create_attribute, update_attribute_value, \
     delete_attribute_value, fetch_types_with_rules, fetch_all_brands, add_type_dependency_db, delete_type_dependency_db, \
     delete_attribute_brand_link_db, add_attribute_brand_link_db, fetch_all_types, load_model_attribute_options_db, \
-    product_dependencies_db, add_product_attribute_value_option, delete_product_attribute_value_option
+    product_dependencies_db, add_product_attribute_value_option, delete_product_attribute_value_option, \
+    attributes_origin_value_check_request_db
 
 from api_service.schemas import CreateAttribute, UpdateAttribute, TypesDependenciesResponse, TypeDependencyLink, \
     AttributeBrandRuleLink, ProductFeaturesAttributeOptions, Types, ModelAttributesRequest, ModelAttributesResponse, \
-    AttributeModelOptionLink
+    AttributeModelOptionLink, AttributeOriginValueCheckRequest, AttributeOriginValueCheckResponse
 from engine import db
 from models.attributes import OverrideType
 
@@ -162,3 +163,10 @@ async def delete_product_attribute_value_option_link(payload: AttributeModelOpti
                                                      session: AsyncSession = Depends(db.scoped_session_dependency)):
     result = await delete_product_attribute_value_option(payload=payload, session=session)
     return result
+
+
+@attributes_router.post("/attributes/attributes_origin_value_check_request",
+                        response_model=AttributeOriginValueCheckResponse)
+async def attributes_origin_value_check_request(payload: AttributeOriginValueCheckRequest,
+                                                session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await attributes_origin_value_check_request_db(payload=payload, session=session)
