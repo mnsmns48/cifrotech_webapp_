@@ -1,29 +1,45 @@
 def filter_contains(items, key, substring):
-    if not isinstance(items, (list, tuple)):
+    if isinstance(items, dict):
+        value = items.get(key)
+        if isinstance(value, str) and substring in value:
+            return items
         return ""
 
-    result = []
-    for item in items:
-        if isinstance(item, dict):
-            value = item.get(key)
-            if isinstance(value, str) and substring in value:
-                result.append(item)
+    if isinstance(items, (list, tuple)):
+        result = []
+        for item in items:
+            if isinstance(item, dict):
+                value = item.get(key)
+                if isinstance(value, str) and substring in value:
+                    result.append(item)
+        return result if result else ""
 
-    return result if result else ""
+    if isinstance(items, str):
+        return items if substring in items else ""
+
+    return ""
 
 
 def filter_not_contains(items, key, substring):
-    if not isinstance(items, (list, tuple)):
+    if isinstance(items, dict):
+        value = items.get(key)
+        if isinstance(value, str) and substring not in value:
+            return items
         return ""
 
-    result = []
-    for item in items:
-        if isinstance(item, dict):
-            value = item.get(key)
-            if isinstance(value, str) and substring not in value:
-                result.append(item)
+    if isinstance(items, (list, tuple)):
+        result = []
+        for item in items:
+            if isinstance(item, dict):
+                value = item.get(key)
+                if isinstance(value, str) and substring not in value:
+                    result.append(item)
+        return result if result else ""
 
-    return result if result else ""
+    if isinstance(items, str):
+        return items if substring not in items else ""
+
+    return ""
 
 
 def register_builtin_filters(env):

@@ -1,6 +1,6 @@
 import re
 
-from jinja2 import Environment, StrictUndefined, TemplateSyntaxError
+from jinja2 import Environment, StrictUndefined, TemplateSyntaxError, UndefinedError
 from api_service.formula.filters import register_builtin_filters
 
 env = Environment(
@@ -17,8 +17,8 @@ def render_formula(formula: str, context: dict) -> str:
     try:
         template = env.from_string(formula)
         return template.render(context)
-    except Exception as e:
-        raise ValueError(f"Render error: {e}")
+    except UndefinedError as e:
+        return f"__MISSING_ATTRIBUTE__: {e}"
 
 
 def validate_formula(formula: str) -> list[str]:
