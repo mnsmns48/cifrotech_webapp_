@@ -60,3 +60,9 @@ class ParsingToDiffData(BaseModel):
     parsing_output_price: Optional[float]
     dt_parsed: datetime
     profit_range_id: Optional[int]
+
+
+class AddAttributesValuesRequest(BaseModel):
+    origin: int
+    values: list[int]
+    title: str

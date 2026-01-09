@@ -12,12 +12,13 @@ from sqlalchemy.orm import selectinload
 from starlette.responses import JSONResponse
 from api_service.api_connect import get_items_by_params, get_one_by_dtube
 from api_service.crud import get_vendor_and_vsl, get_rr_obj, _get_parsing_result, get_or_create_product_type, \
-    get_or_create_product_brand, get_or_create_feature, link_origin_to_feature, clear_features_dependencies
+    get_or_create_product_brand, get_or_create_feature, link_origin_to_feature, clear_features_dependencies, \
+    add_attributes_values_db
 from api_service.s3_helper import (get_s3_client, get_http_client_session, sync_images_by_origin,
                                    generate_final_image_payload, build_with_preview)
 from api_service.schemas import (ParsingRequest, ProductOriginUpdate, ProductDependencyUpdate, ProductResponse,
                                  RecalcPricesRequest, OriginsPayload, SourceContext, ParsingResultOut, ParsingLinesIn,
-                                 OriginsList, ProductDependencyBatchUpdate)
+                                 OriginsList, ProductDependencyBatchUpdate, AddAttributesValuesRequest)
 
 from api_service.schemas.range_reward_schemas import RewardRangeResponseSchema
 from api_service.utils import AppDependencies
@@ -353,3 +354,15 @@ async def clear_features_dependencies_endpoint(payload: OriginsPayload,
                                                session: AsyncSession = Depends(db.scoped_session_dependency)):
     deleted = await clear_features_dependencies(session, payload.origins)
     return {"deleted": deleted}
+
+
+@parsing_router.post("/add_attributes_values")
+async def add_attributes_values(payload: AddAttributesValuesRequest,
+                                session: AsyncSession = Depends(db.scoped_session_dependency)):
+    added = await add_attributes_values_db(payload, session)
+    if added.get('status'):
+        origin_obj = await session.get(ProductOrigin, payload.origin)
+        if origin_obj: origin_obj.title = payload.title
+        await session.commit()
+        return {"status": True, "origin": payload.origin, "values": payload.values}
+    return added

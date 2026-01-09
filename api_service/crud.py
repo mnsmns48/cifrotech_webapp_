@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from redis.asyncio import Redis
 from sqlalchemy import delete, update, and_, select
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, InstrumentedAttribute
 
@@ -18,7 +19,8 @@ from models import Vendor, VendorSearchLine, ProductOrigin, ParsingLine, RewardR
     StockTable, ServiceImage, AttributeOriginValue
 from api_service.schemas import SourceContext, ParsingLinesIn, ParsingResultOut, ProductOriginCreate, \
     RewardRangeResponseSchema, RewardRangeLineSchema, RewardRangeBaseSchema, HubLevelPath, VSLScheme, ParsingToDiffData, \
-    HubToDiffData, RecomputedResult, RecomputedNewPriceLines, ParsingResultAttributeResponse, AttributeValueSchema
+    HubToDiffData, RecomputedResult, RecomputedNewPriceLines, ParsingResultAttributeResponse, AttributeValueSchema, \
+    AddAttributesValuesRequest
 
 
 async def get_vendor_and_vsl(session: AsyncSession, vsl_id: int) -> Optional[SourceContext]:
@@ -741,3 +743,26 @@ async def clear_features_dependencies(session: AsyncSession, origins: list) -> L
 
     deleted = [row[0] for row in result.fetchall()]
     return deleted
+
+
+async def add_attributes_values_db(payload: AddAttributesValuesRequest, session: AsyncSession):
+    try:
+        stmt = (
+            insert(AttributeOriginValue)
+            .values([
+                {"origin_id": payload.origin, "attr_value_id": value_id}
+                for value_id in payload.values
+            ])
+            .on_conflict_do_nothing(
+                index_elements=["origin_id", "attr_value_id"]
+            )
+        )
+
+        await session.execute(stmt)
+        await session.commit()
+
+        return {"origin": payload.origin, "values": payload.values, "status": True}
+
+    except SQLAlchemyError as e:
+        await session.rollback()
+        return {"origin": payload.origin, "values": payload.values, "status": False, "message": str(e)}
