@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from api_service.routers.comparison import comparison_router
+from api_service.routers.formula import formula_router
 from api_service.routers.hub import hub_router
 from api_service.routers.hubstock import hubstock_router
 from api_service.routers.printer import printer_router
@@ -25,3 +26,5 @@ service_router.include_router(hubstock_router)
 service_router.include_router(comparison_router)
 service_router.include_router(utils_router)
 service_router.include_router(attributes_router)
+
+service_router.include_router(formula_router)

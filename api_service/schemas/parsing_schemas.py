@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, conint, confloat
 
+from api_service.schemas.attribute_schemas import ParsingResultAttributeResponse
 from api_service.schemas.range_reward_schemas import RewardRangeBaseSchema
 from models import Vendor, VendorSearchLine
 
@@ -22,6 +23,7 @@ class ParsingRequest(BaseModel):
 class ParsingLinesIn(BaseModel):
     origin: conint(ge=0)
     title: str
+    attributes: Optional[ParsingResultAttributeResponse]
     link: Optional[str] = None
     shipment: Optional[str] = None
     warranty: Optional[str] = None
@@ -33,7 +35,6 @@ class ParsingLinesIn(BaseModel):
     features_title: Optional[list] = None
     profit_range: Optional[RewardRangeBaseSchema] = None
     in_hub: bool
-
     model_config = {"from_attributes": True, "extra": "ignore"}
 
 
@@ -59,3 +60,9 @@ class ParsingToDiffData(BaseModel):
     parsing_output_price: Optional[float]
     dt_parsed: datetime
     profit_range_id: Optional[int]
+
+
+class AddAttributesValuesRequest(BaseModel):
+    origin: int
+    values: list[int]
+    title: str

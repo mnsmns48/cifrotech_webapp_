@@ -28,6 +28,7 @@ __all__ = (
     "AttributeBrandRule",
     "AttributeKey",
     "AttributeValue",
+    "FormulaExpression"
 
 )
 
@@ -48,3 +49,5 @@ from .access_token import AccessToken
 from .service_image import ServiceImage
 from .attributes import AttributeLink, AttributeOriginValue, AttributeModelOption, AttributeBrandRule, AttributeValue, \
     AttributeKey
+
+from .formula import FormulaExpression

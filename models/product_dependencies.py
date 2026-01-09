@@ -69,6 +69,8 @@ class ProductOrigin(Base):
         "HUbStock", back_populates="product_origin", cascade="all, delete-orphan")
     attribute_values: Mapped[list["AttributeOriginValue"]] = relationship(back_populates="origin",
                                                                           cascade="all, delete-orphan")
+    features: Mapped[list["ProductFeaturesLink"]] = relationship(back_populates="origin_rel",
+                                                                 cascade="all, delete-orphan")
 
 
 class ProductImage(Base):
@@ -92,4 +94,6 @@ class ProductFeaturesLink(Base):
                                         primary_key=True)
     feature_id: Mapped[int] = mapped_column(ForeignKey("product_features_global.id", ondelete="CASCADE"),
                                             primary_key=True)
+    origin_rel: Mapped["ProductOrigin"] = relationship(back_populates="features")
+
     __table_args__ = (Index("ix_pf_link_feature", "feature_id"),)

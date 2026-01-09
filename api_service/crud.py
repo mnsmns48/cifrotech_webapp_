@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from redis.asyncio import Redis
 from sqlalchemy import delete, update, and_, select
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, InstrumentedAttribute
 
@@ -15,10 +16,11 @@ from api_service.api_connect import get_one_by_dtube
 from api_service.utils import normalize_origin, update_feature_if_changed
 from models import Vendor, VendorSearchLine, ProductOrigin, ParsingLine, RewardRange, RewardRangeLine, \
     ProductFeaturesLink, ProductFeaturesGlobal, ProductType, ProductBrand, HUbStock, HUbMenuLevel, StockTableDependency, \
-    StockTable, ServiceImage
+    StockTable, ServiceImage, AttributeOriginValue
 from api_service.schemas import SourceContext, ParsingLinesIn, ParsingResultOut, ProductOriginCreate, \
     RewardRangeResponseSchema, RewardRangeLineSchema, RewardRangeBaseSchema, HubLevelPath, VSLScheme, ParsingToDiffData, \
-    HubToDiffData, RecomputedResult, RecomputedNewPriceLines
+    HubToDiffData, RecomputedResult, RecomputedNewPriceLines, ParsingResultAttributeResponse, AttributeValueSchema, \
+    AddAttributesValuesRequest
 
 
 async def get_vendor_and_vsl(session: AsyncSession, vsl_id: int) -> Optional[SourceContext]:
@@ -145,7 +147,7 @@ async def append_info(session: AsyncSession,
                       data_lines: list[ParsingLinesIn],
                       sync_features: bool,
                       redis: Redis = None,
-                      channel: str = None):
+                      channel: str = None) -> list[ParsingLinesIn]:
     async with ClientSession() as client_session:
         origins = [item.origin for item in data_lines]
         cached: dict[int, list[str]] = await get_info_by_caching(session, origins)
@@ -281,7 +283,11 @@ async def _get_parsing_result(session: AsyncSession, vsl_id: int) -> List[Parsin
         )
         .join(ProductOrigin, ParsingLine.origin == ProductOrigin.origin)
         .outerjoin(HUbStock, HUbStock.origin == ParsingLine.origin)
-        .options(selectinload(ParsingLine.reward_range))
+        .options(
+            selectinload(ProductOrigin.attribute_values).selectinload(AttributeOriginValue.attr_value),
+            selectinload(ProductOrigin.features),
+            selectinload(ParsingLine.reward_range)
+        )
         .where(
             and_(
                 ParsingLine.vsl_id == vsl_id,
@@ -296,8 +302,27 @@ async def _get_parsing_result(session: AsyncSession, vsl_id: int) -> List[Parsin
     if not rows:
         return []
 
-    parsing_results: List[ParsingLinesIn] = list()
+    parsing_results: List[ParsingLinesIn] = []
+
     for parsing_line, origin, hub_origin in rows:
+        feature_link = origin.features[0] if origin.features else None
+
+        if feature_link:
+            model_id = feature_link.feature_id
+
+            attr_values = [
+                aov.attr_value
+                for aov in origin.attribute_values
+                if aov.attr_value is not None
+            ]
+
+            attributes = ParsingResultAttributeResponse(
+                model_id=model_id,
+                attr_value_ids=[AttributeValueSchema(id=av.id, value=av.value, alias=av.alias) for av in attr_values]
+            )
+        else:
+            attributes = None
+
         parsing_results.append(
             ParsingLinesIn(
                 origin=parsing_line.origin,
@@ -312,8 +337,10 @@ async def _get_parsing_result(session: AsyncSession, vsl_id: int) -> List[Parsin
                 optional=parsing_line.optional,
                 features_title=None,
                 profit_range=RewardRangeBaseSchema.model_validate(
-                    parsing_line.reward_range) if parsing_line.reward_range else None,
-                in_hub=hub_origin is not None
+                    parsing_line.reward_range
+                ) if parsing_line.reward_range else None,
+                in_hub=hub_origin is not None,
+                attributes=attributes
             )
         )
 
@@ -716,3 +743,26 @@ async def clear_features_dependencies(session: AsyncSession, origins: list) -> L
 
     deleted = [row[0] for row in result.fetchall()]
     return deleted
+
+
+async def add_attributes_values_db(payload: AddAttributesValuesRequest, session: AsyncSession):
+    try:
+        stmt = (
+            insert(AttributeOriginValue)
+            .values([
+                {"origin_id": payload.origin, "attr_value_id": value_id}
+                for value_id in payload.values
+            ])
+            .on_conflict_do_nothing(
+                index_elements=["origin_id", "attr_value_id"]
+            )
+        )
+
+        await session.execute(stmt)
+        await session.commit()
+
+        return {"origin": payload.origin, "values": payload.values, "status": True}
+
+    except SQLAlchemyError as e:
+        await session.rollback()
+        return {"origin": payload.origin, "values": payload.values, "status": False, "message": str(e)}

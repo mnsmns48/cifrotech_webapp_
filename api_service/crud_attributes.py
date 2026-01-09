@@ -10,11 +10,11 @@ from starlette import status
 
 from api_service.schemas import CreateAttribute, AttributeBrandRuleLink, ProductFeaturesAttributeOptions, \
     AttributeValueSchema, ModelAttributeValuesSchema, ModelAttributesRequest, ModelAttributesResponse, \
-    AttributeModelOptionLink
+    AttributeModelOptionLink, AttributeOriginValueCheckRequest, AttributeOriginValueCheckResponse
 
 from models import ProductType, AttributeKey, AttributeValue, AttributeLink, AttributeBrandRule, ProductBrand, \
     ProductFeaturesGlobal, AttributeModelOption
-from models.attributes import OverrideType
+from models.attributes import OverrideType, AttributeOriginValue
 
 
 async def fetch_all_attribute_keys(session: AsyncSession):
@@ -367,3 +367,37 @@ async def delete_product_attribute_value_option(payload: AttributeModelOptionLin
         return payload
     except IntegrityError:
         await session.rollback()
+
+
+async def attributes_origin_value_check_request_db(payload: AttributeOriginValueCheckRequest,
+                                                   session: AsyncSession) -> AttributeOriginValueCheckResponse:
+    BASE_SELECT = (
+        select(AttributeValue.id, AttributeValue.value, AttributeValue.alias, AttributeKey.id.label("key_id"),
+               AttributeKey.key.label("key_name"))
+        .join(AttributeKey, AttributeKey.id == AttributeValue.attr_key_id))
+
+    async def collect(stmt) -> dict[int, ModelAttributeValuesSchema]:
+        result = await session.execute(stmt)
+        collected: dict[int, ModelAttributeValuesSchema] = dict()
+
+        for av_id, av_value, av_alias, key_id, key_name in result:
+            if key_id not in collected:
+                collected[key_id] = ModelAttributeValuesSchema(key_id=key_id, key=key_name, attr_value_ids=[])
+
+            collected[key_id].attr_value_ids.append(
+                AttributeValueSchema(id=av_id, value=av_value, alias=av_alias)
+            )
+
+        return collected
+
+    stmt_allowable = (BASE_SELECT.join(AttributeModelOption, AttributeModelOption.attr_value_id == AttributeValue.id)
+                      .where(AttributeModelOption.model_id == payload.model_id))
+    allowable_map = await collect(stmt_allowable)
+
+    stmt_exists = (BASE_SELECT.join(AttributeOriginValue, AttributeOriginValue.attr_value_id == AttributeValue.id)
+                   .where(AttributeOriginValue.origin_id == payload.origin))
+    exists_map = await collect(stmt_exists)
+
+    return AttributeOriginValueCheckResponse(title=payload.title,
+                                             attributes_allowable=list(allowable_map.values()),
+                                             attributes_exists=list(exists_map.values()))

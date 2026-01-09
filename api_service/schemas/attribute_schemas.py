@@ -143,3 +143,20 @@ class ModelAttributesResponse(BaseModel):
 class AttributeModelOptionLink(BaseModel):
     model_ids: list[int]
     attribute_value_id: int
+
+
+class ParsingResultAttributeResponse(BaseModel):
+    model_id: int
+    attr_value_ids: list[AttributeValueSchema]
+
+
+class AttributeOriginValueCheckRequest(BaseModel):
+    title: str
+    origin: int
+    model_id: int
+
+
+class AttributeOriginValueCheckResponse(BaseModel):
+    title: str
+    attributes_allowable: list[ModelAttributeValuesSchema]
+    attributes_exists: list[ModelAttributeValuesSchema]
