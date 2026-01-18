@@ -111,3 +111,9 @@ async def validate_formula_api(body: FormulaValidateRequest):
 @formula_router.get("/filters")
 async def get_filters():
     return {"filters": list(env.filters.keys())}
+
+
+@formula_router.post("/is_default")
+async def formula_is_default(formula_id: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    await FormulaService.set_default(session, formula_id)
+    return {"status": True}

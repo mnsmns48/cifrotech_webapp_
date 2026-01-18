@@ -1,7 +1,5 @@
-from collections import defaultdict
-
 from fastapi import HTTPException
-from sqlalchemy import select, update, delete, and_, func, case
+from sqlalchemy import select, update, delete
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession

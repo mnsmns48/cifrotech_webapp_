@@ -99,3 +99,9 @@ class FormulaService:
             return True, None
         except Exception as e:
             return False, str(e)
+
+    @staticmethod
+    async def set_default(session: AsyncSession, formula_id: int):
+        stmt = (update(FormulaExpression).values(is_default=(FormulaExpression.id == formula_id)))
+        await session.execute(stmt)
+        await session.commit()
