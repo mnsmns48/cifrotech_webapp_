@@ -319,12 +319,12 @@ async def set_preview_image(origin: int, filename: str,
     for img in product.images:
         img.is_preview = False
     target_image.is_preview = True
+    product.preview = target_image.source_url if target_image.source_url else None
 
     await session.commit()
 
     payload = await generate_final_image_payload(
         product, s3_client, settings.s3.bucket_name, f"{settings.s3.s3_hub_prefix}/{origin}/")
-
     return {"origin": origin, "preview": payload["preview"], "images": payload["images"]}
 
 
