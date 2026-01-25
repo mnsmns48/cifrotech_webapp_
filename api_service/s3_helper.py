@@ -40,56 +40,67 @@ async def get_http_client_session():
 
 async def build_with_preview(
         session: AsyncSession, data_lines: list[ParsingLinesIn], s3_client: AioBaseClient) -> list[ParsingLinesIn]:
-    origins_to_process = set()
-    origin_to_item_map = dict()
+    origins = {item.origin for item in data_lines if item.origin}
 
-    for item in data_lines:
-        origin_id = item.origin
-        if origin_id and not item.preview:
-            origins_to_process.add(origin_id)
-            origin_to_item_map[origin_id] = item
+    if not origins:
+        return data_lines
 
-    stmt = (select(ProductImage).where(ProductImage.origin_id.in_(origins_to_process)).order_by(
-        ProductImage.origin_id.asc(), ProductImage.is_preview.desc(), ProductImage.uploaded_at.asc()))
+    stmt = (select(ProductImage)
+            .where(ProductImage.origin_id.in_(origins)).order_by(ProductImage.origin_id.asc(),
+                                                                 ProductImage.is_preview.desc(),
+                                                                 ProductImage.uploaded_at.asc())
+            )
     result = await session.execute(stmt)
     images = result.scalars().all()
 
-    origin_to_image_map = dict()
-    seen_origins = set()
+    origin_to_images: dict[int, list[ProductImage]] = dict()
 
-    for image in images:
-        origin_id = image.origin_id
-        if origin_id not in seen_origins:
-            origin_to_image_map[origin_id] = image
-            seen_origins.add(origin_id)
+    for img in images:
+        origin_to_images.setdefault(img.origin_id, []).append(img)
 
-    for origin_id, image in origin_to_image_map.items():
-        key = image.key
-        if not key:
-            continue
+    origin_to_preview_url: dict[int, str | None] = dict()
 
-        full_key = f"{settings.s3.s3_hub_prefix}/{origin_id}/{key}"
-        try:
-            preview_url = await s3_client.generate_presigned_url(
-                ClientMethod="get_object",
-                Params={"Bucket": settings.s3.bucket_name, "Key": full_key},
-                ExpiresIn=600
-            )
-        except (ClientError, BotoCoreError):
-            preview_url = None
+    for origin in origins:
+        imgs = origin_to_images.get(origin)
 
-        item = origin_to_item_map.get(origin_id)
-        if item:
-            item.preview = preview_url
+        if imgs:
+            chosen = imgs[0]
+            key = chosen.key
+
+            full_key = f"{settings.s3.s3_hub_prefix}/{origin}/{key}"
+
+            try:
+                preview_url = await s3_client.generate_presigned_url(
+                    ClientMethod="get_object",
+                    Params={"Bucket": settings.s3.bucket_name, "Key": full_key},
+                    ExpiresIn=600
+                )
+            except (ClientError, BotoCoreError):
+                preview_url = None
+
+            origin_to_preview_url[origin] = preview_url
+        else:
+            origin_to_preview_url[origin] = None
+
+    for item in data_lines:
+        origin = item.origin
+        if origin in origin_to_preview_url:
+            url = origin_to_preview_url[origin]
+            if url:
+                item.preview = url
+
     return data_lines
 
 
 async def scan_s3_images(s3_client, bucket: str, prefix: str) -> set[str]:
     try:
         response = await s3_client.list_objects_v2(Bucket=bucket, Prefix=prefix, MaxKeys=100)
+
     except ClientError as e:
-        code = e.response.get("Error", {}).get("Code")
+        resp = getattr(e, "response", {})
+        code = resp.get("Error", {}).get("Code")
         raise HTTPException(403, detail=f"S3 list_objects_v2 failed: {code}")
+
     result = set()
     objects = response.get("Contents", [])
     for obj in objects:
