@@ -314,18 +314,17 @@ async def set_preview_image(origin: int, filename: str,
     if target_image.is_preview:
         final_images = await generate_final_image_payload(product, s3_client, settings.s3.bucket_name,
                                                           f"{settings.s3.s3_hub_prefix}/{origin}/")
-        return {"origin": origin, "preview": product.preview, "images": final_images}
+        return {"origin": origin, "preview": final_images.get("preview"), "images": final_images}
 
     for img in product.images:
         img.is_preview = False
     target_image.is_preview = True
-    product.preview = target_image.source_url if target_image.source_url else None
 
     await session.commit()
 
     payload = await generate_final_image_payload(
         product, s3_client, settings.s3.bucket_name, f"{settings.s3.s3_hub_prefix}/{origin}/")
-    return {"origin": origin, "preview": payload["preview"], "images": payload["images"]}
+    return {"origin": origin, "preview": payload.get("preview"), "images": payload.get("images")}
 
 
 @parsing_router.post("/clear-media-data")
