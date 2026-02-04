@@ -1,8 +1,10 @@
 import asyncio
+import uuid
 from datetime import datetime
+from pathlib import Path
 from typing import Optional, List, Any
 from aiohttp import ClientConnectionError, ClientResponseError
-from botocore.exceptions import ClientError, BotoCoreError
+from botocore.exceptions import ClientError, BotoCoreError, ParamValidationError
 from aiohttp import ClientSession
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy import select, update
@@ -13,12 +15,13 @@ from starlette.responses import JSONResponse
 from api_service.api_connect import get_items_by_params, get_one_by_dtube
 from api_service.crud import get_vendor_and_vsl, get_rr_obj, _get_parsing_result, get_or_create_product_type, \
     get_or_create_product_brand, get_or_create_feature, link_origin_to_feature, clear_features_dependencies, \
-    add_attributes_values_db
+    add_attributes_values_db, get_product_with_images, get_dependency_images_list, implement_dependency_images_logic
 from api_service.s3_helper import (get_s3_client, get_http_client_session, sync_images_by_origin,
                                    generate_final_image_payload, build_with_preview)
 from api_service.schemas import (ParsingRequest, ProductOriginUpdate, ProductDependencyUpdate, ProductResponse,
                                  RecalcPricesRequest, OriginsPayload, SourceContext, ParsingResultOut, ParsingLinesIn,
-                                 OriginsList, ProductDependencyBatchUpdate, AddAttributesValuesRequest)
+                                 OriginsList, ProductDependencyBatchUpdate, AddAttributesValuesRequest,
+                                 DependencyImageItem, DependencyOriginImplementation, ImageResponseItem)
 
 from api_service.schemas.range_reward_schemas import RewardRangeResponseSchema
 from api_service.utils import AppDependencies
@@ -213,14 +216,7 @@ async def fetch_images_in_origin(
 async def upload_image_to_origin(
         origin: int, file: UploadFile = File(...), session: AsyncSession = Depends(db.scoped_session_dependency),
         s3_client=Depends(get_s3_client), cl_session: ClientSession = Depends(get_http_client_session)):
-    try:
-        result = await session.execute(
-            select(ProductOrigin).options(selectinload(ProductOrigin.images)).where(ProductOrigin.origin == origin))
-        product = result.scalar_one_or_none()
-    except SQLAlchemyError as e:
-        raise HTTPException(500, f"Ошибка доступа к базе: {e}")
-    if not product:
-        raise HTTPException(404, "Товар не найден")
+    product = await get_product_with_images(origin, session)
     bucket = settings.s3.bucket_name
     prefix = f"{settings.s3.s3_hub_prefix}/{origin}/"
     filename = file.filename
@@ -252,6 +248,92 @@ async def upload_image_to_origin(
 
     payload = await generate_final_image_payload(product, s3_client, bucket, prefix)
     return {"origin": origin, "preview": payload["preview"], "images": payload["images"]}
+
+
+async def upload_one(cl_session: ClientSession, put_url: str, body: bytes) -> bool:
+    try:
+        async with cl_session.put(put_url, data=body) as resp:
+            resp.raise_for_status()
+        return True
+
+    except (ClientConnectionError, ClientResponseError, asyncio.TimeoutError):
+        return False
+
+
+@parsing_router.post("/upload_images/{origin}")
+async def upload_images_to_origin(
+        origin: int,
+        files: list[UploadFile] = File(...),
+        session: AsyncSession = Depends(db.scoped_session_dependency),
+        s3_client=Depends(get_s3_client),
+        cl_session: ClientSession = Depends(get_http_client_session)):
+    product = await get_product_with_images(origin, session)
+    bucket = settings.s3.bucket_name
+    prefix = f"{settings.s3.s3_hub_prefix}/{origin}/"
+
+    has_preview = any(img.is_preview for img in product.images)
+
+    upload_tasks = list()
+    file_infos = list()
+
+    for file in files:
+        body = await file.read()
+
+        ext = Path(file.filename).suffix.lower()
+        if not ext:
+            ext = ".jpg"
+
+        filename = f"{uuid.uuid4().hex}{ext}"
+        key = f"{prefix}{filename}"
+
+        try:
+            put_url = await s3_client.generate_presigned_url(
+                ClientMethod="put_object",
+                Params={"Bucket": bucket, "Key": key},
+                ExpiresIn=600
+            )
+        except (ClientError, ParamValidationError, asyncio.TimeoutError):
+            continue
+
+        file_infos.append((filename, key, put_url, body))
+        upload_tasks.append(upload_one(cl_session, put_url, body))
+
+    results = await asyncio.gather(*upload_tasks, return_exceptions=True)
+
+    successful_files = list()
+
+    for (filename, key, _, _), ok in zip(file_infos, results):
+        if ok is True:
+            successful_files.append(filename)
+            session.add(ProductImage(
+                origin_id=product.origin,
+                key=filename,
+                source_url=None,
+                is_preview=False
+            ))
+
+    if not successful_files:
+        raise HTTPException(500, "Не удалось загрузить ни один файл")
+    await session.commit()
+    await session.refresh(product)
+
+    if not has_preview:
+        first = successful_files[0]
+        for img in product.images:
+            if img.key == first:
+                img.is_preview = True
+                break
+
+        await session.commit()
+        await session.refresh(product)
+
+    payload = await generate_final_image_payload(product, s3_client, bucket, prefix)
+
+    return {
+        "origin": origin,
+        "preview": payload["preview"],
+        "images": payload["images"]
+    }
 
 
 @parsing_router.delete("/delete_images/{origin}/{filename}")
@@ -365,3 +447,16 @@ async def add_attributes_values(payload: AddAttributesValuesRequest,
         await session.commit()
         return {"status": True, "origin": payload.origin, "values": payload.values}
     return added
+
+
+@parsing_router.get("/load_dependency_images_list/{origin}", response_model=List[DependencyImageItem])
+async def load_dependency_images_list(origin: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await get_dependency_images_list(origin, session)
+
+
+@parsing_router.post("/implement_dependency_images")
+async def implement_dependency_images(payload: DependencyOriginImplementation,
+                                      session: AsyncSession = Depends(db.scoped_session_dependency),
+                                      s3_client=Depends(get_s3_client)
+                                      ) -> List[ImageResponseItem] | None:
+    return await implement_dependency_images_logic(payload, session, s3_client)

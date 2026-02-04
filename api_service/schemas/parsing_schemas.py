@@ -66,3 +66,20 @@ class AddAttributesValuesRequest(BaseModel):
     origin: int
     values: list[int]
     title: str
+
+
+class DependencyImageItem(BaseModel):
+    origin: int
+    title: str
+    qnt_images: conint(ge=0)
+
+
+class DependencyOriginImplementation(BaseModel):
+    target_origin: int
+    image_same_origin: int
+
+
+class ImageResponseItem(BaseModel):
+    filename: str
+    url: str | None
+    is_preview: bool

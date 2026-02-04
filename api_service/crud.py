@@ -1,26 +1,32 @@
+import os
+from asyncio import gather
 from collections import defaultdict
 from datetime import datetime
 from typing import List, Optional, Sequence, Dict, Union, Any
 
+from aiobotocore.client import AioBaseClient
 from aiohttp import ClientSession
+from botocore.exceptions import ClientError, BotoCoreError
 from fastapi import HTTPException
 from redis.asyncio import Redis
-from sqlalchemy import delete, update, and_, select
+from sqlalchemy import delete, update, and_, select, func
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, InstrumentedAttribute
 
 from api_service.api_connect import get_one_by_dtube
+from api_service.s3_helper import scan_s3_images, generate_presigned_image_urls
 
 from api_service.utils import normalize_origin, update_feature_if_changed
+from config import settings
 from models import Vendor, VendorSearchLine, ProductOrigin, ParsingLine, RewardRange, RewardRangeLine, \
     ProductFeaturesLink, ProductFeaturesGlobal, ProductType, ProductBrand, HUbStock, HUbMenuLevel, StockTableDependency, \
-    StockTable, ServiceImage, AttributeOriginValue
+    StockTable, ServiceImage, AttributeOriginValue, ProductImage
 from api_service.schemas import SourceContext, ParsingLinesIn, ParsingResultOut, ProductOriginCreate, \
     RewardRangeResponseSchema, RewardRangeLineSchema, RewardRangeBaseSchema, HubLevelPath, VSLScheme, ParsingToDiffData, \
     HubToDiffData, RecomputedResult, RecomputedNewPriceLines, ParsingResultAttributeResponse, AttributeValueSchema, \
-    AddAttributesValuesRequest
+    AddAttributesValuesRequest, DependencyImageItem, DependencyOriginImplementation, ImageResponseItem
 
 
 async def get_vendor_and_vsl(session: AsyncSession, vsl_id: int) -> Optional[SourceContext]:
@@ -766,3 +772,101 @@ async def add_attributes_values_db(payload: AddAttributesValuesRequest, session:
     except SQLAlchemyError as e:
         await session.rollback()
         return {"origin": payload.origin, "values": payload.values, "status": False, "message": str(e)}
+
+
+async def get_product_with_images(origin: int, session: AsyncSession) -> ProductOrigin:
+    try:
+        result = await session.execute(select(ProductOrigin).options(selectinload(ProductOrigin.images))
+                                       .where(ProductOrigin.origin == origin))
+        product = result.scalar_one_or_none()
+    except SQLAlchemyError as e:
+        raise HTTPException(500, f"Ошибка доступа к базе: {e}")
+
+    if not product:
+        raise HTTPException(404, "Товар не найден")
+
+    return product
+
+
+async def get_dependency_images_list(origin: int, session: AsyncSession) -> List[DependencyImageItem]:
+    type_and_brand__query = (
+        select(ProductFeaturesGlobal.type_id, ProductFeaturesGlobal.brand_id)
+        .join(ProductFeaturesLink, ProductFeaturesLink.feature_id == ProductFeaturesGlobal.id)
+        .join(ProductOrigin, ProductOrigin.origin == ProductFeaturesLink.origin)
+        .where(ProductOrigin.origin == origin)
+        .limit(1))
+    execute = await session.execute(type_and_brand__query)
+    row = execute.first()
+
+    if row is None:
+        return []
+
+    query = (
+        select(ProductOrigin.origin, ProductOrigin.title, func.count(ProductImage.id).label("qnt_images"))
+        .join(ProductFeaturesLink, ProductFeaturesLink.origin == ProductOrigin.origin)
+        .join(ProductFeaturesGlobal, ProductFeaturesGlobal.id == ProductFeaturesLink.feature_id)
+        .join(ProductImage, ProductImage.origin_id == ProductOrigin.origin)
+        .where(
+            ProductFeaturesGlobal.type_id == row.type_id,
+            ProductFeaturesGlobal.brand_id == row.brand_id,
+            ProductOrigin.origin != origin
+        )
+        .group_by(ProductOrigin.origin, ProductOrigin.title)
+        .order_by(ProductOrigin.origin)
+    )
+    result = await session.execute(query)
+    rows = result.all()
+    return [DependencyImageItem(origin=line.origin, title=line.title, qnt_images=line.qnt_images) for line in rows]
+
+
+async def implement_dependency_images_logic(
+        payload: DependencyOriginImplementation, session: AsyncSession, s3_client) -> List[ImageResponseItem] | None:
+    bucket = settings.s3.bucket_name
+    prefix_source = f"{settings.s3.s3_hub_prefix}/{payload.image_same_origin}/"
+    prefix_target = f"{settings.s3.s3_hub_prefix}/{payload.target_origin}/"
+
+    try:
+        await session.execute(delete(ProductImage).where(ProductImage.origin_id == payload.target_origin))
+        execute = await session.execute(select(ProductImage).where(ProductImage.origin_id == payload.image_same_origin))
+        images = execute.scalars().all()
+
+        for img in images:
+            session.add(ProductImage(origin_id=payload.target_origin,
+                                     key=img.key,
+                                     source_url=img.source_url,
+                                     is_preview=img.is_preview,
+                                     checksum=img.checksum))
+        await session.commit()
+
+        async def copy_one(img: ProductImage):
+            filename = img.key
+            source_key = f"{prefix_source}{filename}"
+            target_key = f"{prefix_target}{filename}"
+            try:
+                await s3_client.copy_object(Bucket=bucket, CopySource=f"{bucket}/{source_key}", Key=target_key)
+                return filename
+            except (ClientError, BotoCoreError):
+                return None
+
+        tasks = [copy_one(img) for img in images]
+        results = await gather(*tasks)
+        copied_filenames = {fn for fn in results if fn}
+
+        if copied_filenames:
+            url_items = await generate_presigned_image_urls(
+                filenames=copied_filenames,
+                prefix=prefix_target,
+                bucket=bucket,
+                s3_client=s3_client
+            )
+            url_map = {item["filename"]: item["url"] for item in url_items}
+        else:
+            url_map = {}
+
+        return [ImageResponseItem(filename=img.key, url=url_map.get(img.key, img.source_url or ""),
+                                  is_preview=img.is_preview)
+                for img in images]
+
+    except (IntegrityError, SQLAlchemyError):
+        await session.rollback()
+        return None
