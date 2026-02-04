@@ -158,5 +158,6 @@ class AttributeOriginValueCheckRequest(BaseModel):
 
 class AttributeOriginValueCheckResponse(BaseModel):
     title: str
+    have_images: bool
     attributes_allowable: list[ModelAttributeValuesSchema]
     attributes_exists: list[ModelAttributeValuesSchema]

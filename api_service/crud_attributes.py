@@ -1,5 +1,5 @@
 from fastapi import HTTPException
-from sqlalchemy import select, update, delete
+from sqlalchemy import select, update, delete, exists
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,7 +11,7 @@ from api_service.schemas import CreateAttribute, AttributeBrandRuleLink, Product
     AttributeModelOptionLink, AttributeOriginValueCheckRequest, AttributeOriginValueCheckResponse
 
 from models import ProductType, AttributeKey, AttributeValue, AttributeLink, AttributeBrandRule, ProductBrand, \
-    ProductFeaturesGlobal, AttributeModelOption
+    ProductFeaturesGlobal, AttributeModelOption, ProductImage
 from models.attributes import OverrideType, AttributeOriginValue
 
 
@@ -396,6 +396,10 @@ async def attributes_origin_value_check_request_db(payload: AttributeOriginValue
                    .where(AttributeOriginValue.origin_id == payload.origin))
     exists_map = await collect(stmt_exists)
 
+    stmt_have_images = select(exists().where(ProductImage.origin_id == payload.origin))
+    have_images = (await session.execute(stmt_have_images)).scalar()
+
     return AttributeOriginValueCheckResponse(title=payload.title,
+                                             have_images=bool(have_images),
                                              attributes_allowable=list(allowable_map.values()),
                                              attributes_exists=list(exists_map.values()))
