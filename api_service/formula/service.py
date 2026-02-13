@@ -1,4 +1,3 @@
-from jinja2 import UndefinedError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 
@@ -90,7 +89,7 @@ class FormulaService:
     @staticmethod
     async def preview(formula: str, context: dict):
         validate_formula(formula)
-        return render_formula(formula, context)
+        return render_formula(formula, context).replace("  ", " ")
 
     @staticmethod
     async def validate(formula: str):
