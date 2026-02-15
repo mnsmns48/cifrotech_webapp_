@@ -1,3 +1,6 @@
+from jinja2 import Undefined
+
+
 def filter_contains(items, key, substring):
     if isinstance(items, dict):
         value = items.get(key)
@@ -42,6 +45,15 @@ def filter_not_contains(items, key, substring):
     return ""
 
 
+def optional(value, key):
+    if isinstance(value, Undefined) or value is None:
+        return ""
+    if isinstance(value, dict):
+        return value.get(key, "")
+
+    return ""
+
+
 def register_builtin_filters(env):
     env.filters["split"] = lambda s, sep=" ": s.split(sep)
     env.filters["join"] = lambda arr, sep=" ": sep.join(arr)
@@ -51,6 +63,7 @@ def register_builtin_filters(env):
     env.filters["replace"] = lambda s, old, new: s.replace(old, new)
     env.filters["filter_contains"] = filter_contains
     env.filters["filter_not_contains"] = filter_not_contains
+    env.filters["optional"] = optional
 
 
 FILTER_DOCS = {
@@ -103,5 +116,11 @@ FILTER_DOCS = {
         "args": [],
         "description": "Возвращает первый элемент списка.",
         "example": '{{ items | first }}'
+    },
+    "optional": {
+        "args": ["key: string"],
+        "description": "Безопасно извлекает поле из словаря. Если значение отсутствует — возвращает пустую строку.",
+        "example": '{{ attributes.Watch_Display_Size | optional("alias") }}'
     }
+
 }

@@ -1,24 +1,37 @@
 import re
 
-from jinja2 import Environment, StrictUndefined, TemplateSyntaxError, UndefinedError
+from jinja2 import Environment, StrictUndefined, meta, TemplateSyntaxError
 from api_service.formula.filters import register_builtin_filters
 
-env = Environment(
-    autoescape=False,
-    undefined=StrictUndefined,
-    trim_blocks=True,
-    lstrip_blocks=True
-)
+env = Environment(autoescape=False, undefined=StrictUndefined, trim_blocks=True,  lstrip_blocks=True)
 
 register_builtin_filters(env)
 
 
 def render_formula(formula: str, context: dict) -> str:
-    try:
-        template = env.from_string(formula)
-        return template.render(context)
-    except UndefinedError as e:
-        return f"__MISSING_ATTRIBUTE__: {e}"
+    ast = env.parse(formula)
+    referenced_vars = meta.find_undeclared_variables(ast)
+    missing = list()
+
+    for var in referenced_vars:
+        if var not in context:
+            missing.append(var)
+
+    attr_usages = re.findall(r"attributes\.([A-Za-z0-9_]+)", formula)
+
+    for key in attr_usages:
+        pattern = rf"attributes\.{key}\s*\|\s*optional"
+        if re.search(pattern, formula):
+            continue
+
+        if "attributes" not in context or key not in context["attributes"]:
+            missing.append(f"attributes.{key}")
+
+    if missing:
+        return f"__MISSING_ATTRIBUTES__: {', '.join(missing)}"
+
+    template = env.from_string(formula)
+    return template.render(context)
 
 
 def validate_formula(formula: str) -> list[str]:

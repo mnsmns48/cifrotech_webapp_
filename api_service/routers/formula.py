@@ -88,10 +88,7 @@ async def deactivate_formula(formula_id: int, session: AsyncSession = Depends(db
 
 @formula_router.post("/{formula_id}/preview", response_model=FormulaPreviewResponse)
 async def preview_formula(
-        formula_id: int,
-        body: FormulaPreviewRequest,
-        session: AsyncSession = Depends(db.scoped_session_dependency)
-):
+        formula_id: int, body: FormulaPreviewRequest, session: AsyncSession = Depends(db.scoped_session_dependency)):
     formula = await FormulaService.get_by_id(session, formula_id)
     if not formula:
         raise HTTPException(404, "Formula not found")
