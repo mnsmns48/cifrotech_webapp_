@@ -170,3 +170,5 @@ async def delete_product_attribute_value_option_link(payload: AttributeModelOpti
 async def attributes_origin_value_check_request(payload: AttributeOriginValueCheckRequest,
                                                 session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await attributes_origin_value_check_request_db(payload=payload, session=session)
+
+

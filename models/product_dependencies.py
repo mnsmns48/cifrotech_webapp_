@@ -14,7 +14,8 @@ if TYPE_CHECKING:
                         AttributeOriginValue,
                         HUbStock,
                         ParsingLine,
-                        AttributeBrandRule)
+                        AttributeBrandRule,
+                        HUbMenuLevel)
 
 
 class ProductType(Base):
@@ -52,6 +53,8 @@ class ProductFeaturesGlobal(Base):
     brand: Mapped["ProductBrand"] = relationship(back_populates="features")
     attribute_options: Mapped[list["AttributeModelOption"]] = relationship(back_populates="model",
                                                                            cascade="all, delete-orphan")
+    hub_levels: Mapped[list["HUbMenuLevel"]] = relationship(secondary="product_features_hub_menu_level_link",
+                                                            back_populates="features")
 
 
 class ProductOrigin(Base):
@@ -97,3 +100,15 @@ class ProductFeaturesLink(Base):
     origin_rel: Mapped["ProductOrigin"] = relationship(back_populates="features")
 
     __table_args__ = (Index("ix_pf_link_feature", "feature_id"),)
+
+
+class ProductFeaturesHubMenuLevelLink(Base):
+    __tablename__ = "product_features_hub_menu_level_link"
+
+    feature_id: Mapped[int] = mapped_column(ForeignKey("product_features_global.id", ondelete="CASCADE"),
+                                            primary_key=True)
+    hub_level_id: Mapped[int] = mapped_column(ForeignKey("hub_menu_levels.id", ondelete="CASCADE"),
+                                              primary_key=True)
+
+    __table_args__ = (Index("ix_feature_hub_level_id", "hub_level_id"),
+                      Index("ix_feature_feature_id", "feature_id"),)

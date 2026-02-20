@@ -8,7 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from models import Base
 
 if TYPE_CHECKING:
-    from models import ProductOrigin, VendorSearchLine, RewardRange
+    from models import ProductOrigin, VendorSearchLine, RewardRange, ProductFeaturesGlobal
 
 
 class HUbMenuLevel(Base):
@@ -21,6 +21,8 @@ class HUbMenuLevel(Base):
     parent_id: Mapped[int] = mapped_column(nullable=False, index=True)
     stocks: Mapped[list["HUbStock"]] = relationship(
         "HUbStock", back_populates="menu_level", cascade="all, delete-orphan")
+    features: Mapped[list["ProductFeaturesGlobal"]] = relationship(secondary="product_features_hub_menu_level_link",
+                                                                   back_populates="hub_levels")
 
 
 class HUbStock(Base):
