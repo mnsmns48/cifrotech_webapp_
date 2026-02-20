@@ -11,27 +11,43 @@ from models import HUbMenuLevel, HUbStock, ProductOrigin, ProductImage, ProductF
 
 
 async def fetch_hub_levels(session: AsyncSession):
+    leaf_levels_with_stock = select(HUbStock.path_id.label("id")).distinct().cte("leaf_levels")
+    parent = aliased(HUbMenuLevel)
+
+    valid_tree = (select(HUbMenuLevel.id, HUbMenuLevel.parent_id)
+                  .where(HUbMenuLevel.id.in_(select(leaf_levels_with_stock.c.id)))
+                  .cte(name="valid_tree", recursive=True)
+                  )
+
+    valid_tree_rec = select(parent.id, parent.parent_id).join(valid_tree, valid_tree.c.parent_id == parent.id)
+    valid_tree = valid_tree.union_all(valid_tree_rec)
+
     base = (select(HUbMenuLevel.id,
                    HUbMenuLevel.label,
                    HUbMenuLevel.icon,
                    HUbMenuLevel.parent_id,
                    HUbMenuLevel.sort_order,
-                   literal(0).label("depth")).where(HUbMenuLevel.parent_id == 1).cte(name="menu_cte", recursive=True))
+                   literal(0).label("depth"))
+            .where(HUbMenuLevel.parent_id == 1)
+            .cte(name="menu_cte", recursive=True))
 
-    child = aliased(HUbMenuLevel, name="child")
+    child = aliased(HUbMenuLevel)
 
-    recursive = (select(
-        child.id, child.label, child.icon, child.parent_id, child.sort_order, (base.c.depth + 1).label("depth"))
-                 .join(base, child.parent_id == base.c.id))
-
+    recursive = (select(child.id,
+                        child.label,
+                        child.icon,
+                        child.parent_id,
+                        child.sort_order,
+                        (base.c.depth + 1).label("depth")).join(base, child.parent_id == base.c.id))
     menu_cte = base.union_all(recursive)
 
-    result = await session.execute(
-        select(menu_cte).order_by(menu_cte.c.depth, menu_cte.c.sort_order)
-    )
+    stmt = (select(menu_cte).where(menu_cte.c.id.in_(select(valid_tree.c.id)))
+            .order_by(menu_cte.c.depth, menu_cte.c.sort_order))
+
+    result = await session.execute(stmt)
     rows = result.mappings().all()
 
-    data = []
+    data = list()
     for row in rows:
         row_dict = dict(row)
         if row_dict.get("icon"):
@@ -107,4 +123,3 @@ async def get_feature_by_origin(session: AsyncSession, origin_id: int):
         info=feature.info,
         pros_cons=feature.pros_cons,
     )
-
