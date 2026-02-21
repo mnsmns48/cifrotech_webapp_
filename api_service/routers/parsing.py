@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.responses import JSONResponse
 from api_service.api_connect import get_items_by_params, get_one_by_dtube
-from api_service.crud import get_vendor_and_vsl, get_rr_obj, _get_parsing_result, get_or_create_product_type, \
+from api_service.crud.main import get_vendor_and_vsl, get_rr_obj, _get_parsing_result, get_or_create_product_type, \
     get_or_create_product_brand, get_or_create_feature, link_origin_to_feature, clear_features_dependencies, \
     add_attributes_values_db, get_product_with_images, get_dependency_images_list, implement_dependency_images_logic
 from api_service.s3_helper import (get_s3_client, get_http_client_session, sync_images_by_origin,

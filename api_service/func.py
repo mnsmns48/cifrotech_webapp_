@@ -5,7 +5,7 @@ from aiohttp import ClientSession, ClientConnectionError, ClientResponseError, C
 from fastapi import UploadFile, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api_service.crud import is_icon_used_elsewhere
+from api_service.crud.main import is_icon_used_elsewhere
 from api_service.s3_helper import generate_presigned_image_urls
 from api_service.schemas import ParsingToDiffData, HubToDiffData, ParsingHubDiffOut, UpdatedImageScheme, \
     ParsingHubDiffItem

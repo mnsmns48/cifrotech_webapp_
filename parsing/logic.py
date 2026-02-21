@@ -7,7 +7,7 @@ from aiobotocore.client import AioBaseClient
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api_service.crud import get_rr_obj, store_parsing_lines, append_info
+from api_service.crud.main import get_rr_obj, store_parsing_lines, append_info
 from api_service.s3_helper import build_with_preview
 
 from api_service.schemas import ParsingLinesIn

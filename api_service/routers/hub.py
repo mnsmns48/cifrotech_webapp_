@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api_service.crud import fetch_all_hub_levels, fetch_ctech_pathnames, get_hub_item, \
+from api_service.crud.main import fetch_all_hub_levels, fetch_ctech_pathnames, get_hub_item, \
     get_home_item, upsert_home_dependency, get_home_menu_level, update_home_icon
 from api_service.s3_helper import get_s3_client, get_http_client_session, generate_presigned_image_urls
 from api_service.func import process_image_upload, process_image_update

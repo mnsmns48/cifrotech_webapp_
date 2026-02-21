@@ -12,6 +12,7 @@ from api_service.routers.vendor_search_line import vendor_search_line_router
 from api_users.dependencies.fastapi_users_dep import current_super_user
 from api_service.routers.parsing import parsing_router
 from api_service.routers.attributes import attributes_router
+from api_service.routers.features import features_router
 
 service_router = APIRouter(prefix="/service", dependencies=[Depends(current_super_user)])
 service_router.include_router(printer_router)
@@ -28,3 +29,5 @@ service_router.include_router(utils_router)
 service_router.include_router(attributes_router)
 
 service_router.include_router(formula_router)
+
+service_router.include_router(features_router)

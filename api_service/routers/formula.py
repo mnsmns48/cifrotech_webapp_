@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api_service.crud_attributes import fetch_all_attribute_keys
+from api_service.crud.attributes import fetch_all_attribute_keys
 from api_service.formula.environment import validate_formula, env
 from api_service.formula.filters import FILTER_DOCS
 from api_service.formula.service import FormulaService

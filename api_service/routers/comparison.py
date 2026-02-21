@@ -2,9 +2,8 @@ from typing import List, Dict
 
 from fastapi import Depends, APIRouter
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import defer
 
-from api_service.crud import get_all_children_cte, get_lines_by_origins, get_origins_by_path_ids, get_parsing_map, \
+from api_service.crud.main import get_all_children_cte, get_lines_by_origins, get_origins_by_path_ids, get_parsing_map, \
     get_hub_map, get_recomputed_lines, update_hubstock_prices
 from api_service.func import generate_diff_tabs
 from api_service.schemas import ComparisonOutScheme, ComparisonInScheme, HubLevelPath, VSLScheme, ParsingHubDiffOut, \

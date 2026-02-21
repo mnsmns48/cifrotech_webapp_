@@ -1,8 +1,8 @@
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api_service.crud_attributes import fetch_all_attribute_keys, create_attribute_key, update_attribute_key, \
+from api_service.crud.attributes import fetch_all_attribute_keys, create_attribute_key, update_attribute_key, \
     delete_attribute_key, fetch_all_attribute_values_with_keys, create_attribute, update_attribute_value, \
     delete_attribute_value, fetch_types_with_rules, fetch_all_brands, add_type_dependency_db, delete_type_dependency_db, \
     delete_attribute_brand_link_db, add_attribute_brand_link_db, fetch_all_types, load_model_attribute_options_db, \
@@ -170,5 +170,3 @@ async def delete_product_attribute_value_option_link(payload: AttributeModelOpti
 async def attributes_origin_value_check_request(payload: AttributeOriginValueCheckRequest,
                                                 session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await attributes_origin_value_check_request_db(payload=payload, session=session)
-
-

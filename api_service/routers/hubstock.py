@@ -10,7 +10,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api_service.crud import get_info_by_caching, delete_product_stock_items, get_rr_obj, fetch_hubstock_items, \
+from api_service.crud.main import get_info_by_caching, delete_product_stock_items, get_rr_obj, fetch_hubstock_items, \
     update_parsing_line_prices, fetch_parsing_input_price_map
 from api_service.s3_helper import get_s3_client, get_http_client_session, sync_images_by_origin
 

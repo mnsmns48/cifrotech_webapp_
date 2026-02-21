@@ -2,7 +2,7 @@ import logging
 
 from aiogram.exceptions import TelegramRetryAfter, TelegramNetworkError
 from aiogram_dialog import setup_dialogs
-from fastapi_cache import FastAPICache, JsonCoder
+from fastapi_cache import FastAPICache
 
 from fastapi_cache.backends.redis import RedisBackend
 from starlette.staticfiles import StaticFiles

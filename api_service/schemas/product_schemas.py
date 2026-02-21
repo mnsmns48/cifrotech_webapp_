@@ -82,3 +82,13 @@ class RecalcPricesResponse(BaseModel):
 
 class OriginsList(BaseModel):
     origins: List[int]
+
+
+class BrandModel(BaseModel):
+    id: int
+    brand: str
+
+
+class TypeModel(BaseModel):
+    id: int
+    type: str
