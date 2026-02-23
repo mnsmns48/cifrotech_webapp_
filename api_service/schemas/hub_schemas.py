@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 
 from pydantic import BaseModel
 
@@ -58,3 +58,11 @@ class UpdatedImageScheme(BaseModel):
     code: int
     icon: Optional[str]
     url: Optional[str]
+
+
+class PathRoute(BaseModel):
+    rotes: list[HubLevelPath]
+
+
+class PathRoutes(BaseModel):
+    routes: List[PathRoute]

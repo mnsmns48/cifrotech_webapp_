@@ -1,5 +1,5 @@
 from api_service.schemas.hub_schemas import HubMenuLevelSchema, RenameRequest, HubPositionPatchOut, AddHubLevelScheme, \
-    AddHubLevelOutScheme, HubPositionPatch, HubLevelPath, UpdateDeleteImageScheme, UpdatedImageScheme
+    AddHubLevelOutScheme, HubPositionPatch, HubLevelPath, UpdateDeleteImageScheme, UpdatedImageScheme, PathRoutes
 from api_service.schemas.hubstock_schemas import (HubLoadingData, StockHubItemResult, OriginsPayload,
                                                   HubItemTitlePatch, HubItemsChangePriceRequest,
                                                   HubItemsChangePriceResponse)
@@ -23,6 +23,8 @@ from api_service.schemas.attribute_schemas import CreateAttribute, UpdateAttribu
 
 from api_service.schemas.formula import FormulaBase, FormulaCreate, FormulaUpdate, FormulaResponse, \
     FormulaPreviewResponse, FormulaPreviewRequest, FormulaValidateRequest
+
+from api_service.schemas.features import FeaturesDataSet, SetFeaturesHubLevelRequest, SetLevelRoutesResponse
 
 __all__ = list()
 
@@ -59,3 +61,5 @@ __all__ += ["CreateAttribute", "UpdateAttribute", "TypesDependenciesResponse", "
 
 __all__ += ["FormulaBase", "FormulaCreate", "FormulaUpdate", "FormulaResponse", "FormulaPreviewResponse",
             "FormulaPreviewRequest", "FormulaValidateRequest"]
+
+__all__ += ["FeaturesDataSet", "PathRoutes", "SetFeaturesHubLevelRequest", "SetLevelRoutesResponse"]

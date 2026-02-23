@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 from pydantic import BaseModel
 
@@ -16,3 +16,13 @@ class FeaturesElement(BaseModel):
 
 class FeaturesDataSet(BaseModel):
     features: List[FeaturesElement]
+
+
+class SetFeaturesHubLevelRequest(BaseModel):
+    feature_ids: List[int]
+    hub_level_id: int
+    label: str
+
+
+class SetLevelRoutesResponse(BaseModel):
+    updated: Dict[int, HubLevelPath]

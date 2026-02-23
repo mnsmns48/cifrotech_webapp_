@@ -1,8 +1,13 @@
-from sqlalchemy import select
+from collections import defaultdict
+
+from sqlalchemy import select, delete
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api_service.schemas import HubLevelPath
-from api_service.schemas.features import FeaturesDataSet, FeaturesElement
+from api_service.schemas import HubLevelPath, PathRoutes
+from api_service.schemas.features import FeaturesDataSet, FeaturesElement, SetFeaturesHubLevelRequest, \
+    SetLevelRoutesResponse
+from api_service.schemas.hub_schemas import PathRoute
 from api_service.schemas.product_schemas import BrandModel, TypeModel
 from models import ProductFeaturesGlobal, ProductBrand, ProductType, HUbMenuLevel
 from models.product_dependencies import ProductFeaturesHubMenuLevelLink
@@ -48,19 +53,61 @@ async def features_hub_level_link_fetch_db(session: AsyncSession) -> FeaturesDat
             )
 
         features.append(
-            FeaturesElement(
-                id=row["feature_id"],
-                title=row["feature_title"],
-                brand=BrandModel(
-                    id=row["brand_id"],
-                    brand=row["brand_name"]
-                ),
-                type=TypeModel(
-                    id=row["type_id"],
-                    type=row["type_name"]
-                ),
-                hub_level=hub_level
-            )
+            FeaturesElement(id=row["feature_id"],
+                            title=row["feature_title"],
+                            brand=BrandModel(id=row["brand_id"], brand=row["brand_name"]),
+                            type=TypeModel(id=row["type_id"], type=row["type_name"]),
+                            hub_level=hub_level)
         )
 
     return FeaturesDataSet(features=features)
+
+
+async def features_hub_level_routes_db(session: AsyncSession) -> PathRoutes:
+    result = await session.execute(select(HUbMenuLevel)
+                                   .order_by(HUbMenuLevel.parent_id, HUbMenuLevel.label, HUbMenuLevel.sort_order))
+    levels = result.scalars().all()
+    by_id = {lvl.id: lvl for lvl in levels}
+    children = defaultdict(list)
+    for lvl in levels:
+        children[lvl.parent_id].append(lvl)
+
+    leaf_levels = [lvl for lvl in levels if lvl.id not in children]
+
+    def build_path(level: HUbMenuLevel) -> list[HubLevelPath]:
+        path: list[HubLevelPath] = list()
+        current: HUbMenuLevel = level
+
+        while current:
+            path.append(HubLevelPath(path_id=level.id, label=level.label))
+            if current.parent_id == 0:
+                break
+            current = by_id.get(current.parent_id)
+
+        return list(reversed(path))
+
+    routes = [PathRoute(rotes=build_path(leaf)) for leaf in leaf_levels]
+
+    return PathRoutes(routes=routes)
+
+
+async def features_set_level_routes_db(payload: SetFeaturesHubLevelRequest, session: AsyncSession):
+    feature_ids = payload.feature_ids
+    hub_level_id = payload.hub_level_id
+    label = payload.label
+
+    await session.execute(delete(ProductFeaturesHubMenuLevelLink)
+                          .where(ProductFeaturesHubMenuLevelLink.feature_id.in_(feature_ids)))
+
+    stmt = (insert(ProductFeaturesHubMenuLevelLink).values(
+        [{"feature_id": fid, "hub_level_id": hub_level_id} for fid in feature_ids]).returning(
+        ProductFeaturesHubMenuLevelLink.feature_id,
+        ProductFeaturesHubMenuLevelLink.hub_level_id))
+
+    result = await session.execute(stmt)
+    await session.commit()
+
+    rows = result.fetchall()
+
+    return SetLevelRoutesResponse(updated={r.feature_id: HubLevelPath(
+        path_id=r.hub_level_id, label=label) for r in rows})
