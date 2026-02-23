@@ -76,11 +76,11 @@ async def features_hub_level_routes_db(session: AsyncSession) -> PathRoutes:
     leaf_levels = [lvl for lvl in levels if lvl.id not in children]
 
     def build_path(level: HUbMenuLevel) -> list[HubLevelPath]:
-        path: list[HubLevelPath] = list()
+        path: list[HubLevelPath] = []
         current: HUbMenuLevel = level
 
         while current:
-            path.append(HubLevelPath(path_id=level.id, label=level.label))
+            path.append(HubLevelPath(path_id=current.id, label=current.label))
             if current.parent_id == 0:
                 break
             current = by_id.get(current.parent_id)
@@ -88,7 +88,6 @@ async def features_hub_level_routes_db(session: AsyncSession) -> PathRoutes:
         return list(reversed(path))
 
     routes = [PathRoute(rotes=build_path(leaf)) for leaf in leaf_levels]
-
     return PathRoutes(routes=routes)
 
 
