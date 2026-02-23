@@ -1,5 +1,6 @@
 from api_service.schemas.hub_schemas import HubMenuLevelSchema, RenameRequest, HubPositionPatchOut, AddHubLevelScheme, \
-    AddHubLevelOutScheme, HubPositionPatch, HubLevelPath, UpdateDeleteImageScheme, UpdatedImageScheme, PathRoutes
+    AddHubLevelOutScheme, HubPositionPatch, HubLevelPath, UpdateDeleteImageScheme, UpdatedImageScheme, PathRoutes, \
+    OriginHubLevelMap
 from api_service.schemas.hubstock_schemas import (HubLoadingData, StockHubItemResult, OriginsPayload,
                                                   HubItemTitlePatch, HubItemsChangePriceRequest,
                                                   HubItemsChangePriceResponse)
@@ -24,7 +25,8 @@ from api_service.schemas.attribute_schemas import CreateAttribute, UpdateAttribu
 from api_service.schemas.formula import FormulaBase, FormulaCreate, FormulaUpdate, FormulaResponse, \
     FormulaPreviewResponse, FormulaPreviewRequest, FormulaValidateRequest
 
-from api_service.schemas.features import FeaturesDataSet, SetFeaturesHubLevelRequest, SetLevelRoutesResponse
+from api_service.schemas.features import FeaturesDataSet, SetFeaturesHubLevelRequest, SetLevelRoutesResponse, \
+    FeaturesElement
 
 __all__ = list()
 
@@ -35,7 +37,7 @@ __all__ += ["ParsingRequest", "ParsingLinesIn", "ParsingToDiffData", "SourceCont
 __all__ += ["RewardRangeLineSchema", "RewardRangeSchema", "RewardRangeResponseSchema", "RewardRangeBaseSchema"]
 __all__ += [
     "ProductOriginUpdate", "ProductDependencyUpdate", "ProductResponse", "RecalcPricesRequest", "RecalcPricesResponse",
-    "ProductOriginCreate", "ProductDependencyBatchUpdate", "OriginsList"]
+    "ProductOriginCreate", "ProductDependencyBatchUpdate", "OriginsList", "OriginHubLevelMap"]
 
 __all__ += ["HubMenuLevelSchema", "RenameRequest", "HubPositionPatchOut", "AddHubLevelScheme", "AddHubLevelOutScheme",
             "HubPositionPatch", "HubLevelPath", "UpdateDeleteImageScheme", "UpdatedImageScheme"]
@@ -62,4 +64,4 @@ __all__ += ["CreateAttribute", "UpdateAttribute", "TypesDependenciesResponse", "
 __all__ += ["FormulaBase", "FormulaCreate", "FormulaUpdate", "FormulaResponse", "FormulaPreviewResponse",
             "FormulaPreviewRequest", "FormulaValidateRequest"]
 
-__all__ += ["FeaturesDataSet", "PathRoutes", "SetFeaturesHubLevelRequest", "SetLevelRoutesResponse"]
+__all__ += ["FeaturesDataSet", "PathRoutes", "SetFeaturesHubLevelRequest", "SetLevelRoutesResponse", "FeaturesElement"]

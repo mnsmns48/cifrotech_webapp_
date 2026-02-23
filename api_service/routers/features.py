@@ -2,8 +2,9 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.crud.features import features_hub_level_link_fetch_db, features_hub_level_routes_db, \
-    features_set_level_routes_db
-from api_service.schemas import FeaturesDataSet, PathRoutes, SetFeaturesHubLevelRequest, SetLevelRoutesResponse
+    features_set_level_routes_db, features_check_features_path_label_link_db
+from api_service.schemas import FeaturesDataSet, PathRoutes, SetFeaturesHubLevelRequest, SetLevelRoutesResponse, \
+    OriginsList, OriginHubLevelMap
 
 from engine import db
 
@@ -24,3 +25,9 @@ async def features_hub_level_routes(session: AsyncSession = Depends(db.scoped_se
 async def features_set_level_routes(payload: SetFeaturesHubLevelRequest,
                                     session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await features_set_level_routes_db(payload, session)
+
+
+@features_router.post("/features/check_features_path_label_link", response_model=OriginHubLevelMap)
+async def features_check_features_path_label_link(origin_ids: OriginsList,
+                                                  session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await features_check_features_path_label_link_db(origin_ids, session)

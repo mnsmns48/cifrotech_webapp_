@@ -1,16 +1,17 @@
 from collections import defaultdict
+from typing import Dict
 
 from sqlalchemy import select, delete
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api_service.schemas import HubLevelPath, PathRoutes
-from api_service.schemas.features import FeaturesDataSet, FeaturesElement, SetFeaturesHubLevelRequest, \
-    SetLevelRoutesResponse
+from api_service.schemas import HubLevelPath, PathRoutes, OriginHubLevelMap, FeaturesDataSet, FeaturesElement, \
+    SetFeaturesHubLevelRequest, SetLevelRoutesResponse
+
 from api_service.schemas.hub_schemas import PathRoute
-from api_service.schemas.product_schemas import BrandModel, TypeModel
+from api_service.schemas.product_schemas import BrandModel, TypeModel, OriginsList
 from models import ProductFeaturesGlobal, ProductBrand, ProductType, HUbMenuLevel
-from models.product_dependencies import ProductFeaturesHubMenuLevelLink
+from models.product_dependencies import ProductFeaturesHubMenuLevelLink, ProductFeaturesLink
 
 
 async def features_hub_level_link_fetch_db(session: AsyncSession) -> FeaturesDataSet:
@@ -111,3 +112,20 @@ async def features_set_level_routes_db(payload: SetFeaturesHubLevelRequest, sess
 
     return SetLevelRoutesResponse(updated={r.feature_id: HubLevelPath(
         path_id=r.hub_level_id, label=label) for r in rows})
+
+
+async def features_check_features_path_label_link_db(origin_ids: OriginsList,
+                                                     session: AsyncSession) -> OriginHubLevelMap:
+    stmt = (select(ProductFeaturesLink.origin,
+                   ProductFeaturesHubMenuLevelLink.hub_level_id)
+            .join(ProductFeaturesHubMenuLevelLink,
+                  ProductFeaturesHubMenuLevelLink.feature_id == ProductFeaturesLink.feature_id)
+            .where(ProductFeaturesLink.origin.in_(origin_ids.origins))
+            )
+
+    result = await session.execute(stmt)
+    rows = result.fetchall()
+
+    origin_to_level: Dict[int, int] = {origin: hub_level_id for origin, hub_level_id in rows}
+
+    return OriginHubLevelMap(origin_hub_level_map=origin_to_level)

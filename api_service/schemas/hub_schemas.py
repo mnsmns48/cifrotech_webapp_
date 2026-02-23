@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 from pydantic import BaseModel
 
@@ -66,3 +66,7 @@ class PathRoute(BaseModel):
 
 class PathRoutes(BaseModel):
     routes: List[PathRoute]
+
+
+class OriginHubLevelMap(BaseModel):
+    origin_hub_level_map: Dict[int, int]
