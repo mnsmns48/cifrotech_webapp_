@@ -31,3 +31,8 @@ async def features_set_level_routes(payload: SetFeaturesHubLevelRequest,
 async def features_check_features_path_label_link(origin_ids: OriginsList,
                                                   session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await features_check_features_path_label_link_db(origin_ids, session)
+
+
+@features_router.get("/features/get_features/{origin}")
+async def get_features_by_origin(origin: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    pass
