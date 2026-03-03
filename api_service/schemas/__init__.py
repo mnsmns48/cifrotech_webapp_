@@ -26,7 +26,7 @@ from api_service.schemas.formula import FormulaBase, FormulaCreate, FormulaUpdat
     FormulaPreviewResponse, FormulaPreviewRequest, FormulaValidateRequest
 
 from api_service.schemas.features import FeaturesDataSet, SetFeaturesHubLevelRequest, SetLevelRoutesResponse, \
-    FeaturesElement
+    FeaturesElement, FeatureResponseScheme, ProsConsItem, ProsConsItemUpdate
 
 __all__ = list()
 
@@ -64,4 +64,5 @@ __all__ += ["CreateAttribute", "UpdateAttribute", "TypesDependenciesResponse", "
 __all__ += ["FormulaBase", "FormulaCreate", "FormulaUpdate", "FormulaResponse", "FormulaPreviewResponse",
             "FormulaPreviewRequest", "FormulaValidateRequest"]
 
-__all__ += ["FeaturesDataSet", "PathRoutes", "SetFeaturesHubLevelRequest", "SetLevelRoutesResponse", "FeaturesElement"]
+__all__ += ["FeaturesDataSet", "PathRoutes", "SetFeaturesHubLevelRequest", "SetLevelRoutesResponse", "FeaturesElement",
+            "FeatureResponseScheme", "ProsConsItem", "ProsConsItemUpdate"]

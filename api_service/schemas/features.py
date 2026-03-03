@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Literal
 
 from pydantic import BaseModel
 
@@ -26,3 +26,23 @@ class SetFeaturesHubLevelRequest(BaseModel):
 
 class SetLevelRoutesResponse(BaseModel):
     updated: Dict[int, HubLevelPath]
+
+
+class FeatureResponseScheme(BaseModel):
+    id: int
+    title: str
+    info: List[Dict]
+    pros_cons: dict
+
+
+class ProsConsItem(BaseModel):
+    id: int
+    attribute: Literal["advantage", "disadvantage"]
+    value: str
+
+
+class ProsConsItemUpdate(BaseModel):
+    id: int
+    attribute: Literal["advantage", "disadvantage"]
+    old_value: str
+    new_value: str

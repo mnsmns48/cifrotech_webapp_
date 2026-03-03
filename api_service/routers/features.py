@@ -2,9 +2,10 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.crud.features import features_hub_level_link_fetch_db, features_hub_level_routes_db, \
-    features_set_level_routes_db, features_check_features_path_label_link_db
+    features_set_level_routes_db, features_check_features_path_label_link_db, get_features_by_origin_db, \
+    delete_pros_cons_value_db, add_pros_cons_value_db, update_pros_cons_value_db
 from api_service.schemas import FeaturesDataSet, PathRoutes, SetFeaturesHubLevelRequest, SetLevelRoutesResponse, \
-    OriginsList, OriginHubLevelMap
+    OriginsList, OriginHubLevelMap, FeatureResponseScheme, ProsConsItem, ProsConsItemUpdate
 
 from engine import db
 
@@ -33,6 +34,24 @@ async def features_check_features_path_label_link(origin_ids: OriginsList,
     return await features_check_features_path_label_link_db(origin_ids, session)
 
 
-@features_router.get("/features/get_features/{origin}")
-async def get_features_by_origin(origin: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
-    pass
+@features_router.get("/features/get_features_by_feature_id/{feature_id}", response_model=FeatureResponseScheme)
+async def get_features_by_origin(feature_id: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await get_features_by_origin_db(feature_id, session)
+
+
+@features_router.post("/features/delete_pros_cons_value")
+async def delete_pros_cons_value(payload: ProsConsItem,
+                                 session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await delete_pros_cons_value_db(payload, session)
+
+
+@features_router.post("/features/add_pros_cons_value")
+async def add_pros_cons_value(payload: ProsConsItem,
+                              session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await add_pros_cons_value_db(payload, session)
+
+
+@features_router.post("/features/update_pros_cons_value")
+async def update_pros_cons_value(payload: ProsConsItemUpdate,
+                                 session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await update_pros_cons_value_db(payload, session)
