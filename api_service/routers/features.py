@@ -3,9 +3,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.crud.features import features_hub_level_link_fetch_db, features_hub_level_routes_db, \
     features_set_level_routes_db, features_check_features_path_label_link_db, get_features_by_origin_db, \
-    delete_pros_cons_value_db, add_pros_cons_value_db, update_pros_cons_value_db
+    delete_pros_cons_value_db, add_pros_cons_value_db, update_pros_cons_value_db, create_new_info_category_db, \
+    delete_info_category_db, update_info_category_db
 from api_service.schemas import FeaturesDataSet, PathRoutes, SetFeaturesHubLevelRequest, SetLevelRoutesResponse, \
-    OriginsList, OriginHubLevelMap, FeatureResponseScheme, ProsConsItem, ProsConsItemUpdate
+    OriginsList, OriginHubLevelMap, FeatureResponseScheme, ProsConsItem, ProsConsItemUpdate, FeatureCategory, \
+    UpdateFeatureCategoryRequest
 
 from engine import db
 
@@ -55,3 +57,21 @@ async def add_pros_cons_value(payload: ProsConsItem,
 async def update_pros_cons_value(payload: ProsConsItemUpdate,
                                  session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await update_pros_cons_value_db(payload, session)
+
+
+@features_router.post("/features/create_new_info_category")
+async def create_new_info_category(payload: FeatureCategory,
+                                   session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await create_new_info_category_db(payload, session)
+
+
+@features_router.post("/features/delete_info_category")
+async def delete_info_category(payload: FeatureCategory,
+                               session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await delete_info_category_db(payload, session)
+
+
+@features_router.post("/features/Update_info_category")
+async def update_info_category(payload: UpdateFeatureCategoryRequest,
+                               session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await update_info_category_db(payload, session)

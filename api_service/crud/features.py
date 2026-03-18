@@ -7,7 +7,8 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.schemas import HubLevelPath, PathRoutes, OriginHubLevelMap, FeaturesDataSet, FeaturesElement, \
-    SetFeaturesHubLevelRequest, SetLevelRoutesResponse, FeatureResponseScheme, ProsConsItem, ProsConsItemUpdate
+    SetFeaturesHubLevelRequest, SetLevelRoutesResponse, FeatureResponseScheme, ProsConsItem, ProsConsItemUpdate, \
+    FeatureCategory, UpdateFeatureCategoryRequest
 
 from api_service.schemas.hub_schemas import PathRoute
 from api_service.schemas.product_schemas import BrandModel, TypeModel, OriginsList
@@ -231,3 +232,122 @@ async def update_pros_cons_value_db(payload: ProsConsItemUpdate, session: AsyncS
     await session.refresh(feature)
 
     return {"status": "success", "id": feature.id, "updated": feature.pros_cons}
+
+
+async def get_feature_or_404(session: AsyncSession, feature_id: int):
+    stmt = select(ProductFeaturesGlobal).where(ProductFeaturesGlobal.id == feature_id)
+    result = await session.execute(stmt)
+    feature = result.scalar_one_or_none()
+
+    if feature is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="ProductFeaturesGlobal not found"
+        )
+
+    return feature
+
+
+def normalize_category_info(feature: ProductFeaturesGlobal):
+    if feature.info is None:
+        return []
+    return list(feature.info)
+
+
+def find_category_index(info: list, category_title: str):
+    for i, block in enumerate(info):
+        if category_title in block:
+            return i
+    return None
+
+
+async def save_feature(session: AsyncSession, feature: ProductFeaturesGlobal):
+    await session.commit()
+    await session.refresh(feature)
+    return feature.info
+
+
+async def create_new_info_category_db(payload: FeatureCategory, session: AsyncSession):
+    feature = await get_feature_or_404(session, payload.id)
+    info = normalize_category_info(feature)
+    new_title = payload.category_title.strip()
+
+    if not new_title:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Category title cannot be empty"
+        )
+    index = find_category_index(info, new_title)
+    if index is not None:
+        return {"status": "exists", "info": info}
+
+    info.append({new_title: {}})
+    feature.info = info
+
+    updated_info = await save_feature(session, feature)
+    return {"status": "created", "info": updated_info}
+
+
+async def delete_info_category_db(payload: FeatureCategory, session: AsyncSession):
+    feature = await get_feature_or_404(session, payload.id)
+
+    info = normalize_category_info(feature)
+    category_title = payload.category_title.strip()
+
+    if not category_title:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Category title cannot be empty"
+        )
+
+    index = find_category_index(info, category_title)
+    if index is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Category not found"
+        )
+
+    del info[index]
+    feature.info = info
+
+    updated_info = await save_feature(session, feature)
+    return {"status": "deleted", "info": updated_info}
+
+
+async def update_info_category_db(payload: UpdateFeatureCategoryRequest, session: AsyncSession):
+    old_title = payload.old_category_title.strip()
+    new_title = payload.new_category_title.strip()
+
+    if old_title == new_title:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Old and new category titles are identical"
+        )
+
+    if not new_title:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New category title cannot be empty"
+        )
+    feature = await get_feature_or_404(session, payload.id)
+    info = normalize_category_info(feature)
+    index = find_category_index(info, old_title)
+    if index is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Old category not found"
+        )
+    existing_index = find_category_index(info, new_title)
+    if existing_index is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New category title already exists"
+        )
+    old_block = info[index]
+    old_values = old_block[old_title]
+    new_block = {new_title: old_values}
+    info[index] = new_block
+    feature.info = info
+    updated_info = await save_feature(session, feature)
+
+    return {"status": "updated", "info": updated_info}

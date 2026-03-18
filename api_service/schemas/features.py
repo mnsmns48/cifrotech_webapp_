@@ -46,3 +46,14 @@ class ProsConsItemUpdate(BaseModel):
     attribute: Literal["advantage", "disadvantage"]
     old_value: str
     new_value: str
+
+
+class FeatureCategory(BaseModel):
+    id: int
+    category_title: str
+
+
+class UpdateFeatureCategoryRequest(BaseModel):
+    id: int
+    old_category_title: str
+    new_category_title: str
