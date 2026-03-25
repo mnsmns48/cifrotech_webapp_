@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Dict
+from typing import Dict, List
 
 from fastapi import HTTPException, status
 from sqlalchemy import select, delete
@@ -9,7 +9,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from api_service.schemas import HubLevelPath, PathRoutes, OriginHubLevelMap, FeaturesDataSet, FeaturesElement, \
     SetFeaturesHubLevelRequest, SetLevelRoutesResponse, FeatureResponseScheme, ProsConsItem, ProsConsItemUpdate, \
-    FeatureCategory, UpdateFeatureCategoryRequest, InnerRowRequest, UpdateInnerRowRequest
+    FeatureCategory, UpdateFeatureCategoryRequest, InnerRowRequest, UpdateInnerRowRequest, FeatureIds
 
 from api_service.schemas.hub_schemas import PathRoute
 from api_service.schemas.product_schemas import BrandModel, TypeModel, OriginsList
@@ -430,3 +430,11 @@ async def update_features_inner_row_db(payload: UpdateInnerRowRequest, session: 
     await session.refresh(feature)
 
     return {"status": "updated", "info": feature.info}
+
+
+async def delete_feature_db(feature_ids: FeatureIds, session: AsyncSession):
+    stmt = delete(ProductFeaturesGlobal).where(ProductFeaturesGlobal.id.in_(feature_ids.feature_ids))
+    await session.execute(stmt)
+    await session.commit()
+
+    return {"status": "deleted", "ids": feature_ids.feature_ids}

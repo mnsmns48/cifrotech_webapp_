@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict, Literal
+from typing import List, Optional, Dict, Literal, Tuple
 
 from pydantic import BaseModel
 
@@ -73,3 +73,7 @@ class UpdateInnerRowRequest(BaseModel):
     old_value: str
     new_param: str
     new_value: str
+
+
+class FeatureIds(BaseModel):
+    feature_ids: List[int]

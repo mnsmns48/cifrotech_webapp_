@@ -1,3 +1,5 @@
+from typing import List
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -5,11 +7,11 @@ from api_service.crud.features import features_hub_level_link_fetch_db, features
     features_set_level_routes_db, features_check_features_path_label_link_db, get_features_by_origin_db, \
     delete_pros_cons_value_db, add_pros_cons_value_db, update_pros_cons_value_db, create_new_info_category_db, \
     delete_info_category_db, update_info_category_db, add_new_features_inner_row_db, delete_features_inner_row_db, \
-    update_features_inner_row_db
+    update_features_inner_row_db, delete_feature_db
 
 from api_service.schemas import FeaturesDataSet, PathRoutes, SetFeaturesHubLevelRequest, SetLevelRoutesResponse, \
     OriginsList, OriginHubLevelMap, FeatureResponseScheme, ProsConsItem, ProsConsItemUpdate, FeatureCategory, \
-    UpdateFeatureCategoryRequest, InnerRowRequest, UpdateInnerRowRequest
+    UpdateFeatureCategoryRequest, InnerRowRequest, UpdateInnerRowRequest, FeatureIds
 
 from engine import db
 
@@ -95,3 +97,9 @@ async def delete_features_inner_row(payload: InnerRowRequest,
 async def update_features_inner_row(payload: UpdateInnerRowRequest,
                                     session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await update_features_inner_row_db(payload, session)
+
+
+@features_router.post("/features/delete_features")
+async def delete_feature(feature_ids: FeatureIds,
+                         session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await delete_feature_db(feature_ids, session)
