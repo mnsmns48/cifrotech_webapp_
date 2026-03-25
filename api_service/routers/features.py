@@ -4,10 +4,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api_service.crud.features import features_hub_level_link_fetch_db, features_hub_level_routes_db, \
     features_set_level_routes_db, features_check_features_path_label_link_db, get_features_by_origin_db, \
     delete_pros_cons_value_db, add_pros_cons_value_db, update_pros_cons_value_db, create_new_info_category_db, \
-    delete_info_category_db, update_info_category_db
+    delete_info_category_db, update_info_category_db, add_new_features_inner_row_db, delete_features_inner_row_db, \
+    update_features_inner_row_db
+
 from api_service.schemas import FeaturesDataSet, PathRoutes, SetFeaturesHubLevelRequest, SetLevelRoutesResponse, \
     OriginsList, OriginHubLevelMap, FeatureResponseScheme, ProsConsItem, ProsConsItemUpdate, FeatureCategory, \
-    UpdateFeatureCategoryRequest
+    UpdateFeatureCategoryRequest, InnerRowRequest, UpdateInnerRowRequest
 
 from engine import db
 
@@ -75,3 +77,21 @@ async def delete_info_category(payload: FeatureCategory,
 async def update_info_category(payload: UpdateFeatureCategoryRequest,
                                session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await update_info_category_db(payload, session)
+
+
+@features_router.post("/features/add_new_inner_row")
+async def add_new_features_inner_row(payload: InnerRowRequest,
+                                     session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await add_new_features_inner_row_db(payload, session)
+
+
+@features_router.post("/features/delete_inner_row")
+async def delete_features_inner_row(payload: InnerRowRequest,
+                                    session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await delete_features_inner_row_db(payload, session)
+
+
+@features_router.post("/features/update_inner_row")
+async def update_features_inner_row(payload: UpdateInnerRowRequest,
+                                    session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await update_features_inner_row_db(payload, session)

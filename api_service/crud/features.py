@@ -5,10 +5,11 @@ from fastapi import HTTPException, status
 from sqlalchemy import select, delete
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from api_service.schemas import HubLevelPath, PathRoutes, OriginHubLevelMap, FeaturesDataSet, FeaturesElement, \
     SetFeaturesHubLevelRequest, SetLevelRoutesResponse, FeatureResponseScheme, ProsConsItem, ProsConsItemUpdate, \
-    FeatureCategory, UpdateFeatureCategoryRequest
+    FeatureCategory, UpdateFeatureCategoryRequest, InnerRowRequest, UpdateInnerRowRequest
 
 from api_service.schemas.hub_schemas import PathRoute
 from api_service.schemas.product_schemas import BrandModel, TypeModel, OriginsList
@@ -351,3 +352,81 @@ async def update_info_category_db(payload: UpdateFeatureCategoryRequest, session
     updated_info = await save_feature(session, feature)
 
     return {"status": "updated", "info": updated_info}
+
+
+async def add_new_features_inner_row_db(payload: InnerRowRequest, session: AsyncSession):
+    feature = await get_feature_or_404(session, payload.id)
+    info = normalize_category_info(feature)
+
+    category_block = None
+    for block in info:
+        if payload.category_title in block:
+            category_block = block
+            break
+    if not category_block:
+        return {"status": "error", "message": "Category not found"}
+    category_block[payload.category_title][payload.new_param] = payload.new_value
+    flag_modified(feature, "info")
+
+    await session.commit()
+    await session.refresh(feature)
+
+    return {"status": "created", "info": feature.info}
+
+
+async def delete_features_inner_row_db(payload: InnerRowRequest, session: AsyncSession):
+    feature = await get_feature_or_404(session, payload.id)
+    info = normalize_category_info(feature)
+
+    category_block = None
+    for block in info:
+        if payload.category_title in block:
+            category_block = block
+            break
+
+    if not category_block:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+
+    category_data = category_block[payload.category_title]
+
+    if payload.new_param not in category_data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Param not found")
+
+    del category_data[payload.new_param]
+
+    flag_modified(feature, "info")
+
+    await session.commit()
+    await session.refresh(feature)
+
+    return {"status": "deleted", "info": feature.info}
+
+
+async def update_features_inner_row_db(payload: UpdateInnerRowRequest, session: AsyncSession):
+    feature = await get_feature_or_404(session, payload.id)
+    info = normalize_category_info(feature)
+    category_block = None
+    for block in info:
+        if payload.category_title in block:
+            category_block = block
+            break
+
+    if not category_block:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+
+    category_data = category_block[payload.category_title]
+
+    if payload.old_param not in category_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Old param not found"
+        )
+
+    del category_data[payload.old_param]
+    category_data[payload.new_param] = payload.new_value
+    flag_modified(feature, "info")
+
+    await session.commit()
+    await session.refresh(feature)
+
+    return {"status": "updated", "info": feature.info}

@@ -57,3 +57,19 @@ class UpdateFeatureCategoryRequest(BaseModel):
     id: int
     old_category_title: str
     new_category_title: str
+
+
+class InnerRowRequest(BaseModel):
+    id: int
+    category_title: str
+    new_param: str
+    new_value: str
+
+
+class UpdateInnerRowRequest(BaseModel):
+    id: int
+    category_title: str
+    old_param: str
+    old_value: str
+    new_param: str
+    new_value: str
