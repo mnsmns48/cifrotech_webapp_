@@ -27,7 +27,8 @@ from api_service.schemas.formula import FormulaBase, FormulaCreate, FormulaUpdat
 
 from api_service.schemas.features import FeaturesDataSet, SetFeaturesHubLevelRequest, SetLevelRoutesResponse, \
     FeaturesElement, FeatureResponseScheme, ProsConsItem, ProsConsItemUpdate, FeatureCategory, \
-    UpdateFeatureCategoryRequest, InnerRowRequest, UpdateInnerRowRequest, FeatureIds
+    UpdateFeatureCategoryRequest, InnerRowRequest, UpdateInnerRowRequest, FeatureIds, TypesAndBrands, \
+    CreateFeaturesGlobal
 
 __all__ = list()
 
@@ -67,4 +68,5 @@ __all__ += ["FormulaBase", "FormulaCreate", "FormulaUpdate", "FormulaResponse", 
 
 __all__ += ["FeaturesDataSet", "PathRoutes", "SetFeaturesHubLevelRequest", "SetLevelRoutesResponse", "FeaturesElement",
             "FeatureResponseScheme", "ProsConsItem", "ProsConsItemUpdate", "FeatureCategory",
-            "UpdateFeatureCategoryRequest", "InnerRowRequest", "UpdateInnerRowRequest", "FeatureIds"]
+            "UpdateFeatureCategoryRequest", "InnerRowRequest", "UpdateInnerRowRequest", "FeatureIds", "TypesAndBrands",
+            "CreateFeaturesGlobal"]

@@ -1,5 +1,3 @@
-from typing import List
-
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -7,11 +5,13 @@ from api_service.crud.features import features_hub_level_link_fetch_db, features
     features_set_level_routes_db, features_check_features_path_label_link_db, get_features_by_origin_db, \
     delete_pros_cons_value_db, add_pros_cons_value_db, update_pros_cons_value_db, create_new_info_category_db, \
     delete_info_category_db, update_info_category_db, add_new_features_inner_row_db, delete_features_inner_row_db, \
-    update_features_inner_row_db, delete_feature_db
+    update_features_inner_row_db, delete_feature_db, types_brands_request_db, add_new_brand_request_db, \
+    add_new_type_request_db, create_new_feature_global_db
 
 from api_service.schemas import FeaturesDataSet, PathRoutes, SetFeaturesHubLevelRequest, SetLevelRoutesResponse, \
     OriginsList, OriginHubLevelMap, FeatureResponseScheme, ProsConsItem, ProsConsItemUpdate, FeatureCategory, \
-    UpdateFeatureCategoryRequest, InnerRowRequest, UpdateInnerRowRequest, FeatureIds
+    UpdateFeatureCategoryRequest, InnerRowRequest, UpdateInnerRowRequest, FeatureIds, TypesAndBrands, \
+    ProductOriginUpdate, CreateFeaturesGlobal
 
 from engine import db
 
@@ -103,3 +103,26 @@ async def update_features_inner_row(payload: UpdateInnerRowRequest,
 async def delete_feature(feature_ids: FeatureIds,
                          session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await delete_feature_db(feature_ids, session)
+
+
+@features_router.get("/features/types_brands_request", response_model=TypesAndBrands)
+async def types_brands_request(session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await types_brands_request_db(session)
+
+
+@features_router.post("/features/add_new_brand")
+async def add_new_brand_request(title: ProductOriginUpdate,
+                                session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await add_new_brand_request_db(title, session)
+
+
+@features_router.post("/features/add_new_type")
+async def add_new_type_request(title: ProductOriginUpdate,
+                               session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await add_new_type_request_db(title, session)
+
+
+@features_router.post("/features/create_new_feature_global")
+async def create_new_feature_global(payload: CreateFeaturesGlobal,
+                                    session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await create_new_feature_global_db(payload, session)

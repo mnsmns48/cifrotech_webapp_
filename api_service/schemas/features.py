@@ -77,3 +77,14 @@ class UpdateInnerRowRequest(BaseModel):
 
 class FeatureIds(BaseModel):
     feature_ids: List[int]
+
+
+class TypesAndBrands(BaseModel):
+    types: List[TypeModel]
+    brands: List[BrandModel]
+
+
+class CreateFeaturesGlobal(BaseModel):
+    title: str
+    type_obj: TypeModel
+    brand_obj: BrandModel

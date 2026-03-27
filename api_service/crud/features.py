@@ -4,15 +4,17 @@ from typing import Dict, List
 from fastapi import HTTPException, status
 from sqlalchemy import select, delete
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
 from api_service.schemas import HubLevelPath, PathRoutes, OriginHubLevelMap, FeaturesDataSet, FeaturesElement, \
     SetFeaturesHubLevelRequest, SetLevelRoutesResponse, FeatureResponseScheme, ProsConsItem, ProsConsItemUpdate, \
-    FeatureCategory, UpdateFeatureCategoryRequest, InnerRowRequest, UpdateInnerRowRequest, FeatureIds
+    FeatureCategory, UpdateFeatureCategoryRequest, InnerRowRequest, UpdateInnerRowRequest, FeatureIds, TypesAndBrands, \
+    CreateFeaturesGlobal
 
 from api_service.schemas.hub_schemas import PathRoute
-from api_service.schemas.product_schemas import BrandModel, TypeModel, OriginsList
+from api_service.schemas.product_schemas import BrandModel, TypeModel, OriginsList, ProductOriginUpdate
 from models import ProductFeaturesGlobal, ProductBrand, ProductType, HUbMenuLevel
 from models.product_dependencies import ProductFeaturesHubMenuLevelLink, ProductFeaturesLink
 
@@ -438,3 +440,65 @@ async def delete_feature_db(feature_ids: FeatureIds, session: AsyncSession):
     await session.commit()
 
     return {"status": "deleted", "ids": feature_ids.feature_ids}
+
+
+async def types_brands_request_db(session: AsyncSession):
+    types_result = await session.execute(select(ProductType))
+    types = types_result.scalars().all()
+    brands_result = await session.execute(select(ProductBrand))
+    brands = brands_result.scalars().all()
+    return TypesAndBrands(
+        types=[TypeModel(id=t.id, type=t.type) for t in types],
+        brands=[BrandModel(id=b.id, brand=b.brand) for b in brands]
+    )
+
+
+async def add_new_type_request_db(title: ProductOriginUpdate, session: AsyncSession):
+    try:
+        new_type = ProductType(type=title.title)
+        session.add(new_type)
+        await session.commit()
+        await session.refresh(new_type)
+
+        return {"id": new_type.id, "type": new_type.type}
+
+    except IntegrityError:
+        await session.rollback()
+        return {"error": "Тип с таким названием уже существует"}
+
+
+async def add_new_brand_request_db(title: ProductOriginUpdate, session: AsyncSession):
+    try:
+        new_brand = ProductBrand(brand=title.title)
+        session.add(new_brand)
+        await session.commit()
+        await session.refresh(new_brand)
+
+        return {"id": new_brand.id, "brand": new_brand.brand}
+
+    except IntegrityError:
+        await session.rollback()
+        return {"error": "Бренд с таким названием уже существует"}
+
+
+async def create_new_feature_global_db(payload: CreateFeaturesGlobal, session: AsyncSession):
+    new_feature = ProductFeaturesGlobal(
+        title=payload.title,
+        type_id=payload.type_obj.id,
+        brand_id=payload.brand_obj.id,
+        info={},
+        pros_cons={},
+        source="custom"
+    )
+
+    session.add(new_feature)
+    await session.commit()
+    await session.refresh(new_feature)
+
+    return {"id": new_feature.id,
+            "title": new_feature.title,
+            "type": {"id": payload.type_obj.id, "type": payload.type_obj.type},
+            "brand": {"id": payload.brand_obj.id, "brand": payload.brand_obj.brand},
+            "info": new_feature.info,
+            "pros_cons": new_feature.pros_cons,
+            "source": new_feature.source}
