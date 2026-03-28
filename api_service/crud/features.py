@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Dict, List
+from typing import Dict
 
 from fastapi import HTTPException, status
 from sqlalchemy import select, delete

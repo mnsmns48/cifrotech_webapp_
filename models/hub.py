@@ -1,5 +1,5 @@
 import datetime
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 from typing import Optional
 
 from sqlalchemy import BigInteger, ForeignKey, DateTime, String, func, UniqueConstraint

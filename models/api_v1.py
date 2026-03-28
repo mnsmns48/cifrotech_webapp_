@@ -1,5 +1,3 @@
-from typing import Optional
-
 from sqlalchemy import func, BigInteger
 from sqlalchemy.dialects.postgresql import TIMESTAMP, JSON
 from sqlalchemy.orm import Mapped, mapped_column
