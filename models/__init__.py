@@ -28,8 +28,9 @@ __all__ = (
     "AttributeBrandRule",
     "AttributeKey",
     "AttributeValue",
-    "FormulaExpression"
-
+    "FormulaExpression",
+    "ProductFeaturesFormulaLink",
+    "ProductFeaturesHubMenuLevelLink"
 )
 
 from .base import Base
@@ -40,7 +41,8 @@ from .product_dependencies import (ProductFeaturesLink,
                                    ProductOrigin,
                                    ProductFeaturesGlobal,
                                    ProductBrand,
-                                   ProductType, ProductImage)
+                                   ProductType, ProductImage, ProductFeaturesFormulaLink,
+                                   ProductFeaturesHubMenuLevelLink)
 from .telegram_bot import TgBotOptions
 from .vendor import RewardRange, RewardRangeLine, VendorSearchLine, Vendor, VendorSearchLine, RewardRangeLine
 

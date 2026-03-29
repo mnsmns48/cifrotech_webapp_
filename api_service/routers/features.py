@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api_service.crud.features import features_hub_level_link_fetch_db, features_hub_level_routes_db, \
+from api_service.crud.features import product_features_depps_db, features_hub_level_routes_db, \
     features_set_level_routes_db, features_check_features_path_label_link_db, get_features_by_origin_db, \
     delete_pros_cons_value_db, add_pros_cons_value_db, update_pros_cons_value_db, create_new_info_category_db, \
     delete_info_category_db, update_info_category_db, add_new_features_inner_row_db, delete_features_inner_row_db, \
@@ -18,9 +18,9 @@ from engine import db
 features_router = APIRouter(tags=['Features'])
 
 
-@features_router.get("/features/features_hub_level_link_fetch", response_model=FeaturesDataSet)
-async def features_hub_level_link_fetch(session: AsyncSession = Depends(db.scoped_session_dependency)):
-    return await features_hub_level_link_fetch_db(session)
+@features_router.get("/features/product_features_depps", response_model=FeaturesDataSet)
+async def product_features_depps_fetch(session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await product_features_depps_db(session)
 
 
 @features_router.get("/features/hub_level_routes", response_model=PathRoutes)

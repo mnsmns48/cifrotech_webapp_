@@ -112,3 +112,15 @@ class ProductFeaturesHubMenuLevelLink(Base):
 
     __table_args__ = (Index("ix_feature_hub_level_id", "hub_level_id"),
                       Index("ix_feature_feature_id", "feature_id"),)
+
+
+class ProductFeaturesFormulaLink(Base):
+    __tablename__ = "product_features_formula_link"
+
+    feature_id: Mapped[int] = mapped_column(ForeignKey("product_features_global.id", ondelete="CASCADE"),
+                                            primary_key=True)
+    formula_id: Mapped[int] = mapped_column(ForeignKey("formula_expression.id", ondelete="CASCADE"),
+                                            primary_key=True)
+
+    __table_args__ = (Index("ix_formula_link_feature_id", "feature_id"),
+                      Index("ix_formula_link_formula_id", "formula_id"),)

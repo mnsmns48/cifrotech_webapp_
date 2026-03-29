@@ -1,9 +1,8 @@
-from typing import List, Optional, Dict, Literal, Tuple
+from typing import List, Optional, Dict, Literal
 
 from pydantic import BaseModel
 
-from api_service.schemas import HubLevelPath
-from api_service.schemas.product_schemas import BrandModel, TypeModel
+from api_service.schemas import HubLevelPath, FormulaIdObj, BrandModel, TypeModel
 
 
 class FeaturesElement(BaseModel):
@@ -12,6 +11,7 @@ class FeaturesElement(BaseModel):
     type: TypeModel
     title: str
     hub_level: Optional[HubLevelPath]
+    formula: Optional[FormulaIdObj]
 
 
 class FeaturesDataSet(BaseModel):

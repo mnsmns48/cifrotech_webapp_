@@ -1,6 +1,6 @@
 from api_service.schemas.hub_schemas import HubMenuLevelSchema, RenameRequest, HubPositionPatchOut, AddHubLevelScheme, \
     AddHubLevelOutScheme, HubPositionPatch, HubLevelPath, UpdateDeleteImageScheme, UpdatedImageScheme, PathRoutes, \
-    OriginHubLevelMap
+    OriginHubLevelMap, PathRoute
 from api_service.schemas.hubstock_schemas import (HubLoadingData, StockHubItemResult, OriginsPayload,
                                                   HubItemTitlePatch, HubItemsChangePriceRequest,
                                                   HubItemsChangePriceResponse)
@@ -10,7 +10,8 @@ from api_service.schemas.comparison_schemas import ComparisonInScheme, Compariso
 from api_service.schemas.parsing_schemas import ParsingRequest, ParsingLinesIn, ParsingToDiffData, SourceContext, \
     ParsingResultOut, AddAttributesValuesRequest, DependencyImageItem, DependencyOriginImplementation, ImageResponseItem
 from api_service.schemas.product_schemas import ProductOriginUpdate, ProductDependencyUpdate, ProductResponse, \
-    RecalcPricesRequest, RecalcPricesResponse, ProductOriginCreate, ProductDependencyBatchUpdate, OriginsList
+    RecalcPricesRequest, RecalcPricesResponse, ProductOriginCreate, ProductDependencyBatchUpdate, OriginsList, \
+    TypeModel, BrandModel
 from api_service.schemas.range_reward_schemas import RewardRangeLineSchema, RewardRangeSchema, \
     RewardRangeResponseSchema, RewardRangeBaseSchema
 from api_service.schemas.vsl_schemas import VSLScheme
@@ -23,7 +24,7 @@ from api_service.schemas.attribute_schemas import CreateAttribute, UpdateAttribu
     AttributeOriginValueCheckResponse
 
 from api_service.schemas.formula import FormulaBase, FormulaCreate, FormulaUpdate, FormulaResponse, \
-    FormulaPreviewResponse, FormulaPreviewRequest, FormulaValidateRequest
+    FormulaPreviewResponse, FormulaPreviewRequest, FormulaValidateRequest, FormulaIdObj
 
 from api_service.schemas.features import FeaturesDataSet, SetFeaturesHubLevelRequest, SetLevelRoutesResponse, \
     FeaturesElement, FeatureResponseScheme, ProsConsItem, ProsConsItemUpdate, FeatureCategory, \
@@ -39,10 +40,11 @@ __all__ += ["ParsingRequest", "ParsingLinesIn", "ParsingToDiffData", "SourceCont
 __all__ += ["RewardRangeLineSchema", "RewardRangeSchema", "RewardRangeResponseSchema", "RewardRangeBaseSchema"]
 __all__ += [
     "ProductOriginUpdate", "ProductDependencyUpdate", "ProductResponse", "RecalcPricesRequest", "RecalcPricesResponse",
-    "ProductOriginCreate", "ProductDependencyBatchUpdate", "OriginsList", "OriginHubLevelMap"]
+    "ProductOriginCreate", "ProductDependencyBatchUpdate", "OriginsList", "OriginHubLevelMap", "BrandModel",
+    "TypeModel"]
 
 __all__ += ["HubMenuLevelSchema", "RenameRequest", "HubPositionPatchOut", "AddHubLevelScheme", "AddHubLevelOutScheme",
-            "HubPositionPatch", "HubLevelPath", "UpdateDeleteImageScheme", "UpdatedImageScheme"]
+            "HubPositionPatch", "HubLevelPath", "UpdateDeleteImageScheme", "UpdatedImageScheme", "PathRoute"]
 
 __all__ += [
     "HubLoadingData", "StockHubItemResult", "OriginsPayload", "HubItemTitlePatch", "HubItemsChangePriceRequest",
@@ -64,7 +66,7 @@ __all__ += ["CreateAttribute", "UpdateAttribute", "TypesDependenciesResponse", "
             "AttributeOriginValueCheckResponse"]
 
 __all__ += ["FormulaBase", "FormulaCreate", "FormulaUpdate", "FormulaResponse", "FormulaPreviewResponse",
-            "FormulaPreviewRequest", "FormulaValidateRequest"]
+            "FormulaPreviewRequest", "FormulaValidateRequest", "FormulaIdObj"]
 
 __all__ += ["FeaturesDataSet", "PathRoutes", "SetFeaturesHubLevelRequest", "SetLevelRoutesResponse", "FeaturesElement",
             "FeatureResponseScheme", "ProsConsItem", "ProsConsItemUpdate", "FeatureCategory",

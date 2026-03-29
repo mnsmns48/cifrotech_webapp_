@@ -19,18 +19,17 @@ class FormulaCreate(FormulaBase):
 class FormulaUpdate(FormulaBase):
     pass
 
+    class FormulaResponse(BaseModel):
+        id: int
+        name: str
+        formula: str
+        description: Optional[str]
+        entity_type: Optional[str]
+        is_active: bool
+        is_default: bool
 
-class FormulaResponse(BaseModel):
-    id: int
-    name: str
-    formula: str
-    description: Optional[str]
-    entity_type: Optional[str]
-    is_active: bool
-    is_default: bool
-
-    class Config:
-        from_attributes = True
+        class Config:
+            from_attributes = True
 
 
 class FormulaPreviewRequest(BaseModel):
@@ -43,3 +42,8 @@ class FormulaPreviewResponse(BaseModel):
 
 class FormulaValidateRequest(BaseModel):
     formula: str
+
+
+class FormulaIdObj(BaseModel):
+    id: int
+    name: str
