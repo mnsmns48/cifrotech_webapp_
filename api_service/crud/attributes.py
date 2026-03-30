@@ -8,10 +8,10 @@ from starlette import status
 
 from api_service.schemas import CreateAttribute, AttributeBrandRuleLink, ProductFeaturesAttributeOptions, \
     AttributeValueSchema, ModelAttributeValuesSchema, ModelAttributesRequest, ModelAttributesResponse, \
-    AttributeModelOptionLink, AttributeOriginValueCheckRequest, AttributeOriginValueCheckResponse
+    AttributeModelOptionLink, AttributeOriginValueCheckRequest, AttributeOriginValueCheckResponse, FormulaResponse
 
 from models import ProductType, AttributeKey, AttributeValue, AttributeLink, AttributeBrandRule, ProductBrand, \
-    ProductFeaturesGlobal, AttributeModelOption, ProductImage
+    ProductFeaturesGlobal, AttributeModelOption, ProductImage, FormulaExpression, ProductFeaturesFormulaLink
 from models.attributes import OverrideType, AttributeOriginValue
 
 
@@ -399,7 +399,37 @@ async def attributes_origin_value_check_request_db(payload: AttributeOriginValue
     stmt_have_images = select(exists().where(ProductImage.origin_id == payload.origin))
     have_images = (await session.execute(stmt_have_images)).scalar()
 
+    stmt_formula = (
+        select(
+            FormulaExpression.id,
+            FormulaExpression.name,
+            FormulaExpression.formula,
+            FormulaExpression.description,
+            FormulaExpression.entity_type,
+            FormulaExpression.is_active,
+            FormulaExpression.is_default,
+        )
+        .join(
+            ProductFeaturesFormulaLink,
+            ProductFeaturesFormulaLink.formula_id == FormulaExpression.id
+        )
+        .where(ProductFeaturesFormulaLink.feature_id == payload.model_id)
+    )
+
+    formula_row = (await session.execute(stmt_formula)).first()
+
+    formula = None
+    if formula_row:
+        formula = FormulaResponse(id=formula_row.id,
+                                  name=formula_row.name,
+                                  formula=formula_row.formula,
+                                  description=formula_row.description,
+                                  entity_type=formula_row.entity_type,
+                                  is_active=formula_row.is_active,
+                                  is_default=formula_row.is_default)
+
     return AttributeOriginValueCheckResponse(title=payload.title,
                                              have_images=bool(have_images),
+                                             formula=formula,
                                              attributes_allowable=list(allowable_map.values()),
                                              attributes_exists=list(exists_map.values()))

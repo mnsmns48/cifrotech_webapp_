@@ -2,6 +2,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, field_validator, ConfigDict
 
+from api_service.schemas.formula import FormulaResponse
 from models.attributes import OverrideType
 
 
@@ -159,5 +160,6 @@ class AttributeOriginValueCheckRequest(BaseModel):
 class AttributeOriginValueCheckResponse(BaseModel):
     title: str
     have_images: bool
+    formula: Optional[FormulaResponse]
     attributes_allowable: list[ModelAttributeValuesSchema]
     attributes_exists: list[ModelAttributeValuesSchema]
