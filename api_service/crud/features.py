@@ -11,7 +11,8 @@ from sqlalchemy.orm.attributes import flag_modified
 from api_service.schemas import HubLevelPath, PathRoutes, OriginHubLevelMap, FeaturesDataSet, FeaturesElement, \
     SetFeaturesHubLevelRequest, SetLevelRoutesResponse, FeatureResponseScheme, ProsConsItem, ProsConsItemUpdate, \
     FeatureCategory, UpdateFeatureCategoryRequest, InnerRowRequest, UpdateInnerRowRequest, FeatureIds, TypesAndBrands, \
-    CreateFeaturesGlobal, BrandModel, TypeModel, OriginsList, ProductOriginUpdate, PathRoute, FormulaIdObj
+    CreateFeaturesGlobal, BrandModel, TypeModel, OriginsList, ProductOriginUpdate, PathRoute, FormulaIdObj, \
+    SetFeaturesFormulaRequest, SetFormulaResponse
 
 from models import ProductFeaturesGlobal, ProductBrand, ProductType, HUbMenuLevel, FormulaExpression, \
     ProductFeaturesFormulaLink, ProductFeaturesHubMenuLevelLink, ProductFeaturesLink
@@ -515,3 +516,24 @@ async def create_new_feature_global_db(payload: CreateFeaturesGlobal, session: A
             "info": new_feature.info,
             "pros_cons": new_feature.pros_cons,
             "source": new_feature.source}
+
+
+async def set_feature_formula_dependency_db(payload: SetFeaturesFormulaRequest,
+                                            session: AsyncSession) -> SetFormulaResponse:
+    await session.execute(
+        delete(ProductFeaturesFormulaLink).where(ProductFeaturesFormulaLink.feature_id.in_(payload.feature_ids)))
+
+    stmt = (insert(ProductFeaturesFormulaLink).values(
+        [{"feature_id": fid, "formula_id": payload.formula_id} for fid in payload.feature_ids])
+    .returning(
+        ProductFeaturesFormulaLink.feature_id,
+        ProductFeaturesFormulaLink.formula_id)
+    )
+
+    result = await session.execute(stmt)
+    await session.commit()
+    rows = result.fetchall()
+
+    return SetFormulaResponse(updated={
+        r.feature_id: FormulaIdObj(id=r.formula_id, name=payload.formula_name) for r in rows}
+    )

@@ -88,3 +88,13 @@ class CreateFeaturesGlobal(BaseModel):
     title: str
     type_obj: TypeModel
     brand_obj: BrandModel
+
+
+class SetFeaturesFormulaRequest(BaseModel):
+    feature_ids: List[int]
+    formula_id: int
+    formula_name: str
+
+
+class SetFormulaResponse(BaseModel):
+    updated: Dict[int, FormulaIdObj]

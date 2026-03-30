@@ -6,12 +6,12 @@ from api_service.crud.features import product_features_depps_db, features_hub_le
     delete_pros_cons_value_db, add_pros_cons_value_db, update_pros_cons_value_db, create_new_info_category_db, \
     delete_info_category_db, update_info_category_db, add_new_features_inner_row_db, delete_features_inner_row_db, \
     update_features_inner_row_db, delete_feature_db, types_brands_request_db, add_new_brand_request_db, \
-    add_new_type_request_db, create_new_feature_global_db
+    add_new_type_request_db, create_new_feature_global_db, set_feature_formula_dependency_db
 
 from api_service.schemas import FeaturesDataSet, PathRoutes, SetFeaturesHubLevelRequest, SetLevelRoutesResponse, \
     OriginsList, OriginHubLevelMap, FeatureResponseScheme, ProsConsItem, ProsConsItemUpdate, FeatureCategory, \
     UpdateFeatureCategoryRequest, InnerRowRequest, UpdateInnerRowRequest, FeatureIds, TypesAndBrands, \
-    ProductOriginUpdate, CreateFeaturesGlobal
+    ProductOriginUpdate, CreateFeaturesGlobal, SetFeaturesFormulaRequest, SetFormulaResponse
 
 from engine import db
 
@@ -126,3 +126,9 @@ async def add_new_type_request(title: ProductOriginUpdate,
 async def create_new_feature_global(payload: CreateFeaturesGlobal,
                                     session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await create_new_feature_global_db(payload, session)
+
+
+@features_router.post("/features/set_formula_dependency", response_model=SetFormulaResponse)
+async def set_feature_formula_dependency(payload: SetFeaturesFormulaRequest,
+                                         session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await set_feature_formula_dependency_db(payload, session)
