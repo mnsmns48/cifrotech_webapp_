@@ -71,3 +71,10 @@ async def store_new_prices_hubstock_items(
     if result:
         await session.commit()
     return patch_data
+
+
+@comparison_router.post("/stepbystep_implementation_of_changes")
+async def stepbystep_implementation_of_changes(payload: ComparisonOutScheme,
+                                               session: AsyncSession = Depends(db.scoped_session_dependency)):
+    print(payload)
+    return {'ok': True}
