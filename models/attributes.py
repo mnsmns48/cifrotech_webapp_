@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 import enum
 
-from sqlalchemy import ForeignKey, UniqueConstraint, Enum, Text, String, Boolean
+from sqlalchemy import ForeignKey, UniqueConstraint, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models import Base

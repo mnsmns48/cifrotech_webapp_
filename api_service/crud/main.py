@@ -1,10 +1,8 @@
-import os
 from asyncio import gather
 from collections import defaultdict
 from datetime import datetime
 from typing import List, Optional, Sequence, Dict, Union, Any
 
-from aiobotocore.client import AioBaseClient
 from aiohttp import ClientSession
 from botocore.exceptions import ClientError, BotoCoreError
 from fastapi import HTTPException
@@ -16,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, InstrumentedAttribute
 
 from api_service.api_connect import get_one_by_dtube
-from api_service.s3_helper import scan_s3_images, generate_presigned_image_urls
+from api_service.s3_helper import generate_presigned_image_urls
 
 from api_service.utils import normalize_origin, update_feature_if_changed
 from config import settings
@@ -26,7 +24,8 @@ from models import Vendor, VendorSearchLine, ProductOrigin, ParsingLine, RewardR
 from api_service.schemas import SourceContext, ParsingLinesIn, ParsingResultOut, ProductOriginCreate, \
     RewardRangeResponseSchema, RewardRangeLineSchema, RewardRangeBaseSchema, HubLevelPath, VSLScheme, ParsingToDiffData, \
     HubToDiffData, RecomputedResult, RecomputedNewPriceLines, ParsingResultAttributeResponse, AttributeValueSchema, \
-    AddAttributesValuesRequest, DependencyImageItem, DependencyOriginImplementation, ImageResponseItem
+    AddAttributesValuesRequest, DependencyImageItem, DependencyOriginImplementation, ImageResponseItem, \
+    ComparisonOutScheme, UnidentifiedOrigin, UnidentifiedOrigins
 
 
 async def get_vendor_and_vsl(session: AsyncSession, vsl_id: int) -> Optional[SourceContext]:
@@ -870,3 +869,66 @@ async def implement_dependency_images_logic(
     except (IntegrityError, SQLAlchemyError):
         await session.rollback()
         return None
+
+
+async def fetch_unidentified_origins_db(payload: ComparisonOutScheme,
+                                        session: AsyncSession) -> UnidentifiedOrigins:
+    vsl_ids = [v.id for v in payload.vsl_list]
+
+    if not vsl_ids:
+        return UnidentifiedOrigins(origins=[])
+    img_count = func.count(ProductImage.id).label("img_count")
+    stmt = (
+        select(ParsingLine.origin,
+               ParsingLine.vsl_id,
+               ProductOrigin.title,
+               ParsingLine.output_price.label("price"),
+               img_count)
+        .select_from(ParsingLine)
+        .join(ProductOrigin, ProductOrigin.origin == ParsingLine.origin)
+        .join(
+            ProductImage,
+            ProductImage.origin_id == ProductOrigin.origin,
+            isouter=True
+        )
+        .join(
+            ProductFeaturesLink,
+            ProductFeaturesLink.origin == ParsingLine.origin,
+            isouter=True
+        )
+        .join(
+            AttributeOriginValue,
+            AttributeOriginValue.origin_id == ParsingLine.origin,
+            isouter=True
+        )
+        .where(ProductOrigin.is_deleted.is_(False))
+        .where(ParsingLine.vsl_id.in_(vsl_ids))
+        .where(ProductFeaturesLink.origin.is_(None))
+        .where(AttributeOriginValue.origin_id.is_(None))
+
+        .group_by(
+            ParsingLine.origin,
+            ParsingLine.vsl_id,
+            ProductOrigin.title,
+            ParsingLine.output_price
+        )
+        .order_by(ParsingLine.vsl_id, ParsingLine.output_price)
+    )
+
+    result = await session.execute(stmt)
+
+    origins: list[UnidentifiedOrigin] = list()
+
+    for row in result.all():
+        origins.append(
+            UnidentifiedOrigin(origin=row.origin,
+                               title=row.title,
+                               vsl_id=row.vsl_id,
+                               price=row.price,
+                               have_images=row.img_count > 0,
+                               have_attributes=[],
+                               feature=None,
+                               type_=None,
+                               brand=None))
+
+    return UnidentifiedOrigins(origins=origins)

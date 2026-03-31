@@ -4,10 +4,10 @@ from fastapi import Depends, APIRouter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.crud.main import get_all_children_cte, get_lines_by_origins, get_origins_by_path_ids, get_parsing_map, \
-    get_hub_map, get_recomputed_lines, update_hubstock_prices
+    get_hub_map, get_recomputed_lines, update_hubstock_prices, fetch_unidentified_origins_db
 from api_service.func import generate_diff_tabs
 from api_service.schemas import ComparisonOutScheme, ComparisonInScheme, HubLevelPath, VSLScheme, ParsingHubDiffOut, \
-    ParsingToDiffData, HubToDiffData, RecalcScheme, RecomputedResult
+    ParsingToDiffData, HubToDiffData, RecalcScheme, RecomputedResult, UnidentifiedOrigins
 from engine import db
 from models import VendorSearchLine
 
@@ -73,8 +73,7 @@ async def store_new_prices_hubstock_items(
     return patch_data
 
 
-@comparison_router.post("/stepbystep_implementation_of_changes")
-async def stepbystep_implementation_of_changes(payload: ComparisonOutScheme,
-                                               session: AsyncSession = Depends(db.scoped_session_dependency)):
-    print(payload)
-    return {'ok': True}
+@comparison_router.post("/fetch_unidentified_origins", response_model=UnidentifiedOrigins)
+async def fetch_unidentified_origins(payload: ComparisonOutScheme,
+                                          session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await fetch_unidentified_origins_db(payload, session)

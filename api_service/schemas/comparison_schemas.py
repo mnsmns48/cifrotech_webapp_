@@ -5,6 +5,8 @@ from pydantic import BaseModel, HttpUrl, model_validator
 
 from api_service.schemas.vsl_schemas import VSLScheme
 from api_service.schemas.hub_schemas import HubLevelPath
+from api_service.schemas.product_schemas import TypeModel, BrandModel
+from api_service.schemas.attribute_schemas import AttributeValueSchema
 from var_types import PriceDiffStatus
 
 
@@ -102,3 +104,19 @@ class RecomputedResult(BaseModel):
     path_id: int
     label: str
     recomputed_items: Optional[List[RecomputedNewPriceLines]]
+
+
+class UnidentifiedOrigin(BaseModel):
+    type_: Optional[TypeModel]
+    brand: Optional[BrandModel]
+    origin: int
+    title: str
+    vsl_id: int
+    price: Optional[float]
+    feature: Optional[str]
+    have_attributes: Optional[list[AttributeValueSchema]]
+    have_images: bool
+
+
+class UnidentifiedOrigins(BaseModel):
+    origins: List[UnidentifiedOrigin]

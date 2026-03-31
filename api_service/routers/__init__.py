@@ -18,16 +18,12 @@ service_router = APIRouter(prefix="/service", dependencies=[Depends(current_supe
 service_router.include_router(printer_router)
 service_router.include_router(vendor_router)
 service_router.include_router(vendor_search_line_router)
-
 service_router.include_router(parsing_router)
-
 service_router.include_router(reward_range_router)
 service_router.include_router(hub_router)
 service_router.include_router(hubstock_router)
 service_router.include_router(comparison_router)
 service_router.include_router(utils_router)
 service_router.include_router(attributes_router)
-
 service_router.include_router(formula_router)
-
 service_router.include_router(features_router)
