@@ -116,6 +116,7 @@ class UnidentifiedOrigin(BaseModel):
     feature: Optional[str]
     have_attributes: Optional[list[AttributeValueSchema]]
     have_images: bool
+    model_in_hub: bool
 
 
 class UnidentifiedOrigins(BaseModel):
