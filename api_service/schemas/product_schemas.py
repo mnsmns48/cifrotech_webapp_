@@ -92,3 +92,8 @@ class BrandModel(BaseModel):
 class TypeModel(BaseModel):
     id: int
     type: str
+
+
+class FeatureModel(BaseModel):
+    model_id: int
+    model_title: str

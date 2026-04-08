@@ -25,7 +25,7 @@ from api_service.schemas import SourceContext, ParsingLinesIn, ParsingResultOut,
     RewardRangeResponseSchema, RewardRangeLineSchema, RewardRangeBaseSchema, HubLevelPath, VSLScheme, ParsingToDiffData, \
     HubToDiffData, RecomputedResult, RecomputedNewPriceLines, ParsingResultAttributeResponse, AttributeValueSchema, \
     AddAttributesValuesRequest, DependencyImageItem, DependencyOriginImplementation, ImageResponseItem, \
-    ComparisonOutScheme, UnidentifiedOrigin, UnidentifiedOrigins, TypeModel, BrandModel
+    ComparisonOutScheme, UnidentifiedOrigin, UnidentifiedOrigins, TypeModel, BrandModel, FeatureModel
 
 
 async def get_vendor_and_vsl(session: AsyncSession, vsl_id: int) -> Optional[SourceContext]:
@@ -911,7 +911,8 @@ async def fetch_unidentified_origins_db(payload: ComparisonOutScheme, session: A
                img_count,
                model_in_hub,
                has_model,
-               ProductFeaturesGlobal.title.label("feature_title"),
+               ProductFeaturesGlobal.id.label("model_id"),
+               ProductFeaturesGlobal.title.label("model_title"),
                ProductType.id.label("type_id"),
                ProductType.type.label("type_name"),
                ProductBrand.id.label("brand_id"),
@@ -930,17 +931,20 @@ async def fetch_unidentified_origins_db(payload: ComparisonOutScheme, session: A
 
         .where(AttributeOriginValue.origin_id.is_(None))
 
-        .group_by(ParsingLine.origin,
-                  ParsingLine.vsl_id,
-                  ProductOrigin.title,
-                  ParsingLine.output_price,
-                  ProductFeaturesGlobal.title,
-                  ProductType.id,
-                  ProductType.type,
-                  ProductBrand.id,
-                  ProductBrand.brand,
-                  model_in_hub,
-                  has_model)
+        .group_by(
+            ParsingLine.origin,
+            ParsingLine.vsl_id,
+            ProductOrigin.title,
+            ParsingLine.output_price,
+            ProductFeaturesGlobal.id,
+            ProductFeaturesGlobal.title,
+            ProductType.id,
+            ProductType.type,
+            ProductBrand.id,
+            ProductBrand.brand,
+            model_in_hub,
+            has_model
+        )
 
         .order_by((model_in_hub > 0).desc(),
                   has_model.desc(),
@@ -958,7 +962,10 @@ async def fetch_unidentified_origins_db(payload: ComparisonOutScheme, session: A
                                           price=row.price,
                                           have_images=row.img_count > 0,
                                           have_attributes=[],
-                                          feature=row.feature_title,
+                                          model=FeatureModel(
+                                              model_id=row.model_id,
+                                              model_title=row.model_title
+                                          ) if row.model_id else None,
                                           type_=TypeModel(id=row.type_id, type=row.type_name) if row.type_id else None,
                                           brand=BrandModel(id=row.brand_id,
                                                            brand=row.brand_name) if row.brand_id else None,
