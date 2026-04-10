@@ -5,7 +5,7 @@ from pydantic import BaseModel, HttpUrl, model_validator
 
 from api_service.schemas.vsl_schemas import VSLScheme
 from api_service.schemas.hub_schemas import HubLevelPath
-from api_service.schemas.product_schemas import TypeModel, BrandModel, FeatureModel
+from api_service.schemas.product_schemas import TypeModel, BrandModel
 from api_service.schemas.attribute_schemas import AttributeValueSchema
 from var_types import PriceDiffStatus
 
@@ -113,7 +113,8 @@ class UnidentifiedOrigin(BaseModel):
     title: str
     vsl_id: int
     price: Optional[float]
-    model: Optional[FeatureModel]
+    model_id: Optional[int]
+    model_title: Optional[str]
     have_attributes: Optional[list[AttributeValueSchema]]
     have_images: bool
     model_in_hub: bool

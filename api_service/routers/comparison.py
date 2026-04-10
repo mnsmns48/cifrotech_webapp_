@@ -75,5 +75,5 @@ async def store_new_prices_hubstock_items(
 
 @comparison_router.post("/fetch_unidentified_origins", response_model=UnidentifiedOrigins)
 async def fetch_unidentified_origins(payload: ComparisonOutScheme,
-                                          session: AsyncSession = Depends(db.scoped_session_dependency)):
+                                     session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await fetch_unidentified_origins_db(payload, session)

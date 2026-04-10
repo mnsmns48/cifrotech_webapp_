@@ -145,7 +145,7 @@ async def process_dependency_item(item: ProductDependencyUpdate, session: AsyncS
         item.title, prod_type.id, prod_brand.id, item.source, item.info, item.pros_cons, session, title_cache)
     await link_origin_to_feature(item.origin, feature.id, session)
 
-    return {"origin": item.origin, "feature_id": feature.id}
+    return {"origin": item.origin, "model_id": feature.id}
 
 
 @parsing_router.post("/update_parsing_item_dependency/")
@@ -166,7 +166,6 @@ async def update_parsing_item_dependency(
     except SQLAlchemyError:
         await session.rollback()
         raise HTTPException(status_code=500, detail="Ошибка при сохранении зависимостей")
-
     return {"success": success, "errors": errors}
 
 

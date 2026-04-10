@@ -25,7 +25,7 @@ from api_service.schemas import SourceContext, ParsingLinesIn, ParsingResultOut,
     RewardRangeResponseSchema, RewardRangeLineSchema, RewardRangeBaseSchema, HubLevelPath, VSLScheme, ParsingToDiffData, \
     HubToDiffData, RecomputedResult, RecomputedNewPriceLines, ParsingResultAttributeResponse, AttributeValueSchema, \
     AddAttributesValuesRequest, DependencyImageItem, DependencyOriginImplementation, ImageResponseItem, \
-    ComparisonOutScheme, UnidentifiedOrigin, UnidentifiedOrigins, TypeModel, BrandModel, FeatureModel
+    ComparisonOutScheme, UnidentifiedOrigin, UnidentifiedOrigins, TypeModel, BrandModel
 
 
 async def get_vendor_and_vsl(session: AsyncSession, vsl_id: int) -> Optional[SourceContext]:
@@ -962,10 +962,8 @@ async def fetch_unidentified_origins_db(payload: ComparisonOutScheme, session: A
                                           price=row.price,
                                           have_images=row.img_count > 0,
                                           have_attributes=[],
-                                          model=FeatureModel(
-                                              model_id=row.model_id,
-                                              model_title=row.model_title
-                                          ) if row.model_id else None,
+                                          model_id=row.model_id,
+                                          model_title=row.model_title,
                                           type_=TypeModel(id=row.type_id, type=row.type_name) if row.type_id else None,
                                           brand=BrandModel(id=row.brand_id,
                                                            brand=row.brand_name) if row.brand_id else None,
