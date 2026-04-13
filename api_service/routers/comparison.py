@@ -1,13 +1,17 @@
-from typing import List, Dict
+from typing import List, Dict, Any
 
 from fastapi import Depends, APIRouter
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api_service.crud.hub import fetch_final_leaf_ids, fetch_hub_routes_db
 from api_service.crud.main import get_all_children_cte, get_lines_by_origins, get_origins_by_path_ids, get_parsing_map, \
-    get_hub_map, get_recomputed_lines, update_hubstock_prices, fetch_unidentified_origins_db
+    get_hub_map, get_recomputed_lines, update_hubstock_prices, fetch_unidentified_origins_db, \
+    fetch_hubstock_selected_models
 from api_service.func import generate_diff_tabs
 from api_service.schemas import ComparisonOutScheme, ComparisonInScheme, HubLevelPath, VSLScheme, ParsingHubDiffOut, \
-    ParsingToDiffData, HubToDiffData, RecalcScheme, RecomputedResult, UnidentifiedOrigins
+    ParsingToDiffData, HubToDiffData, RecalcScheme, RecomputedResult, UnidentifiedOrigins, HubRoutes, \
+    ComparableModel, ComparableUnion, HubMenuLevelSchema, FeatureModel
+
 from engine import db
 from models import VendorSearchLine
 
@@ -77,3 +81,21 @@ async def store_new_prices_hubstock_items(
 async def fetch_unidentified_origins(payload: ComparisonOutScheme,
                                      session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await fetch_unidentified_origins_db(payload, session)
+
+
+@comparison_router.post("/fetch_hub_routes", response_model=dict[int, dict[str, Any]])
+async def fetch_hub_routes(payload: ComparisonOutScheme,
+                           session: AsyncSession = Depends(db.scoped_session_dependency)):
+    leaf_path_ids: List = await fetch_final_leaf_ids(path_ids=payload.path_ids, session=session)
+    routes: dict[int, dict[str, List[HubMenuLevelSchema]]] = await fetch_hub_routes_db(leaf_path_ids, session)
+    models_in_hub_: dict[int, dict[str, List[FeatureModel]]] = await fetch_hubstock_selected_models(leaf_path_ids,
+                                                                                                    session)
+    merged: dict[int, dict[str, Any]] = dict()
+
+    for path_id in leaf_path_ids:
+        merged[path_id] = {
+            "route": routes.get(path_id, {}).get("route", []),
+            "models": models_in_hub_.get(path_id, {}).get("models", []),
+        }
+
+    return merged

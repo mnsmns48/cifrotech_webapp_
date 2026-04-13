@@ -7,7 +7,7 @@ from aiohttp import ClientSession
 from botocore.exceptions import ClientError, BotoCoreError
 from fastapi import HTTPException
 from redis.asyncio import Redis
-from sqlalchemy import delete, update, and_, select, func, case
+from sqlalchemy import delete, update, and_, select, func, case, exists, not_, literal, Integer
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,17 +15,20 @@ from sqlalchemy.orm import selectinload, InstrumentedAttribute, aliased
 
 from api_service.api_connect import get_one_by_dtube
 from api_service.s3_helper import generate_presigned_image_urls
+from api_service.schemas.comparison_schemas import HubRoutes, ComparableModel
 
 from api_service.utils import normalize_origin, update_feature_if_changed
+from app_utils import get_url_from_s3
 from config import settings
 from models import Vendor, VendorSearchLine, ProductOrigin, ParsingLine, RewardRange, RewardRangeLine, \
     ProductFeaturesLink, ProductFeaturesGlobal, ProductType, ProductBrand, HUbStock, HUbMenuLevel, StockTableDependency, \
-    StockTable, ServiceImage, AttributeOriginValue, ProductImage
+    StockTable, ServiceImage, AttributeOriginValue, ProductImage, ProductFeaturesHubMenuLevelLink
 from api_service.schemas import SourceContext, ParsingLinesIn, ParsingResultOut, ProductOriginCreate, \
     RewardRangeResponseSchema, RewardRangeLineSchema, RewardRangeBaseSchema, HubLevelPath, VSLScheme, ParsingToDiffData, \
     HubToDiffData, RecomputedResult, RecomputedNewPriceLines, ParsingResultAttributeResponse, AttributeValueSchema, \
     AddAttributesValuesRequest, DependencyImageItem, DependencyOriginImplementation, ImageResponseItem, \
-    ComparisonOutScheme, UnidentifiedOrigin, UnidentifiedOrigins, TypeModel, BrandModel
+    ComparisonOutScheme, UnidentifiedOrigin, UnidentifiedOrigins, TypeModel, BrandModel, HubMenuLevelSchema, \
+    FeatureModel
 
 
 async def get_vendor_and_vsl(session: AsyncSession, vsl_id: int) -> Optional[SourceContext]:
@@ -971,3 +974,134 @@ async def fetch_unidentified_origins_db(payload: ComparisonOutScheme, session: A
                        )
 
     return UnidentifiedOrigins(origins=origins)
+
+
+async def fetch_hubstock_selected_models(
+    path_ids: list[int],
+    session: AsyncSession
+) -> dict[int, dict[str, list[FeatureModel]]]:
+
+    # 1. Загружаем hubstock: path_id → {origins}, path_id → {vsl_id}
+    hubstock_rows = (
+        await session.execute(
+            select(HUbStock.path_id, HUbStock.origin, HUbStock.vsl_id)
+            .where(HUbStock.path_id.in_(path_ids))
+        )
+    ).mappings().all()
+
+    hub_origins_by_path: dict[int, set[str]] = {}
+    vsl_ids_by_path: dict[int, set[int]] = {}
+
+    for row in hubstock_rows:
+        hub_origins_by_path.setdefault(row["path_id"], set()).add(row["origin"])
+        vsl_ids_by_path.setdefault(row["path_id"], set()).add(row["vsl_id"])
+
+    # 2. Для каждого path_id → получить parsing origins по его vsl_id
+    parsing_origins_by_path: dict[int, set[str]] = {}
+
+    for path_id, vsl_ids in vsl_ids_by_path.items():
+        if not vsl_ids:
+            parsing_origins_by_path[path_id] = set()
+            continue
+
+        rows = (
+            await session.execute(
+                select(ParsingLine.origin)
+                .where(ParsingLine.vsl_id.in_(vsl_ids))
+            )
+        ).mappings().all()
+
+        parsing_origins_by_path[path_id] = {r["origin"] for r in rows}
+
+    # 3. Собираем ВСЕ origin, чтобы одним запросом получить feature_id
+    all_origins = set()
+    for path_id in path_ids:
+        all_origins |= hub_origins_by_path.get(path_id, set())
+        all_origins |= parsing_origins_by_path.get(path_id, set())
+
+    if not all_origins:
+        return {pid: {"models": []} for pid in path_ids}
+
+    # 4. origin → feature_id
+    feature_rows = (
+        await session.execute(
+            select(ProductFeaturesLink.origin, ProductFeaturesLink.feature_id)
+            .where(ProductFeaturesLink.origin.in_(all_origins))
+        )
+    ).mappings().all()
+
+    feature_id_by_origin = {r["origin"]: r["feature_id"] for r in feature_rows}
+
+    # 5. Собираем все feature_id
+    all_feature_ids = set(feature_id_by_origin.values())
+
+    # 6. Загружаем модели по feature_id
+    type_alias = aliased(ProductType)
+    brand_alias = aliased(ProductBrand)
+
+    model_rows = (
+        await session.execute(
+            select(
+                ProductFeaturesGlobal.id,
+                ProductFeaturesGlobal.title,
+                type_alias.id.label("type_id"),
+                type_alias.type.label("type_name"),
+                brand_alias.id.label("brand_id"),
+                brand_alias.brand.label("brand_name"),
+            )
+            .join(type_alias, type_alias.id == ProductFeaturesGlobal.type_id)
+            .join(brand_alias, brand_alias.id == ProductFeaturesGlobal.brand_id)
+            .where(ProductFeaturesGlobal.id.in_(all_feature_ids))
+            .order_by(ProductFeaturesGlobal.title)
+        )
+    ).mappings().all()
+
+    model_by_id = {row["id"]: row for row in model_rows}
+
+    # 7. Формируем результат: уникальные модели для каждого path_id
+    result: dict[int, dict[str, list[FeatureModel]]] = {}
+
+    for path_id in path_ids:
+        parsing_origins = parsing_origins_by_path.get(path_id, set())
+        hub_origins = hub_origins_by_path.get(path_id, set())
+
+        # объединяем origins
+        origins = parsing_origins | hub_origins
+
+        models_by_fid: dict[int, FeatureModel] = {}
+
+        for origin in origins:
+            fid = feature_id_by_origin.get(origin)
+            if not fid:
+                continue
+
+            row = model_by_id.get(fid)
+            if not row:
+                continue
+
+            in_parsing = origin in parsing_origins
+            in_hub = origin in hub_origins
+
+            if fid in models_by_fid:
+                # аккумулируем статусы
+                m = models_by_fid[fid]
+                m.in_parsing = m.in_parsing or in_parsing
+                m.in_hub = m.in_hub or in_hub
+                continue
+
+            models_by_fid[fid] = FeatureModel(
+                id=fid,
+                title=row["title"],
+                type_=TypeModel(id=row["type_id"], type=row["type_name"]),
+                brand=BrandModel(id=row["brand_id"], brand=row["brand_name"]),
+                in_parsing=in_parsing,
+                in_hub=in_hub,
+            )
+
+        result[path_id] = {"models": list(models_by_fid.values())}
+
+    return result
+
+
+
+

@@ -92,3 +92,12 @@ class BrandModel(BaseModel):
 class TypeModel(BaseModel):
     id: int
     type: str
+
+
+class FeatureModel(BaseModel):
+    id: int
+    title: str
+    type_: TypeModel
+    brand: BrandModel
+    in_hub: bool
+    in_parsing: bool

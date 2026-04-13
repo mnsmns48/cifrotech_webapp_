@@ -1,17 +1,17 @@
 from api_service.schemas.hub_schemas import HubMenuLevelSchema, RenameRequest, HubPositionPatchOut, AddHubLevelScheme, \
     AddHubLevelOutScheme, HubPositionPatch, HubLevelPath, UpdateDeleteImageScheme, UpdatedImageScheme, PathRoutes, \
-    OriginHubLevelMap, PathRoute
+    OriginHubLevelMap, PathRoute, HubMenuLevelSchema
 from api_service.schemas.hubstock_schemas import (HubLoadingData, StockHubItemResult, OriginsPayload,
                                                   HubItemTitlePatch, HubItemsChangePriceRequest,
                                                   HubItemsChangePriceResponse)
 from api_service.schemas.comparison_schemas import ComparisonInScheme, ComparisonOutScheme, ParsingLine, \
     ConsentProcessScheme, ParsingHubDiffOut, HubToDiffData, RecalcScheme, RecomputedResult, RecomputedNewPriceLines, \
-    ParsingHubDiffItem, UnidentifiedOrigins, UnidentifiedOrigin
+    ParsingHubDiffItem, UnidentifiedOrigins, UnidentifiedOrigin, HubRoutes, ComparableModel, ComparableUnion
 from api_service.schemas.parsing_schemas import ParsingRequest, ParsingLinesIn, ParsingToDiffData, SourceContext, \
     ParsingResultOut, AddAttributesValuesRequest, DependencyImageItem, DependencyOriginImplementation, ImageResponseItem
 from api_service.schemas.product_schemas import ProductOriginUpdate, ProductDependencyUpdate, ProductResponse, \
     RecalcPricesRequest, RecalcPricesResponse, ProductOriginCreate, ProductDependencyBatchUpdate, OriginsList, \
-    TypeModel, BrandModel
+    TypeModel, BrandModel, FeatureModel
 from api_service.schemas.range_reward_schemas import RewardRangeLineSchema, RewardRangeSchema, \
     RewardRangeResponseSchema, RewardRangeBaseSchema
 from api_service.schemas.vsl_schemas import VSLScheme
@@ -41,10 +41,11 @@ __all__ += ["RewardRangeLineSchema", "RewardRangeSchema", "RewardRangeResponseSc
 __all__ += [
     "ProductOriginUpdate", "ProductDependencyUpdate", "ProductResponse", "RecalcPricesRequest", "RecalcPricesResponse",
     "ProductOriginCreate", "ProductDependencyBatchUpdate", "OriginsList", "OriginHubLevelMap", "BrandModel",
-    "TypeModel"]
+    "TypeModel", "FeatureModel"]
 
 __all__ += ["HubMenuLevelSchema", "RenameRequest", "HubPositionPatchOut", "AddHubLevelScheme", "AddHubLevelOutScheme",
-            "HubPositionPatch", "HubLevelPath", "UpdateDeleteImageScheme", "UpdatedImageScheme", "PathRoute"]
+            "HubPositionPatch", "HubLevelPath", "UpdateDeleteImageScheme", "UpdatedImageScheme", "PathRoute",
+            "HubMenuLevelSchema"]
 
 __all__ += [
     "HubLoadingData", "StockHubItemResult", "OriginsPayload", "HubItemTitlePatch", "HubItemsChangePriceRequest",
@@ -52,7 +53,8 @@ __all__ += [
 
 __all__ += ["ComparisonInScheme", "ComparisonOutScheme", "ParsingLine", "ConsentProcessScheme",
             "ParsingHubDiffOut", "HubToDiffData", "RecalcScheme", "RecomputedResult", "RecomputedNewPriceLines",
-            "ParsingHubDiffItem", "UnidentifiedOrigins", "UnidentifiedOrigin"]
+            "ParsingHubDiffItem", "UnidentifiedOrigins", "UnidentifiedOrigin", "HubRoutes", "ComparableModel",
+            "ComparableUnion"]
 
 __all__ += ["ServiceImageResponse", "ServiceImageCreate", "ServiceImageUpdate"]
 

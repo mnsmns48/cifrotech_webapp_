@@ -4,8 +4,8 @@ from typing import Optional, List
 from pydantic import BaseModel, HttpUrl, model_validator
 
 from api_service.schemas.vsl_schemas import VSLScheme
-from api_service.schemas.hub_schemas import HubLevelPath
-from api_service.schemas.product_schemas import TypeModel, BrandModel
+from api_service.schemas.hub_schemas import HubLevelPath, HubMenuLevelSchema
+from api_service.schemas.product_schemas import TypeModel, BrandModel, FeatureModel
 from api_service.schemas.attribute_schemas import AttributeValueSchema
 from var_types import PriceDiffStatus
 
@@ -122,3 +122,19 @@ class UnidentifiedOrigin(BaseModel):
 
 class UnidentifiedOrigins(BaseModel):
     origins: List[UnidentifiedOrigin]
+
+
+class HubRoutes(BaseModel):
+    path_id: int
+    route: List[HubMenuLevelSchema]
+
+
+class ComparableModel(BaseModel):
+    path_id: int
+    models: List[FeatureModel]
+
+
+class ComparableUnion(BaseModel):
+    path_id: int
+    route: List[HubMenuLevelSchema]
+    models: List[FeatureModel]
