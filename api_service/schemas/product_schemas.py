@@ -109,4 +109,4 @@ class ResolveFeatureModel(BaseModel):
     brand: BrandModel
     in_hub: bool
     in_parsing: bool
-    # available: List[ConcurrentAvailable]
+    available: list[ConcurrentAvailable] = []

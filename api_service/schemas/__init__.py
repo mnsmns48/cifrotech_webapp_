@@ -11,7 +11,7 @@ from api_service.schemas.parsing_schemas import ParsingRequest, ParsingLinesIn, 
     ParsingResultOut, AddAttributesValuesRequest, DependencyImageItem, DependencyOriginImplementation, ImageResponseItem
 from api_service.schemas.product_schemas import ProductOriginUpdate, ProductDependencyUpdate, ProductResponse, \
     RecalcPricesRequest, RecalcPricesResponse, ProductOriginCreate, ProductDependencyBatchUpdate, OriginsList, \
-    TypeModel, BrandModel, ResolveFeatureModel
+    TypeModel, BrandModel, ResolveFeatureModel, ConcurrentAvailable
 from api_service.schemas.range_reward_schemas import RewardRangeLineSchema, RewardRangeSchema, \
     RewardRangeResponseSchema, RewardRangeBaseSchema
 from api_service.schemas.vsl_schemas import VSLScheme
@@ -41,7 +41,7 @@ __all__ += ["RewardRangeLineSchema", "RewardRangeSchema", "RewardRangeResponseSc
 __all__ += [
     "ProductOriginUpdate", "ProductDependencyUpdate", "ProductResponse", "RecalcPricesRequest", "RecalcPricesResponse",
     "ProductOriginCreate", "ProductDependencyBatchUpdate", "OriginsList", "OriginHubLevelMap", "BrandModel",
-    "TypeModel", "ResolveFeatureModel"]
+    "TypeModel", "ResolveFeatureModel", "ConcurrentAvailable"]
 
 __all__ += ["HubMenuLevelSchema", "RenameRequest", "HubPositionPatchOut", "AddHubLevelScheme", "AddHubLevelOutScheme",
             "HubPositionPatch", "HubLevelPath", "UpdateDeleteImageScheme", "UpdatedImageScheme", "PathRoute",

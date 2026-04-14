@@ -15,7 +15,7 @@ from sqlalchemy.orm import selectinload, InstrumentedAttribute, aliased
 
 from api_service.api_connect import get_one_by_dtube
 from api_service.crud._optional_funcs import assemble_comparable_models, load_hubstock_origins_by_path_ids, \
-    load_parsing_origins, load_feature_ids, load_models
+    load_parsing_origins, load_feature_ids, load_models, load_unique_available_by_origin
 from api_service.s3_helper import generate_presigned_image_urls
 from api_service.schemas.comparison_schemas import HubRoutes, ComparableModel
 
@@ -997,12 +997,13 @@ async def resolve_comparison_selected_models(path_ids, session):
 
     model_by_id = await load_models(all_feature_ids, session)
 
+    unique_available_by_origin = await load_unique_available_by_origin(all_origins, session)
+
     return assemble_comparable_models(
         path_ids,
         hub_origins_by_path,
         parsing_origins_by_path,
         feature_id_by_origin,
-        model_by_id
+        model_by_id,
+        unique_available_by_origin
     )
-
-
