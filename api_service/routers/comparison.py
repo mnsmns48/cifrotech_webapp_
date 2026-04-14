@@ -6,11 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api_service.crud.hub import fetch_final_leaf_ids, fetch_hub_routes_db
 from api_service.crud.main import get_all_children_cte, get_lines_by_origins, get_origins_by_path_ids, get_parsing_map, \
     get_hub_map, get_recomputed_lines, update_hubstock_prices, fetch_unidentified_origins_db, \
-    fetch_hubstock_selected_models
+    resolve_comparison_selected_models
 from api_service.func import generate_diff_tabs
 from api_service.schemas import ComparisonOutScheme, ComparisonInScheme, HubLevelPath, VSLScheme, ParsingHubDiffOut, \
     ParsingToDiffData, HubToDiffData, RecalcScheme, RecomputedResult, UnidentifiedOrigins, HubRoutes, \
-    ComparableModel, ComparableUnion, HubMenuLevelSchema, FeatureModel
+    ComparableModel, ComparableUnion, HubMenuLevelSchema, ResolveFeatureModel
 
 from engine import db
 from models import VendorSearchLine
@@ -83,19 +83,27 @@ async def fetch_unidentified_origins(payload: ComparisonOutScheme,
     return await fetch_unidentified_origins_db(payload, session)
 
 
-@comparison_router.post("/fetch_hub_routes", response_model=dict[int, dict[str, Any]])
+@comparison_router.post("/resolve_models_for_comparison", response_model=List[ComparableUnion])
 async def fetch_hub_routes(payload: ComparisonOutScheme,
                            session: AsyncSession = Depends(db.scoped_session_dependency)):
     leaf_path_ids: List = await fetch_final_leaf_ids(path_ids=payload.path_ids, session=session)
-    routes: dict[int, dict[str, List[HubMenuLevelSchema]]] = await fetch_hub_routes_db(leaf_path_ids, session)
-    models_in_hub_: dict[int, dict[str, List[FeatureModel]]] = await fetch_hubstock_selected_models(leaf_path_ids,
-                                                                                                    session)
-    merged: dict[int, dict[str, Any]] = dict()
+    routes: List[HubRoutes] = await fetch_hub_routes_db(leaf_path_ids, session)
+    models_in_hub_: List[ComparableModel] = await resolve_comparison_selected_models(leaf_path_ids, session)
 
-    for path_id in leaf_path_ids:
-        merged[path_id] = {
-            "route": routes.get(path_id, {}).get("route", []),
-            "models": models_in_hub_.get(path_id, {}).get("models", []),
-        }
+    merged: List[ComparableUnion] = list()
+    _buffer = dict()
+
+    for item in models_in_hub_:
+        _buffer[item.path_id] = item.models
+
+    for route_item in routes:
+        pid = route_item.path_id
+
+        if pid in _buffer:
+            models = _buffer[pid]
+        else:
+            models = []
+
+        merged.append(ComparableUnion(path_id=pid, route=route_item.route, models=models))
 
     return merged

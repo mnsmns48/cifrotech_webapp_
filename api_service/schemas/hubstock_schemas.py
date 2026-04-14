@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional, List
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from api_service.schemas.range_reward_schemas import RewardRangeBaseSchema
 

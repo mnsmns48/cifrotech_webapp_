@@ -24,7 +24,7 @@ async def fetch_final_leaf_ids(path_ids: List, session: AsyncSession) -> List:
     return leaf_ids
 
 
-async def fetch_hub_routes_db(path_ids, session) -> dict[int, dict[str, List[HubMenuLevelSchema]]]:
+async def fetch_hub_routes_db(path_ids, session) -> List[HubRoutes]:
     base = (select(HUbMenuLevel.id,
                    HUbMenuLevel.label,
                    HUbMenuLevel.icon,
@@ -58,23 +58,28 @@ async def fetch_hub_routes_db(path_ids, session) -> dict[int, dict[str, List[Hub
     for r in rows:
         grouped.setdefault(r["root_path_id"], []).append(r)
 
-    result: dict[int, dict[str, List[HubMenuLevelSchema]]] = dict()
+    result: List[HubRoutes] = list()
 
     for path_id in path_ids:
         nodes = grouped.get(path_id, [])
+
         route = [
-            HubMenuLevelSchema(
-                id=n["id"],
-                sort_order=n["sort_order"],
-                label=n["label"],
-                icon=get_url_from_s3(filename=n["icon"], path=settings.s3.utils_path)
-                if n["icon"] else None,
-                parent_id=n["parent_id"],
-            )
+            HubMenuLevelSchema(id=n["id"],
+                               sort_order=n["sort_order"],
+                               label=n["label"],
+                               icon=get_url_from_s3(filename=n["icon"], path=settings.s3.utils_path)
+                               if n["icon"] else None,
+                               parent_id=n["parent_id"],
+                               )
             for n in nodes
         ]
-        route.reverse()
-        result[path_id] = {"route": route}
 
+        route.reverse()
+        result.append(
+            HubRoutes(
+                path_id=path_id,
+                route=route
+            )
+        )
 
     return result

@@ -5,7 +5,7 @@ from pydantic import BaseModel, HttpUrl, model_validator
 
 from api_service.schemas.vsl_schemas import VSLScheme
 from api_service.schemas.hub_schemas import HubLevelPath, HubMenuLevelSchema
-from api_service.schemas.product_schemas import TypeModel, BrandModel, FeatureModel
+from api_service.schemas.product_schemas import TypeModel, BrandModel, ResolveFeatureModel
 from api_service.schemas.attribute_schemas import AttributeValueSchema
 from var_types import PriceDiffStatus
 
@@ -131,10 +131,10 @@ class HubRoutes(BaseModel):
 
 class ComparableModel(BaseModel):
     path_id: int
-    models: List[FeatureModel]
+    models: List[ResolveFeatureModel]
 
 
 class ComparableUnion(BaseModel):
     path_id: int
     route: List[HubMenuLevelSchema]
-    models: List[FeatureModel]
+    models: List[ResolveFeatureModel]

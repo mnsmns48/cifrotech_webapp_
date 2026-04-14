@@ -94,10 +94,19 @@ class TypeModel(BaseModel):
     type: str
 
 
-class FeatureModel(BaseModel):
+class ConcurrentAvailable(BaseModel):
+    origin: int
+    title: str
+    input_price: int
+    output_price: int
+
+
+class ResolveFeatureModel(BaseModel):
     id: int
     title: str
+    info: Union[List[Dict[str, Any]], str]
     type_: TypeModel
     brand: BrandModel
     in_hub: bool
     in_parsing: bool
+    # available: List[ConcurrentAvailable]
