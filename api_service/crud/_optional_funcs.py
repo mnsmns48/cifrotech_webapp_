@@ -1,9 +1,10 @@
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import aliased
 
 from api_service.schemas import ResolveFeatureModel, TypeModel, BrandModel, ComparableModel, ConcurrentAvailable
 
-from models import HUbStock, ParsingLine, ProductFeaturesLink, ProductType, ProductBrand, ProductFeaturesGlobal
+from models import HUbStock, ParsingLine, ProductFeaturesLink, ProductType, ProductBrand, ProductFeaturesGlobal, \
+    ProductOrigin, AttributeOriginValue
 
 
 async def load_hubstock_origins_by_path_ids(path_ids, session):
@@ -98,70 +99,75 @@ async def load_models(all_feature_ids, session):
     return model_by_id
 
 
-from sqlalchemy import func
-from models import ParsingLine, ProductOrigin, AttributeOriginValue
+from collections import defaultdict
 
 
 async def load_unique_available_by_origin(origins: set[int], session):
     if not origins:
         return {}
 
-    rows = (
-        await session.execute(
-            select(
-                ParsingLine.origin,
-                func.min(ParsingLine.input_price).label("input_price"),
-                func.min(ParsingLine.output_price).label("output_price"),
-                ProductOrigin.title,
-                func.array_agg(
-                    AttributeOriginValue.attr_value_id.distinct()
-                ).label("attrs"),
-            )
-            .join(ProductOrigin, ProductOrigin.origin == ParsingLine.origin)
-            .outerjoin(AttributeOriginValue, AttributeOriginValue.origin_id == ParsingLine.origin)
-            .where(ParsingLine.origin.in_(origins))
-            .group_by(
-                ParsingLine.origin,
-                ProductOrigin.title,
-            )
-        )
-    ).mappings().all()
+    rows = ((await session.execute(select(ParsingLine.origin,
+                                          func.min(ParsingLine.input_price).label("input_price"),
+                                          func.min(ParsingLine.output_price).label("output_price"),
+                                          ProductOrigin.title,
+                                          ProductFeaturesGlobal.id.label("model_id"),
+                                          func.array_agg(AttributeOriginValue.attr_value_id.distinct()).label("attrs"))
+                                   .join(ProductOrigin, ProductOrigin.origin == ParsingLine.origin)
+                                   .join(ProductFeaturesLink, ProductFeaturesLink.origin == ParsingLine.origin)
+                                   .join(ProductFeaturesGlobal,
+                                         ProductFeaturesGlobal.id == ProductFeaturesLink.feature_id)
+                                   .outerjoin(AttributeOriginValue,
+                                              AttributeOriginValue.origin_id == ParsingLine.origin)
+                                   .where(ParsingLine.origin.in_(origins))
+                                   .group_by(ParsingLine.origin, ProductOrigin.title, ProductFeaturesGlobal.id)))
+            .mappings().all())
 
-    # группируем по набору атрибутов
-    groups = {}
-    for row in rows:
-        attrs = tuple(row["attrs"] or [])
-        groups.setdefault(attrs, []).append(row)
+    normalized = list()
+    for r in rows:
+        normalized.append(dict(r, attrs=tuple(sorted(r["attrs"] or []))))
 
-    unique_by_origin = {}
+    normalized = sorted(normalized, key=lambda r: (r["model_id"], r["attrs"]))
 
-    for attrs, items in groups.items():
-        # выбираем с минимальным input_price
-        best = items[0]
-        for item in items[1:]:
-            if item["input_price"] < best["input_price"]:
-                best = item
+    groups = dict()
+    for row in normalized:
+        key = (row["model_id"], row["attrs"])
+        if key not in groups:
+            groups[key] = []
+        groups[key].append(row)
 
-        origin = best["origin"]
-        unique_by_origin[origin] = ConcurrentAvailable(
-            origin=origin,
-            title=best["title"],
-            input_price=best["input_price"],
-            output_price=best["output_price"],
-        )
+    model_available = dict()
+
+    for (model_id, attrs), items in groups.items():
+        best = min(items, key=lambda r: r["input_price"])
+
+        if model_id not in model_available:
+            model_available[model_id] = []
+
+        model_available[model_id].append(
+            ConcurrentAvailable(origin=best["origin"],
+                                title=best["title"],
+                                input_price=best["input_price"],
+                                output_price=best["output_price"]))
+
+    for model_id in model_available:
+        model_available[model_id] = sorted(model_available[model_id], key=lambda x: x.input_price)
+
+    unique_by_origin = dict()
+
+    for model_id, items in model_available.items():
+        for item in items:
+            unique_by_origin[item.origin] = item
 
     return unique_by_origin
 
 
-def assemble_comparable_models(
-        path_ids,
-        hub_origins_by_path,
-        parsing_origins_by_path,
-        feature_id_by_origin,
-        model_by_id,
-        unique_available_by_origin,
-):
-    result = []
+def assemble_comparable_models(path_ids,
+                               hub_origins_by_path,
+                               parsing_origins_by_path,
+                               feature_id_by_origin,
+                               model_by_id,
+                               unique_available_by_origin):
+    result = list()
 
     for pid in path_ids:
         parsing_origins = parsing_origins_by_path.get(pid, set())
@@ -169,7 +175,7 @@ def assemble_comparable_models(
 
         origins = parsing_origins | hub_origins
 
-        models_by_fid = {}
+        models_by_fid = dict()
 
         for origin in origins:
             fid = feature_id_by_origin.get(origin)
@@ -201,11 +207,11 @@ def assemble_comparable_models(
                 models_by_fid[fid] = m
 
             available_item = unique_available_by_origin.get(origin)
-            if available_item is not None:
+            if available_item:
                 m.available.append(available_item)
 
         models = list(models_by_fid.values())
-        models.sort(key=lambda mdls: mdls.title.lower())
+        models.sort(key=lambda x: x.title.lower())
 
         result.append(ComparableModel(path_id=pid, models=models))
 
