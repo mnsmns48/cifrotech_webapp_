@@ -99,9 +99,6 @@ async def load_models(all_feature_ids, session):
     return model_by_id
 
 
-from collections import defaultdict
-
-
 async def load_unique_available_by_origin(origins: set[int], session):
     if not origins:
         return {}
