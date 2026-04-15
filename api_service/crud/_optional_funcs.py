@@ -8,16 +8,11 @@ from models import HUbStock, ParsingLine, ProductFeaturesLink, ProductType, Prod
 
 
 async def load_hubstock_origins_by_path_ids(path_ids, session):
-    rows = (
-        await session.execute(
-            select(HUbStock.path_id, HUbStock.origin, HUbStock.vsl_id)
-            .where(HUbStock.path_id.in_(path_ids))
-        )
-    ).mappings().all()
+    rows = ((await session.execute(select(HUbStock.path_id, HUbStock.origin, HUbStock.vsl_id)
+                                   .where(HUbStock.path_id.in_(path_ids))))
+            .mappings().all())
 
-    hub_origins_by_path = {}
-    vsl_ids_by_path = {}
-    vsl_to_paths = {}
+    hub_origins_by_path, vsl_ids_by_path, vsl_to_paths = dict(), dict(), dict()
 
     for row in rows:
         pid = row["path_id"]
@@ -38,12 +33,10 @@ async def load_parsing_origins(vsl_to_paths, path_ids, session):
     if not all_vsl_ids:
         return parsing_origins_by_path
 
-    rows = (
-        await session.execute(
-            select(ParsingLine.vsl_id, ParsingLine.origin)
-            .where(ParsingLine.vsl_id.in_(all_vsl_ids))
-        )
-    ).mappings().all()
+    rows = ((
+                await session.execute(select(ParsingLine.vsl_id, ParsingLine.origin)
+                                      .where(ParsingLine.vsl_id.in_(all_vsl_ids))))
+            .mappings().all())
 
     for row in rows:
         vsl = row["vsl_id"]
@@ -56,12 +49,9 @@ async def load_parsing_origins(vsl_to_paths, path_ids, session):
 
 
 async def load_feature_ids(all_origins, session):
-    rows = (
-        await session.execute(
-            select(ProductFeaturesLink.origin, ProductFeaturesLink.feature_id)
-            .where(ProductFeaturesLink.origin.in_(all_origins))
-        )
-    ).mappings().all()
+    rows = ((await session.execute(select(ProductFeaturesLink.origin, ProductFeaturesLink.feature_id)
+                                   .where(ProductFeaturesLink.origin.in_(all_origins))))
+            .mappings().all())
 
     feature_id_by_origin = {}
     for row in rows:
@@ -191,16 +181,14 @@ def assemble_comparable_models(path_ids,
                 m.in_parsing = m.in_parsing or in_parsing
                 m.in_hub = m.in_hub or in_hub
             else:
-                m = ResolveFeatureModel(
-                    id=fid,
-                    title=row["title"],
-                    info=row["info"],
-                    type_=TypeModel(id=row["type_id"], type=row["type_name"]),
-                    brand=BrandModel(id=row["brand_id"], brand=row["brand_name"]),
-                    in_parsing=in_parsing,
-                    in_hub=in_hub,
-                    available=[],
-                )
+                m = ResolveFeatureModel(id=fid,
+                                        title=row["title"],
+                                        info=row["info"],
+                                        type_=TypeModel(id=row["type_id"], type=row["type_name"]),
+                                        brand=BrandModel(id=row["brand_id"], brand=row["brand_name"]),
+                                        in_parsing=in_parsing,
+                                        in_hub=in_hub,
+                                        available=[])
                 models_by_fid[fid] = m
 
             available_item = unique_models_by_origin.get(origin)
