@@ -7,7 +7,7 @@ from aiohttp import ClientSession
 from botocore.exceptions import ClientError, BotoCoreError
 from fastapi import HTTPException
 from redis.asyncio import Redis
-from sqlalchemy import delete, update, and_, select, func, case, exists, not_, literal, Integer
+from sqlalchemy import delete, update, and_, select, func, case
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +15,7 @@ from sqlalchemy.orm import selectinload, InstrumentedAttribute, aliased
 
 from api_service.api_connect import get_one_by_dtube
 from api_service.crud._optional_funcs import assemble_comparable_models, load_hubstock_origins_by_path_ids, \
-    load_parsing_origins, load_feature_ids, load_models, load_unique_available_by_origin
+    load_parsing_origins, load_feature_ids, load_models, load_unique_models_by_origin
 from api_service.s3_helper import generate_presigned_image_urls
 from api_service.schemas.comparison_schemas import HubRoutes, ComparableModel
 
@@ -23,7 +23,7 @@ from api_service.utils import normalize_origin, update_feature_if_changed
 from config import settings
 from models import Vendor, VendorSearchLine, ProductOrigin, ParsingLine, RewardRange, RewardRangeLine, \
     ProductFeaturesLink, ProductFeaturesGlobal, ProductType, ProductBrand, HUbStock, HUbMenuLevel, StockTableDependency, \
-    StockTable, ServiceImage, AttributeOriginValue, ProductImage, ProductFeaturesHubMenuLevelLink
+    StockTable, ServiceImage, AttributeOriginValue, ProductImage
 from api_service.schemas import SourceContext, ParsingLinesIn, ParsingResultOut, ProductOriginCreate, \
     RewardRangeResponseSchema, RewardRangeLineSchema, RewardRangeBaseSchema, HubLevelPath, VSLScheme, ParsingToDiffData, \
     HubToDiffData, RecomputedResult, RecomputedNewPriceLines, ParsingResultAttributeResponse, AttributeValueSchema, \
@@ -282,7 +282,7 @@ async def delete_product_stock_items(session: AsyncSession, origins: List[int]) 
     return [row[0] for row in result.fetchall()]
 
 
-async def _get_parsing_result(session: AsyncSession, vsl_id: int) -> List[ParsingLinesIn]:
+async def get_parsing_result(session: AsyncSession, vsl_id: int) -> List[ParsingLinesIn]:
     stmt = (
         select(
             ParsingLine,
@@ -976,13 +976,10 @@ async def fetch_unidentified_origins_db(payload: ComparisonOutScheme, session: A
     return UnidentifiedOrigins(origins=origins)
 
 
-async def resolve_comparison_selected_models(path_ids, session):
+async def resolve_comparison_selected_models(path_ids, session) -> List[ComparableModel]:
     hub_origins_by_path, vsl_ids_by_path, vsl_to_paths = await load_hubstock_origins_by_path_ids(path_ids, session)
 
-    parsing_origins_by_path = await load_parsing_origins(
-        vsl_to_paths, path_ids, session
-    )
-
+    parsing_origins_by_path = await load_parsing_origins(vsl_to_paths, path_ids, session)
     all_origins = set()
     for pid in path_ids:
         all_origins |= hub_origins_by_path.get(pid, set())
@@ -992,18 +989,12 @@ async def resolve_comparison_selected_models(path_ids, session):
         return [ComparableModel(path_id=pid, models=[]) for pid in path_ids]
 
     feature_id_by_origin = await load_feature_ids(all_origins, session)
-
     all_feature_ids = set(feature_id_by_origin.values())
-
     model_by_id = await load_models(all_feature_ids, session)
-
-    unique_available_by_origin = await load_unique_available_by_origin(all_origins, session)
-
-    return assemble_comparable_models(
-        path_ids,
-        hub_origins_by_path,
-        parsing_origins_by_path,
-        feature_id_by_origin,
-        model_by_id,
-        unique_available_by_origin
-    )
+    unique_available_by_origin = await load_unique_models_by_origin(all_origins, session)
+    return assemble_comparable_models(path_ids,
+                                      hub_origins_by_path,
+                                      parsing_origins_by_path,
+                                      feature_id_by_origin,
+                                      model_by_id,
+                                      unique_available_by_origin)

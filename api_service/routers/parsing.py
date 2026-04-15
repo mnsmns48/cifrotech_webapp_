@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.responses import JSONResponse
 from api_service.api_connect import get_items_by_params, get_one_by_dtube
-from api_service.crud.main import get_vendor_and_vsl, get_rr_obj, _get_parsing_result, get_or_create_product_type, \
+from api_service.crud.main import get_vendor_and_vsl, get_rr_obj, get_parsing_result, get_or_create_product_type, \
     get_or_create_product_brand, get_or_create_feature, link_origin_to_feature, clear_features_dependencies, \
     add_attributes_values_db, get_product_with_images, get_dependency_images_list, implement_dependency_images_logic
 from api_service.s3_helper import (get_s3_client, get_http_client_session, sync_images_by_origin,
@@ -61,7 +61,7 @@ async def fetch_previous_parsing_results(data: ParsingRequest, deps: AppDependen
     if not vsl:
         raise ValueError(f"Ссылка с id: {data.vsl_id} не найдена")
 
-    parsed_lines: List[ParsingLinesIn] = await _get_parsing_result(session=deps.session, vsl_id=data.vsl_id)
+    parsed_lines: List[ParsingLinesIn] = await get_parsing_result(session=deps.session, vsl_id=data.vsl_id)
     await append_info(session=deps.session, data_lines=parsed_lines, redis=deps.redis,
                       channel=data.progress, sync_features=data.sync_features)
     await build_with_preview(session=deps.session, data_lines=parsed_lines, s3_client=deps.s3_client)
@@ -191,7 +191,7 @@ async def recalculate_reward(recalc_req: RecalcPricesRequest, deps: AppDependenc
         line.output_price = cost_process(inp, ranges.ranges)
         line.profit_range_id = recalc_req.range_id
     await deps.session.commit()
-    parsed_lines: List[ParsingLinesIn] = await _get_parsing_result(session=deps.session, vsl_id=recalc_req.vsl_id)
+    parsed_lines: List[ParsingLinesIn] = await get_parsing_result(session=deps.session, vsl_id=recalc_req.vsl_id)
     await append_info(session=deps.session,
                       data_lines=parsed_lines,
                       redis=deps.redis, channel='',

@@ -1,3 +1,5 @@
+from typing import List
+
 from sqlalchemy import select, func
 from sqlalchemy.orm import aliased
 
@@ -70,6 +72,7 @@ async def load_models(all_feature_ids, session):
                 ProductFeaturesGlobal.id,
                 ProductFeaturesGlobal.title,
                 ProductFeaturesGlobal.info,
+                ProductFeaturesGlobal.source,
                 type_alias.id.label("type_id"),
                 type_alias.type.label("type_name"),
                 brand_alias.id.label("brand_id"),
@@ -153,8 +156,8 @@ def assemble_comparable_models(path_ids,
                                parsing_origins_by_path,
                                feature_id_by_origin,
                                model_by_id,
-                               unique_models_by_origin):
-    result = list()
+                               unique_models_by_origin) -> List[ComparableModel]:
+    result: List[ComparableModel] = list()
 
     for pid in path_ids:
         parsing_origins = parsing_origins_by_path.get(pid, set())
@@ -184,6 +187,7 @@ def assemble_comparable_models(path_ids,
                 m = ResolveFeatureModel(id=fid,
                                         title=row["title"],
                                         info=row["info"],
+                                        source=row["source"],
                                         type_=TypeModel(id=row["type_id"], type=row["type_name"]),
                                         brand=BrandModel(id=row["brand_id"], brand=row["brand_name"]),
                                         in_parsing=in_parsing,

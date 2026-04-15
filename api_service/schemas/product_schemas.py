@@ -105,6 +105,7 @@ class ResolveFeatureModel(BaseModel):
     id: int
     title: str
     info: Union[List[Dict[str, Any]], str]
+    source: str
     type_: TypeModel
     brand: BrandModel
     in_hub: bool
