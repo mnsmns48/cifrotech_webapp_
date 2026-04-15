@@ -99,7 +99,7 @@ async def load_models(all_feature_ids, session):
     return model_by_id
 
 
-async def load_unique_available_by_origin(origins: set[int], session):
+async def load_unique_models_by_origin(origins: set[int], session) -> dict[int, ConcurrentAvailable]:
     if not origins:
         return {}
 
@@ -163,7 +163,7 @@ def assemble_comparable_models(path_ids,
                                parsing_origins_by_path,
                                feature_id_by_origin,
                                model_by_id,
-                               unique_available_by_origin):
+                               unique_models_by_origin):
     result = list()
 
     for pid in path_ids:
@@ -203,7 +203,7 @@ def assemble_comparable_models(path_ids,
                 )
                 models_by_fid[fid] = m
 
-            available_item = unique_available_by_origin.get(origin)
+            available_item = unique_models_by_origin.get(origin)
             if available_item:
                 m.available.append(available_item)
 
