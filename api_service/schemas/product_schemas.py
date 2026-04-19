@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 from typing import Union, List, Dict, Any, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_core.core_schema import FieldValidationInfo
 
 
@@ -111,3 +111,25 @@ class ResolveFeatureModel(BaseModel):
     in_hub: bool
     in_parsing: bool
     available: list[ConcurrentAvailable] = []
+
+
+class FetchProductInfoRequest(BaseModel):
+    origin: Optional[int] = None
+    features_id: Optional[int] = None
+    features_title: Optional[str] = None
+
+    @model_validator(mode="after")
+    def check_one_of(cls, values):
+        fields = [
+            values.origin,
+            values.features_id,
+            values.features_title,
+        ]
+        provided = [v for v in fields if v is not None]
+
+        if len(provided) != 1:
+            raise ValueError(
+                "Нужно передать ровно одно из полей: origin, features_id или features_title"
+            )
+
+        return values

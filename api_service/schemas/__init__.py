@@ -11,7 +11,7 @@ from api_service.schemas.parsing_schemas import ParsingRequest, ParsingLinesIn, 
     ParsingResultOut, AddAttributesValuesRequest, DependencyImageItem, DependencyOriginImplementation, ImageResponseItem
 from api_service.schemas.product_schemas import ProductOriginUpdate, ProductDependencyUpdate, ProductResponse, \
     RecalcPricesRequest, RecalcPricesResponse, ProductOriginCreate, ProductDependencyBatchUpdate, OriginsList, \
-    TypeModel, BrandModel, ResolveFeatureModel, ConcurrentAvailable
+    TypeModel, BrandModel, ResolveFeatureModel, ConcurrentAvailable, FetchProductInfoRequest
 from api_service.schemas.range_reward_schemas import RewardRangeLineSchema, RewardRangeSchema, \
     RewardRangeResponseSchema, RewardRangeBaseSchema
 from api_service.schemas.vsl_schemas import VSLScheme
@@ -26,7 +26,7 @@ from api_service.schemas.attribute_schemas import CreateAttribute, UpdateAttribu
 from api_service.schemas.formula import FormulaBase, FormulaCreate, FormulaUpdate, FormulaResponse, \
     FormulaPreviewResponse, FormulaPreviewRequest, FormulaValidateRequest, FormulaIdObj
 
-from api_service.schemas.features import FeaturesDataSet, SetFeaturesHubLevelRequest, SetLevelRoutesResponse, \
+from api_service.schemas.features_schemas import FeaturesDataSet, SetFeaturesHubLevelRequest, SetLevelRoutesResponse, \
     FeaturesElement, FeatureResponseScheme, ProsConsItem, ProsConsItemUpdate, FeatureCategory, \
     UpdateFeatureCategoryRequest, InnerRowRequest, UpdateInnerRowRequest, FeatureIds, TypesAndBrands, \
     CreateFeaturesGlobal, SetFeaturesFormulaRequest, SetFormulaResponse
@@ -41,7 +41,7 @@ __all__ += ["RewardRangeLineSchema", "RewardRangeSchema", "RewardRangeResponseSc
 __all__ += [
     "ProductOriginUpdate", "ProductDependencyUpdate", "ProductResponse", "RecalcPricesRequest", "RecalcPricesResponse",
     "ProductOriginCreate", "ProductDependencyBatchUpdate", "OriginsList", "OriginHubLevelMap", "BrandModel",
-    "TypeModel", "ResolveFeatureModel", "ConcurrentAvailable"]
+    "TypeModel", "ResolveFeatureModel", "ConcurrentAvailable", "FetchProductInfoRequest"]
 
 __all__ += ["HubMenuLevelSchema", "RenameRequest", "HubPositionPatchOut", "AddHubLevelScheme", "AddHubLevelOutScheme",
             "HubPositionPatch", "HubLevelPath", "UpdateDeleteImageScheme", "UpdatedImageScheme", "PathRoute",
