@@ -15,7 +15,7 @@ from api_service.schemas import HubLevelPath, PathRoutes, OriginHubLevelMap, Fea
     SetFeaturesFormulaRequest, SetFormulaResponse, FetchProductInfoRequest, ProductResponse
 
 from models import ProductFeaturesGlobal, ProductBrand, ProductType, HUbMenuLevel, FormulaExpression, \
-    ProductFeaturesFormulaLink, ProductFeaturesHubMenuLevelLink, ProductFeaturesLink, ProductOrigin
+    ProductFeaturesFormulaLink, ProductFeaturesHubMenuLevelLink, ProductFeaturesLink
 
 
 async def product_features_depps_db(session: AsyncSession) -> FeaturesDataSet:
@@ -540,37 +540,46 @@ async def set_feature_formula_dependency_db(payload: SetFeaturesFormulaRequest,
 
 
 async def fetch_product_information_db(payload: FetchProductInfoRequest, session: AsyncSession) -> ProductResponse:
-    base_query = (select(ProductFeaturesGlobal.title,
-                         ProductBrand.brand,
-                         ProductType.type,
-                         ProductFeaturesGlobal.source,
-                         ProductFeaturesGlobal.info,
-                         ProductFeaturesGlobal.pros_cons)
-                  .join(ProductBrand, ProductBrand.id == ProductFeaturesGlobal.brand_id)
-                  .join(ProductType, ProductType.id == ProductFeaturesGlobal.type_id))
+    try:
+        base_query = (
+            select(
+                ProductFeaturesGlobal.title,
+                ProductBrand.brand,
+                ProductType.type,
+                ProductFeaturesGlobal.source,
+                ProductFeaturesGlobal.info,
+                ProductFeaturesGlobal.pros_cons
+            )
+            .join(ProductBrand, ProductBrand.id == ProductFeaturesGlobal.brand_id)
+            .join(ProductType, ProductType.id == ProductFeaturesGlobal.type_id)
+        )
 
-    if payload.origin is not None:
-        stmt = (base_query.join(ProductFeaturesLink, ProductFeaturesLink.feature_id == ProductFeaturesGlobal.id)
-                .where(ProductFeaturesLink.origin == payload.origin).limit(1))
-        row = (await session.execute(stmt)).fetchone()
-        if row is None:
-            raise HTTPException(status_code=404, detail="Feature not found for origin")
+        if payload.origin is not None:
+            stmt = (
+                base_query.join(ProductFeaturesLink, ProductFeaturesLink.feature_id == ProductFeaturesGlobal.id)
+                .where(ProductFeaturesLink.origin == payload.origin)
+                .limit(1)
+            )
+        elif payload.features_id is not None:
+            stmt = base_query.where(ProductFeaturesGlobal.id == payload.features_id).limit(1)
+        else:
+            stmt = base_query.where(ProductFeaturesGlobal.title == payload.features_title).limit(1)
 
-    elif payload.features_id is not None:
-        stmt = (base_query.where(ProductFeaturesGlobal.id == payload.features_id).limit(1))
-        row = (await session.execute(stmt)).fetchone()
+        result = await session.execute(stmt)
+        row = result.fetchone()
+
         if row is None:
             raise HTTPException(status_code=404, detail="Feature not found")
 
-    else:
-        stmt = (base_query.where(ProductFeaturesGlobal.title == payload.features_title).limit(1))
-        row = (await session.execute(stmt)).fetchone()
-        if row is None:
-            raise HTTPException(status_code=404, detail="Feature not found by title")
+        return ProductResponse(
+            title=row.title,
+            brand=row.brand,
+            product_type=row.type,
+            source=row.source,
+            info=row.info or {},
+            pros_cons=row.pros_cons or {}
+        )
 
-    return ProductResponse(title=row.title,
-                           brand=row.brand,
-                           product_type=row.type,
-                           source=row.source,
-                           info=row.info or {},
-                           pros_cons=row.pros_cons or {})
+    finally:
+        await session.close()
+
