@@ -62,7 +62,7 @@ class ProductResponse(BaseModel):
     brand: str
     product_type: str
     source: Optional[str]
-    info: Dict[str, Dict[str, Any]]
+    info: Union[List[Dict[str, Any]], str]
     pros_cons: Optional[dict]
     source: str
 
