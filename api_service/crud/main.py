@@ -28,7 +28,7 @@ from api_service.schemas import SourceContext, ParsingLinesIn, ParsingResultOut,
     RewardRangeResponseSchema, RewardRangeLineSchema, RewardRangeBaseSchema, HubLevelPath, VSLScheme, ParsingToDiffData, \
     HubToDiffData, RecomputedResult, RecomputedNewPriceLines, ParsingResultAttributeResponse, AttributeValueSchema, \
     AddAttributesValuesRequest, DependencyImageItem, DependencyOriginImplementation, ImageResponseItem, \
-    ComparisonOutScheme, UnidentifiedOrigin, UnidentifiedOrigins, TypeModel, BrandModel
+    ComparisonOutScheme, UnidentifiedOrigin, UnidentifiedOrigins, TypeModel, BrandModel, ResolveFeatureModel
 
 
 async def get_vendor_and_vsl(session: AsyncSession, vsl_id: int) -> Optional[SourceContext]:
@@ -998,3 +998,71 @@ async def resolve_comparison_selected_models(path_ids, session) -> List[Comparab
                                       feature_id_by_origin,
                                       model_by_id,
                                       unique_available_by_origin)
+
+
+async def render_models_structured_db(vsl_id: int, session: AsyncSession) -> List[ResolveFeatureModel]:
+    origins_rows = (
+        await session.execute(
+            select(ParsingLine.origin)
+            .where(ParsingLine.vsl_id == vsl_id)
+        )
+    ).scalars().all()
+
+    origins = set(origins_rows)
+    if not origins:
+        return []
+
+    rows = (
+        await session.execute(
+            select(ProductFeaturesLink.origin, ProductFeaturesLink.feature_id)
+            .where(ProductFeaturesLink.origin.in_(origins))
+        )
+    ).mappings().all()
+
+    feature_id_by_origin = {r["origin"]: r["feature_id"] for r in rows}
+    feature_ids = set(feature_id_by_origin.values())
+
+    if not feature_ids:
+        return []
+
+    model_by_id = await load_models(feature_ids, session)
+
+    unique_by_origin = await load_unique_models_by_origin(origins, session)
+
+    result: List[ResolveFeatureModel] = list()
+
+    for fid in sorted(feature_ids):
+        row = model_by_id.get(fid)
+        if not row:
+            continue
+
+        available_items = list()
+
+        for item in origins:
+            if item not in unique_by_origin:
+                continue
+
+            if feature_id_by_origin.get(item) != fid:
+                continue
+
+            available_items.append(unique_by_origin[item])
+
+        result.append(
+            ResolveFeatureModel(
+                id=row["id"],
+                title=row["title"],
+                info=row["info"],
+                source=row["source"],
+                type_=TypeModel(id=row["type_id"], type=row["type_name"]),
+                brand=BrandModel(id=row["brand_id"], brand=row["brand_name"]),
+                in_hub=False,
+                in_parsing=True,
+                available=available_items
+            )
+        )
+
+    result.sort(
+        key=lambda m: min(a.input_price for a in m.available)
+    )
+
+    return result

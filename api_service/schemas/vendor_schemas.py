@@ -15,3 +15,7 @@ class VendorSchema(BaseModel):
         if exclude_id:
             return cls.model_validate(vendor.__dict__).model_dump(exclude={"id"})
         return cls.model_validate(vendor.__dict__).model_dump()
+
+
+class VslId(BaseModel):
+    vsl_id: int

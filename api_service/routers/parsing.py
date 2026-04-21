@@ -15,13 +15,15 @@ from starlette.responses import JSONResponse
 from api_service.api_connect import get_items_by_params, get_one_by_dtube
 from api_service.crud.main import get_vendor_and_vsl, get_rr_obj, get_parsing_result, get_or_create_product_type, \
     get_or_create_product_brand, get_or_create_feature, link_origin_to_feature, clear_features_dependencies, \
-    add_attributes_values_db, get_product_with_images, get_dependency_images_list, implement_dependency_images_logic
+    add_attributes_values_db, get_product_with_images, get_dependency_images_list, implement_dependency_images_logic, \
+    render_models_structured_db
 from api_service.s3_helper import (get_s3_client, get_http_client_session, sync_images_by_origin,
                                    generate_final_image_payload, build_with_preview)
 from api_service.schemas import (ParsingRequest, ProductOriginUpdate, ProductDependencyUpdate, ProductResponse,
                                  RecalcPricesRequest, OriginsPayload, SourceContext, ParsingResultOut, ParsingLinesIn,
                                  OriginsList, ProductDependencyBatchUpdate, AddAttributesValuesRequest,
-                                 DependencyImageItem, DependencyOriginImplementation, ImageResponseItem)
+                                 DependencyImageItem, DependencyOriginImplementation, ImageResponseItem,
+                                 ResolveFeatureModel, VslId)
 
 from api_service.schemas.range_reward_schemas import RewardRangeResponseSchema
 from api_service.utils import AppDependencies
@@ -459,3 +461,9 @@ async def implement_dependency_images(payload: DependencyOriginImplementation,
                                       s3_client=Depends(get_s3_client)
                                       ) -> List[ImageResponseItem] | None:
     return await implement_dependency_images_logic(payload, session, s3_client)
+
+
+@parsing_router.post("/render_models_structured", response_model=List[ResolveFeatureModel])
+async def render_models_structured(payload: VslId, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await render_models_structured_db(payload.vsl_id, session)
+
