@@ -6,11 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api_service.crud.hub import fetch_final_leaf_ids, fetch_hub_routes_db
 from api_service.crud.main import get_all_children_cte, get_lines_by_origins, get_origins_by_path_ids, get_parsing_map, \
     get_hub_map, get_recomputed_lines, update_hubstock_prices, fetch_unidentified_origins_db, \
-    resolve_comparison_selected_models
+    resolve_comparison_selected_models, approve_origins_for_update_db
 from api_service.func import generate_diff_tabs
 from api_service.schemas import ComparisonOutScheme, ComparisonInScheme, HubLevelPath, VSLScheme, ParsingHubDiffOut, \
     ParsingToDiffData, HubToDiffData, RecalcScheme, RecomputedResult, UnidentifiedOrigins, HubRoutes, \
-    ComparableModel, ComparableUnion, HubMenuLevelSchema, ResolveFeatureModel
+    ComparableModel, ComparableUnion, HubMenuLevelSchema, ResolveFeatureModel, UpdateHubApproveItems
 
 from engine import db
 from models import VendorSearchLine
@@ -107,3 +107,8 @@ async def fetch_hub_routes(payload: ComparisonOutScheme,
         merged.append(ComparableUnion(path_id=pid, route=route_item.route, models=models))
 
     return merged
+
+@comparison_router.post("/approve_origins_for_update")
+async def approve_origins_for_update(payload: UpdateHubApproveItems,
+                                     session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await approve_origins_for_update_db(payload, session)

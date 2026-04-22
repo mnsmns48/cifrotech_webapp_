@@ -138,3 +138,30 @@ class ComparableUnion(BaseModel):
     path_id: int
     route: List[HubMenuLevelSchema]
     models: List[ResolveFeatureModel]
+
+
+class UpdateHubApproveItem(BaseModel):
+    path_id: int
+    models_ids: list[int]
+
+
+class UpdateHubApproveItems(BaseModel):
+    items: List[UpdateHubApproveItem]
+
+
+class OriginForApproveItem(BaseModel):
+    origin: int
+    origin_in_hub: int
+    title: str
+    feature_title: str
+    attrs: Optional[list[AttributeValueSchema]]
+
+
+
+class FeatureProductShortScheme(BaseModel):
+    id: int
+    title: str
+
+class UpdateApproveItemResponse(BaseModel):
+    path: HubMenuLevelSchema
+    models: list[FeatureProductShortScheme]
