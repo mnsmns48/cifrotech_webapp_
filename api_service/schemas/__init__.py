@@ -7,7 +7,7 @@ from api_service.schemas.hubstock_schemas import (HubLoadingData, StockHubItemRe
 from api_service.schemas.comparison_schemas import ComparisonInScheme, ComparisonOutScheme, ParsingLine, \
     ConsentProcessScheme, ParsingHubDiffOut, HubToDiffData, RecalcScheme, RecomputedResult, RecomputedNewPriceLines, \
     ParsingHubDiffItem, UnidentifiedOrigins, UnidentifiedOrigin, HubRoutes, ComparableModel, ComparableUnion, \
-    UpdateHubApproveItems, FeatureProductShortScheme
+    UpdateHubApproveItems, ProductForApproveScheme, UpdateApproveItemResponse
 from api_service.schemas.parsing_schemas import ParsingRequest, ParsingLinesIn, ParsingToDiffData, SourceContext, \
     ParsingResultOut, AddAttributesValuesRequest, DependencyImageItem, DependencyOriginImplementation, ImageResponseItem
 from api_service.schemas.product_schemas import ProductOriginUpdate, ProductDependencyUpdate, ProductResponse, \
@@ -22,7 +22,7 @@ from api_service.schemas.attribute_schemas import CreateAttribute, UpdateAttribu
     TypeDependencyLink, AttributeBrandRuleLink, TypeAndBrandPayload, ProductFeaturesAttributeOptions, \
     AttributeValueSchema, ModelAttributeValuesSchema, Types, ModelAttributesRequest, ModelAttributesResponse, \
     AttributeModelOptionLink, ParsingResultAttributeResponse, AttributeValueSchema, AttributeOriginValueCheckRequest, \
-    AttributeOriginValueCheckResponse
+    AttributeOriginValueCheckResponse, AttributeKeyValueSchema
 
 from api_service.schemas.formula import FormulaBase, FormulaCreate, FormulaUpdate, FormulaResponse, \
     FormulaPreviewResponse, FormulaPreviewRequest, FormulaValidateRequest, FormulaIdObj
@@ -38,7 +38,8 @@ __all__ += ["VendorSchema"]
 __all__ += ["VSLScheme", "VslId"]
 __all__ += ["ParsingRequest", "ParsingLinesIn", "ParsingToDiffData", "SourceContext", "ParsingResultOut",
             "AddAttributesValuesRequest", "DependencyImageItem", "DependencyOriginImplementation", "ImageResponseItem"]
-__all__ += ["RewardRangeLineSchema", "RewardRangeSchema", "RewardRangeResponseSchema", "RewardRangeBaseSchema"]
+__all__ += ["RewardRangeLineSchema", "RewardRangeSchema", "RewardRangeResponseSchema", "RewardRangeBaseSchema",
+            "AttributeKeyValueSchema"]
 __all__ += [
     "ProductOriginUpdate", "ProductDependencyUpdate", "ProductResponse", "RecalcPricesRequest", "RecalcPricesResponse",
     "ProductOriginCreate", "ProductDependencyBatchUpdate", "OriginsList", "OriginHubLevelMap", "BrandModel",
@@ -55,7 +56,7 @@ __all__ += [
 __all__ += ["ComparisonInScheme", "ComparisonOutScheme", "ParsingLine", "ConsentProcessScheme",
             "ParsingHubDiffOut", "HubToDiffData", "RecalcScheme", "RecomputedResult", "RecomputedNewPriceLines",
             "ParsingHubDiffItem", "UnidentifiedOrigins", "UnidentifiedOrigin", "HubRoutes", "ComparableModel",
-            "ComparableUnion", "UpdateHubApproveItems", "FeatureProductShortScheme"]
+            "ComparableUnion", "UpdateHubApproveItems", "ProductForApproveScheme", "UpdateApproveItemResponse"]
 
 __all__ += ["ServiceImageResponse", "ServiceImageCreate", "ServiceImageUpdate"]
 

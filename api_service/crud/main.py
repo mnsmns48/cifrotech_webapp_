@@ -15,9 +15,10 @@ from sqlalchemy.orm import selectinload, InstrumentedAttribute, aliased
 
 from api_service.api_connect import get_one_by_dtube
 from api_service.crud._optional_funcs import assemble_comparable_models, load_hubstock_origins_by_path_ids, \
-    load_parsing_origins, load_feature_ids, load_models, load_unique_models_by_origin
+    load_parsing_origins, load_feature_ids, load_models, load_unique_models_by_origin, _load_approve_hubstock_for_paths, \
+    _extract_approve_vsl_by_path, _load_approve_features_and_paths, \
+    _assemble_approve_response, _load_approve_origin_data
 from api_service.s3_helper import generate_presigned_image_urls
-from api_service.schemas.comparison_schemas import HubRoutes, ComparableModel, UpdateHubApproveItems
 
 from api_service.utils import normalize_origin, update_feature_if_changed
 from config import settings
@@ -28,7 +29,8 @@ from api_service.schemas import SourceContext, ParsingLinesIn, ParsingResultOut,
     RewardRangeResponseSchema, RewardRangeLineSchema, RewardRangeBaseSchema, HubLevelPath, VSLScheme, ParsingToDiffData, \
     HubToDiffData, RecomputedResult, RecomputedNewPriceLines, ParsingResultAttributeResponse, AttributeValueSchema, \
     AddAttributesValuesRequest, DependencyImageItem, DependencyOriginImplementation, ImageResponseItem, \
-    ComparisonOutScheme, UnidentifiedOrigin, UnidentifiedOrigins, TypeModel, BrandModel, ResolveFeatureModel
+    ComparisonOutScheme, UnidentifiedOrigin, UnidentifiedOrigins, TypeModel, BrandModel, ResolveFeatureModel, \
+    ComparableModel
 
 
 async def get_vendor_and_vsl(session: AsyncSession, vsl_id: int) -> Optional[SourceContext]:
@@ -1068,5 +1070,42 @@ async def render_models_structured_db(vsl_id: int, session: AsyncSession) -> Lis
     return result
 
 
-async def approve_origins_for_update_db(payload: UpdateHubApproveItems, session: AsyncSession):
-    pass
+async def approve_origins_for_update_db(payload, session):
+    path_to_features = dict()
+    path_ids = list()
+
+    for item in payload.items:
+        pid = item.path_id
+        if pid not in path_to_features:
+            path_to_features[pid] = []
+            path_ids.append(pid)
+
+        for fid in item.models_ids:
+            if fid not in path_to_features[pid]:
+                path_to_features[pid].append(fid)
+
+    hubstock = await _load_approve_hubstock_for_paths(session, path_ids)
+    path_to_vsl = _extract_approve_vsl_by_path(hubstock)
+
+    vsl_ids = list()
+    feature_ids = list()
+
+    for pid, vsl_list in path_to_vsl.items():
+        for v in vsl_list:
+            if v not in vsl_ids:
+                vsl_ids.append(v)
+
+    for pid, fids in path_to_features.items():
+        for fid in fids:
+            if fid not in feature_ids:
+                feature_ids.append(fid)
+
+    rows = await _load_approve_origin_data(session, vsl_ids, feature_ids)
+    features, paths = await _load_approve_features_and_paths(session, feature_ids, path_ids)
+
+    return _assemble_approve_response(rows=rows,
+                                      features=features,
+                                      paths=paths,
+                                      hubstock=hubstock,
+                                      path_to_features=path_to_features,
+                                      path_ids=path_ids)

@@ -6,7 +6,7 @@ from pydantic import BaseModel, HttpUrl, model_validator
 from api_service.schemas.vsl_schemas import VSLScheme
 from api_service.schemas.hub_schemas import HubLevelPath, HubMenuLevelSchema
 from api_service.schemas.product_schemas import TypeModel, BrandModel, ResolveFeatureModel
-from api_service.schemas.attribute_schemas import AttributeValueSchema
+from api_service.schemas.attribute_schemas import AttributeValueSchema, AttributeKeyValueSchema
 from var_types import PriceDiffStatus
 
 
@@ -151,17 +151,21 @@ class UpdateHubApproveItems(BaseModel):
 
 class OriginForApproveItem(BaseModel):
     origin: int
-    origin_in_hub: int
+    origin_in_hub: bool
     title: str
-    feature_title: str
-    attrs: Optional[list[AttributeValueSchema]]
+    input_price: Optional[float]
+    output_price: Optional[float]
+    attrs: Optional[list[AttributeKeyValueSchema]]
+    preview: Optional[str]
+    pics: Optional[List[str]]
 
 
-
-class FeatureProductShortScheme(BaseModel):
+class ProductForApproveScheme(BaseModel):
     id: int
     title: str
+    items: list[OriginForApproveItem]
+
 
 class UpdateApproveItemResponse(BaseModel):
     path: HubMenuLevelSchema
-    models: list[FeatureProductShortScheme]
+    products: list[ProductForApproveScheme]

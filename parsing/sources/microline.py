@@ -7,7 +7,6 @@ from typing import List, Set, Tuple, Optional, Dict
 from bs4 import BeautifulSoup, Tag
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError, Error as PlaywrightError
 from playwright_stealth import stealth_async
-from pydantic import ValidationError
 from redis.asyncio import Redis
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
@@ -268,7 +267,7 @@ class BaseParser:
 
         result_attr = await session.execute(stmt_attr)
 
-        temp: dict[int, dict] = {}
+        temp: dict[int, dict] = dict()
 
         for origin, feature_id, av_id, av_value, av_alias in result_attr:
             if origin not in temp:
@@ -287,7 +286,7 @@ class BaseParser:
                 attr_value_ids=data["values"]
             )
 
-        parsing_lines_result = []
+        parsing_lines_result = list()
 
         for origin, line in origin_map.items():
             try:

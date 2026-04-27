@@ -1,12 +1,18 @@
-from typing import List
+from typing import List, Dict
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, Row
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from api_service.schemas import ResolveFeatureModel, TypeModel, BrandModel, ComparableModel, ConcurrentAvailable
+from api_service.schemas import ResolveFeatureModel, TypeModel, BrandModel, ComparableModel, ConcurrentAvailable, \
+    UpdateApproveItemResponse, HubMenuLevelSchema, ProductForApproveScheme, \
+    AttributeKeyValueSchema
+from api_service.schemas.comparison_schemas import OriginForApproveItem
+from app_utils import get_url_from_s3
+from config import settings
 
 from models import HUbStock, ParsingLine, ProductFeaturesLink, ProductType, ProductBrand, ProductFeaturesGlobal, \
-    ProductOrigin, AttributeOriginValue
+    ProductOrigin, AttributeOriginValue, AttributeValue, AttributeKey, ProductImage, HUbMenuLevel
 
 
 async def load_hubstock_origins_by_path_ids(path_ids, session):
@@ -205,3 +211,222 @@ def assemble_comparable_models(path_ids,
         result.append(ComparableModel(path_id=pid, models=models))
 
     return result
+
+
+async def _load_approve_hubstock_for_paths(session: AsyncSession, path_ids: List[int]):
+    if not path_ids:
+        return {}
+
+    stmt = select(HUbStock).where(HUbStock.path_id.in_(path_ids))
+    result = await session.execute(stmt)
+    rows = result.scalars().all()
+
+    hub: Dict[int, Dict[int, HUbStock]] = {}
+
+    for row in rows:
+        pid = row.path_id
+        if pid not in hub:
+            hub[pid] = {}
+        hub[pid][row.origin] = row
+
+    return hub
+
+
+def _extract_approve_vsl_by_path(hubstock):
+    mapping = dict()
+
+    for pid, origins_map in hubstock.items():
+        if pid not in mapping:
+            mapping[pid] = []
+
+        for origin, stock in origins_map.items():
+            vsl = stock.vsl_id
+            if vsl not in mapping[pid]:
+                mapping[pid].append(vsl)
+
+    return mapping
+
+
+async def _load_approve_origin_data(session: AsyncSession, vsl_ids: List[int], feature_ids: List[int]):
+    if not vsl_ids or not feature_ids:
+        return []
+
+    img_prev = (select(ProductImage.origin_id, ProductImage.key.label("preview_key"))
+                .where(ProductImage.is_preview.is_(True))
+                .cte("img_prev"))
+
+    img_all = (select(ProductImage.origin_id, ProductImage.key.label("image_key")).cte("img_all"))
+
+    attrs = (
+        select(
+            AttributeOriginValue.origin_id,
+            AttributeValue.id.label("attr_id"),
+            AttributeValue.value.label("attr_value"),
+            AttributeValue.alias.label("attr_alias"),
+            AttributeKey.id.label("key_id"),
+            AttributeKey.key.label("key_name"),
+        )
+        .join(AttributeValue, AttributeValue.id == AttributeOriginValue.attr_value_id)
+        .join(AttributeKey, AttributeKey.id == AttributeValue.attr_key_id)
+        .cte("attrs")
+    )
+
+    origin_cte = (
+        select(
+            ParsingLine.origin,
+            ParsingLine.vsl_id,
+            ProductFeaturesLink.feature_id,
+            ParsingLine.input_price,
+            ParsingLine.output_price,
+            ProductOrigin.title.label("origin_title"),
+            img_prev.c.preview_key,
+            img_all.c.image_key,
+            attrs.c.attr_id,
+            attrs.c.attr_value,
+            attrs.c.attr_alias,
+            attrs.c.key_id,
+            attrs.c.key_name
+        )
+        .join(ProductFeaturesLink, ProductFeaturesLink.origin == ParsingLine.origin)
+        .join(ProductOrigin, ProductOrigin.origin == ParsingLine.origin)
+        .outerjoin(img_prev, img_prev.c.origin_id == ParsingLine.origin)
+        .outerjoin(img_all, img_all.c.origin_id == ParsingLine.origin)
+        .outerjoin(attrs, attrs.c.origin_id == ParsingLine.origin)
+        .where(ParsingLine.vsl_id.in_(vsl_ids))
+        .where(ProductFeaturesLink.feature_id.in_(feature_ids))
+        .order_by(ParsingLine.input_price)
+        .cte("origin_data")
+    )
+
+    stmt = select(origin_cte)
+    result = await session.execute(stmt)
+    return result.fetchall()
+
+
+async def _load_approve_features_and_paths(session, feature_ids, path_ids):
+    stmt_features = select(ProductFeaturesGlobal).where(ProductFeaturesGlobal.id.in_(feature_ids))
+    stmt_paths = select(HUbMenuLevel).where(HUbMenuLevel.id.in_(path_ids))
+    features_result = await session.execute(stmt_features)
+    paths_result = await session.execute(stmt_paths)
+
+    return features_result.scalars().all(), paths_result.scalars().all()
+
+
+def _assemble_approve_response(rows: List[Row],
+                               features: List[ProductFeaturesGlobal],
+                               paths: List[HUbMenuLevel],
+                               hubstock: Dict[int, Dict[int, HUbStock]],
+                               path_to_features: Dict[int, List[int]],
+                               path_ids: List[int]) -> List[UpdateApproveItemResponse]:
+    features_map = {f.id: f for f in features}
+    paths_map = {p.id: p for p in paths}
+
+    origin_map: Dict[int, Dict] = dict()
+
+    for row in rows:
+        origin = row.origin
+        if origin not in origin_map:
+            origin_map[origin] = {
+                "origin": origin,
+                "vsl_id": row.vsl_id,
+                "feature_id": row.feature_id,
+                "input_price": row.input_price,
+                "output_price": row.output_price,
+                "title": row.origin_title,
+                "preview_key": row.preview_key,
+                "image_keys": set(),
+                "attrs_map": {},
+            }
+
+        if row.image_key:
+            origin_map[origin]["image_keys"].add(row.image_key)
+
+        if row.attr_id:
+            if row.attr_id not in origin_map[origin]["attrs_map"]:
+                origin_map[origin]["attrs_map"][row.attr_id] = AttributeKeyValueSchema(
+                    id=row.attr_id,
+                    key=AttributeKey(id=row.key_id, key=row.key_name),
+                    value=row.attr_value,
+                    alias=row.attr_alias,
+                )
+
+    responses: List[UpdateApproveItemResponse] = list()
+
+    for pid in path_ids:
+        if pid not in paths_map:
+            continue
+
+        products: List[ProductForApproveScheme] = list()
+
+        for fid in path_to_features[pid]:
+            if fid not in features_map:
+                continue
+
+            feature = features_map[fid]
+
+            groups = dict()
+
+            for origin, data in origin_map.items():
+                if data["feature_id"] != fid:
+                    continue
+
+                attrs_tuple = tuple(sorted(data["attrs_map"].keys())) if data["attrs_map"] else ()
+
+                if attrs_tuple not in groups:
+                    groups[attrs_tuple] = []
+
+                groups[attrs_tuple].append(data)
+
+            items: List[OriginForApproveItem] = list()
+
+            for attrs_tuple, group_items in groups.items():
+                best = min(group_items, key=lambda x: x["input_price"])
+
+                origin = best["origin"]
+                origin_in_hub = pid in hubstock and origin in hubstock[pid]
+
+                attrs_list = list(best["attrs_map"].values()) if best["attrs_map"] else None
+
+                preview = None
+                if best["preview_key"]:
+                    preview = get_url_from_s3(filename=best["preview_key"], path=settings.s3.utils_path)
+
+                pics = None
+                if best["image_keys"]:
+                    pics = []
+                    for key in best["image_keys"]:
+                        if best["preview_key"] and key == best["preview_key"]:
+                            continue
+                        pics.append(
+                            get_url_from_s3(filename=key, path=settings.s3.utils_path)
+                        )
+
+                items.append(
+                    OriginForApproveItem(origin=origin,
+                                         origin_in_hub=origin_in_hub,
+                                         title=best["title"],
+                                         input_price=best["input_price"],
+                                         output_price=best["output_price"],
+                                         attrs=attrs_list,
+                                         preview=preview,
+                                         pics=pics)
+                )
+
+            if items:
+                products.append(
+                    ProductForApproveScheme(
+                        id=feature.id,
+                        title=feature.title,
+                        items=items,
+                    )
+                )
+
+        if products:
+            responses.append(
+                UpdateApproveItemResponse(
+                    path=HubMenuLevelSchema.model_validate(paths_map[pid]),
+                    products=products,
+                )
+            )
+
+    return responses

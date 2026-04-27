@@ -133,4 +133,3 @@ class FetchProductInfoRequest(BaseModel):
             )
 
         return values
-

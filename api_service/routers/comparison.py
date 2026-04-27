@@ -10,7 +10,8 @@ from api_service.crud.main import get_all_children_cte, get_lines_by_origins, ge
 from api_service.func import generate_diff_tabs
 from api_service.schemas import ComparisonOutScheme, ComparisonInScheme, HubLevelPath, VSLScheme, ParsingHubDiffOut, \
     ParsingToDiffData, HubToDiffData, RecalcScheme, RecomputedResult, UnidentifiedOrigins, HubRoutes, \
-    ComparableModel, ComparableUnion, HubMenuLevelSchema, ResolveFeatureModel, UpdateHubApproveItems
+    ComparableModel, ComparableUnion, HubMenuLevelSchema, ResolveFeatureModel, UpdateHubApproveItems, \
+    UpdateApproveItemResponse
 
 from engine import db
 from models import VendorSearchLine
@@ -108,7 +109,8 @@ async def fetch_hub_routes(payload: ComparisonOutScheme,
 
     return merged
 
-@comparison_router.post("/approve_origins_for_update")
+
+@comparison_router.post("/approve_origins_for_update", response_model=List[UpdateApproveItemResponse])
 async def approve_origins_for_update(payload: UpdateHubApproveItems,
                                      session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await approve_origins_for_update_db(payload, session)

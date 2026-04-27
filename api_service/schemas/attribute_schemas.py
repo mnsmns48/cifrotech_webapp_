@@ -163,3 +163,10 @@ class AttributeOriginValueCheckResponse(BaseModel):
     formula: Optional[FormulaResponse]
     attributes_allowable: list[ModelAttributeValuesSchema]
     attributes_exists: list[ModelAttributeValuesSchema]
+
+
+class AttributeKeyValueSchema(BaseModel):
+    id: int
+    key: AttributeKey
+    value: str
+    alias: Optional[str]
