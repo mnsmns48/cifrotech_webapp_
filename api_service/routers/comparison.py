@@ -8,6 +8,7 @@ from api_service.crud.main import get_all_children_cte, get_lines_by_origins, ge
     get_hub_map, get_recomputed_lines, update_hubstock_prices, fetch_unidentified_origins_db, \
     resolve_comparison_selected_models, approve_origins_for_update_db
 from api_service.func import generate_diff_tabs
+from api_service.s3_helper import get_s3_client
 from api_service.schemas import ComparisonOutScheme, ComparisonInScheme, HubLevelPath, VSLScheme, ParsingHubDiffOut, \
     ParsingToDiffData, HubToDiffData, RecalcScheme, RecomputedResult, UnidentifiedOrigins, HubRoutes, \
     ComparableModel, ComparableUnion, HubMenuLevelSchema, ResolveFeatureModel, UpdateHubApproveItems, \
@@ -112,5 +113,6 @@ async def fetch_hub_routes(payload: ComparisonOutScheme,
 
 @comparison_router.post("/approve_origins_for_update", response_model=List[UpdateApproveItemResponse])
 async def approve_origins_for_update(payload: UpdateHubApproveItems,
+                                     s3_client=Depends(get_s3_client),
                                      session: AsyncSession = Depends(db.scoped_session_dependency)):
-    return await approve_origins_for_update_db(payload, session)
+    return await approve_origins_for_update_db(payload, session, s3_client)

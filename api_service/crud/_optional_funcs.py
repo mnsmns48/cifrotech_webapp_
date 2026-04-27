@@ -1,9 +1,11 @@
 from typing import List, Dict
 
+from aiobotocore.client import AioBaseClient
 from sqlalchemy import select, func, Row
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from api_service.s3_helper import load_images_for_origins
 from api_service.schemas import ResolveFeatureModel, TypeModel, BrandModel, ComparableModel, ConcurrentAvailable, \
     UpdateApproveItemResponse, HubMenuLevelSchema, ProductForApproveScheme, \
     AttributeKeyValueSchema
@@ -312,19 +314,22 @@ async def _load_approve_features_and_paths(session, feature_ids, path_ids):
     return features_result.scalars().all(), paths_result.scalars().all()
 
 
-def _assemble_approve_response(rows: List[Row],
-                               features: List[ProductFeaturesGlobal],
-                               paths: List[HUbMenuLevel],
-                               hubstock: Dict[int, Dict[int, HUbStock]],
-                               path_to_features: Dict[int, List[int]],
-                               path_ids: List[int]) -> List[UpdateApproveItemResponse]:
+async def _assemble_approve_response(rows: list[Row],
+                                     features: list[ProductFeaturesGlobal],
+                                     paths: list[HUbMenuLevel],
+                                     hubstock: dict[int, dict[int, HUbStock]],
+                                     path_to_features: dict[int, list[int]],
+                                     path_ids: list[int],
+                                     session: AsyncSession,
+                                     s3_client: AioBaseClient) -> list[UpdateApproveItemResponse]:
     features_map = {f.id: f for f in features}
     paths_map = {p.id: p for p in paths}
 
-    origin_map: Dict[int, Dict] = dict()
+    origin_map: dict[int, dict] = dict()
 
     for row in rows:
         origin = row.origin
+
         if origin not in origin_map:
             origin_map[origin] = {
                 "origin": origin,
@@ -333,13 +338,8 @@ def _assemble_approve_response(rows: List[Row],
                 "input_price": row.input_price,
                 "output_price": row.output_price,
                 "title": row.origin_title,
-                "preview_key": row.preview_key,
-                "image_keys": set(),
                 "attrs_map": {},
             }
-
-        if row.image_key:
-            origin_map[origin]["image_keys"].add(row.image_key)
 
         if row.attr_id:
             if row.attr_id not in origin_map[origin]["attrs_map"]:
@@ -350,21 +350,23 @@ def _assemble_approve_response(rows: List[Row],
                     alias=row.attr_alias,
                 )
 
-    responses: List[UpdateApproveItemResponse] = list()
+    all_origins = list(origin_map.keys())
+    origin_to_preview_url, origin_to_pics_urls = await load_images_for_origins(session, s3_client, all_origins)
+
+    responses: list[UpdateApproveItemResponse] = []
 
     for pid in path_ids:
         if pid not in paths_map:
             continue
 
-        products: List[ProductForApproveScheme] = list()
+        products: list[ProductForApproveScheme] = []
 
         for fid in path_to_features[pid]:
             if fid not in features_map:
                 continue
 
             feature = features_map[fid]
-
-            groups = dict()
+            groups: dict[tuple, list] = {}
 
             for origin, data in origin_map.items():
                 if data["feature_id"] != fid:
@@ -372,44 +374,31 @@ def _assemble_approve_response(rows: List[Row],
 
                 attrs_tuple = tuple(sorted(data["attrs_map"].keys())) if data["attrs_map"] else ()
 
-                if attrs_tuple not in groups:
-                    groups[attrs_tuple] = []
+                groups.setdefault(attrs_tuple, []).append(data)
 
-                groups[attrs_tuple].append(data)
-
-            items: List[OriginForApproveItem] = list()
+            items: list[OriginForApproveItem] = []
 
             for attrs_tuple, group_items in groups.items():
                 best = min(group_items, key=lambda x: x["input_price"])
-
                 origin = best["origin"]
-                origin_in_hub = pid in hubstock and origin in hubstock[pid]
 
+                origin_in_hub = pid in hubstock and origin in hubstock[pid]
                 attrs_list = list(best["attrs_map"].values()) if best["attrs_map"] else None
 
-                preview = None
-                if best["preview_key"]:
-                    preview = get_url_from_s3(filename=best["preview_key"], path=settings.s3.utils_path)
-
-                pics = None
-                if best["image_keys"]:
-                    pics = []
-                    for key in best["image_keys"]:
-                        if best["preview_key"] and key == best["preview_key"]:
-                            continue
-                        pics.append(
-                            get_url_from_s3(filename=key, path=settings.s3.utils_path)
-                        )
+                preview = origin_to_preview_url.get(origin)
+                pics = origin_to_pics_urls.get(origin)
 
                 items.append(
-                    OriginForApproveItem(origin=origin,
-                                         origin_in_hub=origin_in_hub,
-                                         title=best["title"],
-                                         input_price=best["input_price"],
-                                         output_price=best["output_price"],
-                                         attrs=attrs_list,
-                                         preview=preview,
-                                         pics=pics)
+                    OriginForApproveItem(
+                        origin=origin,
+                        origin_in_hub=origin_in_hub,
+                        title=best["title"],
+                        input_price=best["input_price"],
+                        output_price=best["output_price"],
+                        attrs=attrs_list,
+                        preview=preview,
+                        pics=pics,
+                    )
                 )
 
             if items:

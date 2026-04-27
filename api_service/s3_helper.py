@@ -281,3 +281,68 @@ async def generate_final_image_payload(product: ProductOrigin, s3_client, bucket
             break
 
     return {"images": final_images, "preview": preview_url}
+
+
+async def load_images_for_origins(session: AsyncSession, s3_client, origins: list[int]):
+    if not origins:
+        return {}, {}
+
+    stmt = (
+        select(ProductImage)
+        .where(ProductImage.origin_id.in_(origins))
+        .order_by(
+            ProductImage.origin_id.asc(),
+            ProductImage.is_preview.desc(),
+            ProductImage.uploaded_at.asc()
+        )
+    )
+
+    result = await session.execute(stmt)
+    images = result.scalars().all()
+
+    origin_to_images: dict[int, list[ProductImage]] = dict()
+    for img in images:
+        origin_to_images.setdefault(img.origin_id, []).append(img)
+
+    origin_to_preview_url: dict[int, str | None] = dict()
+    origin_to_pics_urls: dict[int, list[str]] = dict()
+
+    for origin in origins:
+        imgs = origin_to_images.get(origin)
+
+        if not imgs:
+            origin_to_preview_url[origin] = None
+            origin_to_pics_urls[origin] = list()
+            continue
+
+        chosen = imgs[0]
+        preview_key = chosen.key
+        full_preview_key = f"{settings.s3.s3_hub_prefix}/{origin}/{preview_key}"
+
+        try:
+            preview_url = await s3_client.generate_presigned_url(
+                ClientMethod="get_object",
+                Params={"Bucket": settings.s3.bucket_name, "Key": full_preview_key},
+                ExpiresIn=600
+            )
+        except (ClientError, BotoCoreError):
+            preview_url = None
+
+        origin_to_preview_url[origin] = preview_url
+
+        pics_urls = []
+        for img in imgs[1:]:
+            full_key = f"{settings.s3.s3_hub_prefix}/{origin}/{img.key}"
+            try:
+                url = await s3_client.generate_presigned_url(
+                    ClientMethod="get_object",
+                    Params={"Bucket": settings.s3.bucket_name, "Key": full_key},
+                    ExpiresIn=600
+                )
+            except (ClientError, BotoCoreError):
+                url = None
+            pics_urls.append(url)
+
+        origin_to_pics_urls[origin] = pics_urls
+
+    return origin_to_preview_url, origin_to_pics_urls

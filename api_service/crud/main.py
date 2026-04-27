@@ -1070,7 +1070,7 @@ async def render_models_structured_db(vsl_id: int, session: AsyncSession) -> Lis
     return result
 
 
-async def approve_origins_for_update_db(payload, session):
+async def approve_origins_for_update_db(payload, session, s3_client):
     path_to_features = dict()
     path_ids = list()
 
@@ -1103,9 +1103,6 @@ async def approve_origins_for_update_db(payload, session):
     rows = await _load_approve_origin_data(session, vsl_ids, feature_ids)
     features, paths = await _load_approve_features_and_paths(session, feature_ids, path_ids)
 
-    return _assemble_approve_response(rows=rows,
-                                      features=features,
-                                      paths=paths,
-                                      hubstock=hubstock,
-                                      path_to_features=path_to_features,
-                                      path_ids=path_ids)
+    return await _assemble_approve_response(rows=rows, features=features, paths=paths, hubstock=hubstock,
+                                            path_to_features=path_to_features, path_ids=path_ids, session=session,
+                                            s3_client=s3_client)
