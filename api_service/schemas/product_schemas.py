@@ -128,8 +128,12 @@ class FetchProductInfoRequest(BaseModel):
         provided = [v for v in fields if v is not None]
 
         if len(provided) != 1:
-            raise ValueError(
-                "Нужно передать ровно одно из полей: origin, features_id или features_title"
-            )
+            raise ValueError("Нужно передать ровно одно из полей: origin, features_id или features_title")
 
         return values
+
+
+class ImageWithPreview(BaseModel):
+    url: str
+    filename: str
+    is_preview: bool

@@ -5,7 +5,7 @@ from pydantic import BaseModel, HttpUrl, model_validator
 
 from api_service.schemas.vsl_schemas import VSLScheme
 from api_service.schemas.hub_schemas import HubLevelPath, HubMenuLevelSchema
-from api_service.schemas.product_schemas import TypeModel, BrandModel, ResolveFeatureModel
+from api_service.schemas.product_schemas import TypeModel, BrandModel, ResolveFeatureModel, ImageWithPreview
 from api_service.schemas.attribute_schemas import AttributeValueSchema, AttributeKeyValueSchema
 from var_types import PriceDiffStatus
 
@@ -156,8 +156,7 @@ class OriginForApproveItem(BaseModel):
     input_price: Optional[float]
     output_price: Optional[float]
     attrs: Optional[list[AttributeKeyValueSchema]]
-    preview: Optional[str]
-    pics: Optional[List[str]]
+    pics: Optional[List[ImageWithPreview]]
 
 
 class ProductForApproveScheme(BaseModel):

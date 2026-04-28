@@ -351,15 +351,15 @@ async def _assemble_approve_response(rows: list[Row],
                 )
 
     all_origins = list(origin_map.keys())
-    origin_to_preview_url, origin_to_pics_urls = await load_images_for_origins(session, s3_client, all_origins)
+    origin_to_images = await load_images_for_origins(session, s3_client, all_origins)
 
-    responses: list[UpdateApproveItemResponse] = []
+    responses: list[UpdateApproveItemResponse] = list()
 
     for pid in path_ids:
         if pid not in paths_map:
             continue
 
-        products: list[ProductForApproveScheme] = []
+        products: list[ProductForApproveScheme] = list()
 
         for fid in path_to_features[pid]:
             if fid not in features_map:
@@ -385,8 +385,7 @@ async def _assemble_approve_response(rows: list[Row],
                 origin_in_hub = pid in hubstock and origin in hubstock[pid]
                 attrs_list = list(best["attrs_map"].values()) if best["attrs_map"] else None
 
-                preview = origin_to_preview_url.get(origin)
-                pics = origin_to_pics_urls.get(origin)
+                pics = origin_to_images.get(origin, [])
 
                 items.append(
                     OriginForApproveItem(
@@ -396,8 +395,7 @@ async def _assemble_approve_response(rows: list[Row],
                         input_price=best["input_price"],
                         output_price=best["output_price"],
                         attrs=attrs_list,
-                        preview=preview,
-                        pics=pics,
+                        pics=pics
                     )
                 )
 

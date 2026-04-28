@@ -15,7 +15,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from api_service.schemas import ParsingLinesIn
+from api_service.schemas import ParsingLinesIn, ImageWithPreview
 from config import settings
 from models import ProductOrigin, ProductImage
 
@@ -283,9 +283,22 @@ async def generate_final_image_payload(product: ProductOrigin, s3_client, bucket
     return {"images": final_images, "preview": preview_url}
 
 
+async def safe_presign(s3_client, bucket, key, retries=3):
+    for attempt in range(retries):
+        try:
+            return await s3_client.generate_presigned_url(
+                ClientMethod="get_object",
+                Params={"Bucket": bucket, "Key": key},
+                ExpiresIn=600
+            )
+        except (ClientError, BotoCoreError) as e:
+            if attempt == retries - 1:
+                return None
+
+
 async def load_images_for_origins(session: AsyncSession, s3_client, origins: list[int]):
     if not origins:
-        return {}, {}
+        return {}
 
     stmt = (
         select(ProductImage)
@@ -300,49 +313,31 @@ async def load_images_for_origins(session: AsyncSession, s3_client, origins: lis
     result = await session.execute(stmt)
     images = result.scalars().all()
 
-    origin_to_images: dict[int, list[ProductImage]] = dict()
+    origin_to_images: dict[int, list[ImageWithPreview]] = dict()
+
     for img in images:
-        origin_to_images.setdefault(img.origin_id, []).append(img)
+        origin_to_images.setdefault(img.origin_id, [])
 
-    origin_to_preview_url: dict[int, str | None] = dict()
-    origin_to_pics_urls: dict[int, list[str]] = dict()
+        full_key = f"{settings.s3.s3_hub_prefix}/{img.origin_id}/{img.key}"
 
-    for origin in origins:
-        imgs = origin_to_images.get(origin)
+        url = await safe_presign(
+            s3_client,
+            settings.s3.bucket_name,
+            full_key
+        )
 
-        if not imgs:
-            origin_to_preview_url[origin] = None
-            origin_to_pics_urls[origin] = list()
+        if not url:
             continue
 
-        chosen = imgs[0]
-        preview_key = chosen.key
-        full_preview_key = f"{settings.s3.s3_hub_prefix}/{origin}/{preview_key}"
-
-        try:
-            preview_url = await s3_client.generate_presigned_url(
-                ClientMethod="get_object",
-                Params={"Bucket": settings.s3.bucket_name, "Key": full_preview_key},
-                ExpiresIn=600
+        origin_to_images[img.origin_id].append(
+            ImageWithPreview(
+                url=url,
+                filename=img.key,
+                is_preview=img.is_preview
             )
-        except (ClientError, BotoCoreError):
-            preview_url = None
+        )
 
-        origin_to_preview_url[origin] = preview_url
+    for origin in origins:
+        origin_to_images.setdefault(origin, [])
 
-        pics_urls = []
-        for img in imgs[1:]:
-            full_key = f"{settings.s3.s3_hub_prefix}/{origin}/{img.key}"
-            try:
-                url = await s3_client.generate_presigned_url(
-                    ClientMethod="get_object",
-                    Params={"Bucket": settings.s3.bucket_name, "Key": full_key},
-                    ExpiresIn=600
-                )
-            except (ClientError, BotoCoreError):
-                url = None
-            pics_urls.append(url)
-
-        origin_to_pics_urls[origin] = pics_urls
-
-    return origin_to_preview_url, origin_to_pics_urls
+    return origin_to_images
