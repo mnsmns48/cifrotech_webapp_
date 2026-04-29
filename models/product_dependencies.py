@@ -15,7 +15,8 @@ if TYPE_CHECKING:
                         HUbStock,
                         ParsingLine,
                         AttributeBrandRule,
-                        HUbMenuLevel)
+                        HUbMenuLevel,
+                        ProductTypeWeightRule)
 
 
 class ProductType(Base):
@@ -27,6 +28,7 @@ class ProductType(Base):
     attr_link: Mapped[list["AttributeLink"]] = relationship(back_populates="product_type", cascade="all, delete-orphan")
     rule_overrides: Mapped[list["AttributeBrandRule"]] = relationship(back_populates="product_type",
                                                                       cascade="all, delete-orphan")
+    weight_rules: Mapped[list["ProductTypeWeightRule"]] = relationship(back_populates="product_type")
 
 
 class ProductBrand(Base):

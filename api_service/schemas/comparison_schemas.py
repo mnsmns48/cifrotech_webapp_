@@ -162,6 +162,8 @@ class OriginForApproveItem(BaseModel):
 class ProductForApproveScheme(BaseModel):
     id: int
     title: str
+    brand: BrandModel
+    type: TypeModel
     items: list[OriginForApproveItem]
 
 

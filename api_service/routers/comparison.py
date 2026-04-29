@@ -1,4 +1,4 @@
-from typing import List, Dict, Any
+from typing import List, Dict
 
 from fastapi import Depends, APIRouter
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,8 +11,7 @@ from api_service.func import generate_diff_tabs
 from api_service.s3_helper import get_s3_client
 from api_service.schemas import ComparisonOutScheme, ComparisonInScheme, HubLevelPath, VSLScheme, ParsingHubDiffOut, \
     ParsingToDiffData, HubToDiffData, RecalcScheme, RecomputedResult, UnidentifiedOrigins, HubRoutes, \
-    ComparableModel, ComparableUnion, HubMenuLevelSchema, ResolveFeatureModel, UpdateHubApproveItems, \
-    UpdateApproveItemResponse
+    ComparableModel, ComparableUnion, UpdateHubApproveItems, UpdateApproveItemResponse
 
 from engine import db
 from models import VendorSearchLine

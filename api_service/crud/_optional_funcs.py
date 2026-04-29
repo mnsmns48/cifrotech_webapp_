@@ -3,7 +3,7 @@ from typing import List, Dict
 from aiobotocore.client import AioBaseClient
 from sqlalchemy import select, func, Row
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased
+from sqlalchemy.orm import aliased, selectinload
 
 from api_service.s3_helper import load_images_for_origins
 from api_service.schemas import ResolveFeatureModel, TypeModel, BrandModel, ComparableModel, ConcurrentAvailable, \
@@ -306,7 +306,12 @@ async def _load_approve_origin_data(session: AsyncSession, vsl_ids: List[int], f
 
 
 async def _load_approve_features_and_paths(session, feature_ids, path_ids):
-    stmt_features = select(ProductFeaturesGlobal).where(ProductFeaturesGlobal.id.in_(feature_ids))
+    stmt_features = (
+        select(ProductFeaturesGlobal)
+        .options(selectinload(ProductFeaturesGlobal.brand), selectinload(ProductFeaturesGlobal.type))
+        .where(ProductFeaturesGlobal.id.in_(feature_ids))
+    )
+
     stmt_paths = select(HUbMenuLevel).where(HUbMenuLevel.id.in_(path_ids))
     features_result = await session.execute(stmt_features)
     paths_result = await session.execute(stmt_paths)
@@ -331,15 +336,13 @@ async def _assemble_approve_response(rows: list[Row],
         origin = row.origin
 
         if origin not in origin_map:
-            origin_map[origin] = {
-                "origin": origin,
-                "vsl_id": row.vsl_id,
-                "feature_id": row.feature_id,
-                "input_price": row.input_price,
-                "output_price": row.output_price,
-                "title": row.origin_title,
-                "attrs_map": {},
-            }
+            origin_map[origin] = {"origin": origin,
+                                  "vsl_id": row.vsl_id,
+                                  "feature_id": row.feature_id,
+                                  "input_price": row.input_price,
+                                  "output_price": row.output_price,
+                                  "title": row.origin_title,
+                                  "attrs_map": {}}
 
         if row.attr_id:
             if row.attr_id not in origin_map[origin]["attrs_map"]:
@@ -366,7 +369,7 @@ async def _assemble_approve_response(rows: list[Row],
                 continue
 
             feature = features_map[fid]
-            groups: dict[tuple, list] = {}
+            groups: dict[tuple, list] = dict()
 
             for origin, data in origin_map.items():
                 if data["feature_id"] != fid:
@@ -376,7 +379,7 @@ async def _assemble_approve_response(rows: list[Row],
 
                 groups.setdefault(attrs_tuple, []).append(data)
 
-            items: list[OriginForApproveItem] = []
+            items: list[OriginForApproveItem] = list()
 
             for attrs_tuple, group_items in groups.items():
                 best = min(group_items, key=lambda x: x["input_price"])
@@ -401,11 +404,11 @@ async def _assemble_approve_response(rows: list[Row],
 
             if items:
                 products.append(
-                    ProductForApproveScheme(
-                        id=feature.id,
-                        title=feature.title,
-                        items=items,
-                    )
+                    ProductForApproveScheme(id=feature.id,
+                                            title=feature.title,
+                                            brand=BrandModel(id=feature.brand.id, brand=feature.brand.brand),
+                                            type=TypeModel(id=feature.type.id, type=feature.type.type),
+                                            items=items)
                 )
 
         if products:

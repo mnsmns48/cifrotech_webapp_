@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 
-from api_service.formula.environment import validate_formula, render_formula
+from api_service.modulars.formula.environment import validate_formula, render_formula
 from models import FormulaExpression
 
 

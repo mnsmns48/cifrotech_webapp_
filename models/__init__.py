@@ -30,7 +30,8 @@ __all__ = (
     "AttributeValue",
     "FormulaExpression",
     "ProductFeaturesFormulaLink",
-    "ProductFeaturesHubMenuLevelLink"
+    "ProductFeaturesHubMenuLevelLink",
+    "ProductTypeWeightRule"
 )
 
 from .base import Base
@@ -53,3 +54,4 @@ from .attributes import AttributeLink, AttributeOriginValue, AttributeModelOptio
     AttributeKey
 
 from .formula import FormulaExpression
+from .analytics import ProductTypeWeightRule

@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from models import Base
 
 if TYPE_CHECKING:
-    from models import ProductType, ProductFeaturesGlobal, ProductOrigin
+    from models import ProductType, ProductFeaturesGlobal, ProductOrigin, ProductTypeWeightRule
 
 
 class OverrideType(enum.Enum):
@@ -27,6 +27,7 @@ class AttributeKey(Base):
     values: Mapped[list["AttributeValue"]] = relationship(back_populates="attr_key", cascade="all, delete-orphan")
     rule_overrides: Mapped[list["AttributeBrandRule"]] = relationship(back_populates="attr_key",
                                                                       cascade="all, delete-orphan")
+    weight_rules: Mapped[list["ProductTypeWeightRule"]] = relationship(back_populates="attr_key")
 
 
 class AttributeLink(Base):
@@ -66,6 +67,7 @@ class AttributeValue(Base):
     attr_key: Mapped["AttributeKey"] = relationship(back_populates="values")
     model_options: Mapped[list["AttributeModelOption"]] = relationship(back_populates="attr_value")
     product_values: Mapped[list["AttributeOriginValue"]] = relationship(back_populates="attr_value")
+    value_maps = relationship("ProductTypeValueMap", back_populates="attr_value", cascade="all, delete-orphan")
 
     __table_args__ = (UniqueConstraint("attr_key_id", "value", name="uq_attr_value"),)
 
