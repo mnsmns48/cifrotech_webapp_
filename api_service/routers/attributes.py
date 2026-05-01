@@ -15,21 +15,21 @@ from api_service.schemas import CreateAttribute, UpdateAttribute, TypesDependenc
 from engine import db
 from models.attributes import OverrideType
 
-attributes_router = APIRouter(tags=['Attributes'])
+attributes_router = APIRouter(tags=['Attributes'], prefix='/attributes')
 
 
-@attributes_router.get("/attributes/get_attr_keys")
-async def get_hub_levels(session: AsyncSession = Depends(db.scoped_session_dependency)):
+@attributes_router.get("/get_attr_keys")
+async def fetch_attribute_keys(session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await fetch_all_attribute_keys(session)
 
 
-@attributes_router.post("/attributes/create_attr_key")
+@attributes_router.post("/create_attr_key")
 async def create_attr_key(key: str, session: AsyncSession = Depends(db.scoped_session_dependency)):
     new_key = await create_attribute_key(session, key)
     return {"status": "ok", "created": new_key}
 
 
-@attributes_router.put("/attributes/update_attr_key")
+@attributes_router.put("/update_attr_key")
 async def update_attr_key(key_id: int, new_key: str,
                           session: AsyncSession = Depends(db.scoped_session_dependency)):
     updated = await update_attribute_key(session, key_id, new_key)
@@ -47,7 +47,7 @@ async def delete_attr_key(key_id: int, session: AsyncSession = Depends(db.scoped
         return {"status": "ok", "deleted_id": key_id}
 
 
-@attributes_router.get("/attributes/get_attr_values")
+@attributes_router.get("/get_attr_values")
 async def get_attr_keys_and_values(session: AsyncSession = Depends(db.scoped_session_dependency)):
     keys = await fetch_all_attribute_keys(session)
     values = await fetch_all_attribute_values_with_keys(session)
@@ -62,7 +62,7 @@ async def get_attr_keys_and_values(session: AsyncSession = Depends(db.scoped_ses
     return result
 
 
-@attributes_router.post("/attributes/create_attribute")
+@attributes_router.post("/create_attribute")
 async def create_attribute_item(payload: CreateAttribute,
                                 session: AsyncSession = Depends(db.scoped_session_dependency)):
     new_attribute = await create_attribute(session, payload)
@@ -72,7 +72,7 @@ async def create_attribute_item(payload: CreateAttribute,
             "alias": new_attribute.alias}
 
 
-@attributes_router.put("/attributes/update_attribute")
+@attributes_router.put("/update_attribute")
 async def update_attribute_item(payload: UpdateAttribute,
                                 session: AsyncSession = Depends(db.scoped_session_dependency)):
     updated = await update_attribute_value(session, value_id=payload.id,
@@ -86,14 +86,14 @@ async def update_attribute_item(payload: UpdateAttribute,
     }
 
 
-@attributes_router.delete("/attributes/delete_attribute")
+@attributes_router.delete("/delete_attribute")
 async def delete_attribute_item(value_id: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
     result = await delete_attribute_value(session, value_id)
     if result:
         return {"status": "ok", "deleted_id": value_id}
 
 
-@attributes_router.get("/attributes/get_types_dependencies", response_model=TypesDependenciesResponse)
+@attributes_router.get("/get_types_dependencies", response_model=TypesDependenciesResponse)
 async def get_type_dependencies(session: AsyncSession = Depends(db.scoped_session_dependency)):
     types_map = await fetch_types_with_rules(session)
     keys = await fetch_all_attribute_keys(session)
@@ -101,28 +101,28 @@ async def get_type_dependencies(session: AsyncSession = Depends(db.scoped_sessio
     return TypesDependenciesResponse(types_map=types_map, keys=keys, brands=brands)
 
 
-@attributes_router.post("/attributes/add_types_dependencies")
+@attributes_router.post("/add_types_dependencies")
 async def add_type_dependencies(payload: TypeDependencyLink,
                                 session: AsyncSession = Depends(db.scoped_session_dependency)):
     link = await add_type_dependency_db(session=session, type_id=payload.type_id, attr_key_id=payload.attr_key_id)
     return TypeDependencyLink(type_id=link.product_type_id, attr_key_id=link.attr_key_id)
 
 
-@attributes_router.delete("/attributes/delete_types_dependencies")
+@attributes_router.delete("/delete_types_dependencies")
 async def delete_type_dependencies(
         type_id: int, attr_key_id: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
     deleted = await delete_type_dependency_db(session=session, type_id=type_id, attr_key_id=attr_key_id)
     return TypeDependencyLink(**deleted)
 
 
-@attributes_router.post("/attributes/add_attribute_brand_link")
+@attributes_router.post("/add_attribute_brand_link")
 async def add_attribute_brand_link(payload: AttributeBrandRuleLink,
                                    session: AsyncSession = Depends(db.scoped_session_dependency)):
     link = await add_attribute_brand_link_db(session=session, data=payload)
     return link
 
 
-@attributes_router.delete("/attributes/delete_attribute_brand_link")
+@attributes_router.delete("/delete_attribute_brand_link")
 async def delete_attribute_brand_link(product_type_id: int, brand_id: int, attr_key_id: int, rule_type: OverrideType,
                                       session: AsyncSession = Depends(db.scoped_session_dependency)):
     obj = AttributeBrandRuleLink(product_type_id=product_type_id, brand_id=brand_id, attr_key_id=attr_key_id,
@@ -131,13 +131,13 @@ async def delete_attribute_brand_link(product_type_id: int, brand_id: int, attr_
     return deleted
 
 
-@attributes_router.get("/attributes/get_all_types", response_model=List[Types])
+@attributes_router.get("/get_all_types", response_model=List[Types])
 async def get_model_dependencies(session: AsyncSession = Depends(db.scoped_session_dependency)):
     types = await fetch_all_types(session)
     return list(types)
 
 
-@attributes_router.get("/attributes/load_model_attribute_options/{product_type_id}",
+@attributes_router.get("/load_model_attribute_options/{product_type_id}",
                        response_model=List[ProductFeaturesAttributeOptions])
 async def load_model_attribute_options(product_type_id: int,
                                        session: AsyncSession = Depends(db.scoped_session_dependency)):
@@ -145,27 +145,27 @@ async def load_model_attribute_options(product_type_id: int,
     return items
 
 
-@attributes_router.post("/attributes/model_attributes_request", response_model=ModelAttributesResponse)
+@attributes_router.post("/model_attributes_request", response_model=ModelAttributesResponse)
 async def product_dependencies_scheme(payload: ModelAttributesRequest,
                                       session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await product_dependencies_db(session=session, payload=payload)
 
 
-@attributes_router.post("/attributes/add_product_attribute_value_option_link")
+@attributes_router.post("/add_product_attribute_value_option_link")
 async def add_product_attribute_value_option_link(payload: AttributeModelOptionLink,
                                                   session: AsyncSession = Depends(db.scoped_session_dependency)):
     result = await add_product_attribute_value_option(payload=payload, session=session)
     return result
 
 
-@attributes_router.post("/attributes/delete_product_attribute_value_option_link")
+@attributes_router.post("/delete_product_attribute_value_option_link")
 async def delete_product_attribute_value_option_link(payload: AttributeModelOptionLink,
                                                      session: AsyncSession = Depends(db.scoped_session_dependency)):
     result = await delete_product_attribute_value_option(payload=payload, session=session)
     return result
 
 
-@attributes_router.post("/attributes/attributes_origin_value_check_request",
+@attributes_router.post("/attributes_origin_value_check_request",
                         response_model=AttributeOriginValueCheckResponse)
 async def attributes_origin_value_check_request(payload: AttributeOriginValueCheckRequest,
                                                 session: AsyncSession = Depends(db.scoped_session_dependency)):

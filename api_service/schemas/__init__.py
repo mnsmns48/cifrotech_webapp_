@@ -32,6 +32,9 @@ from api_service.schemas.features_schemas import FeaturesDataSet, SetFeaturesHub
     UpdateFeatureCategoryRequest, InnerRowRequest, UpdateInnerRowRequest, FeatureIds, TypesAndBrands, \
     CreateFeaturesGlobal, SetFeaturesFormulaRequest, SetFormulaResponse
 
+from api_service.schemas.analytics_schemas import ProductTypeWeightRuleSchema, ProductTypeWeightRuleCreate, \
+    ProductTypeWeightRuleDelete, ProductTypeWeightRuleUpdate, ProductTypeWeightRuleSwitch
+
 __all__ = list()
 
 __all__ += ["VendorSchema"]
@@ -76,3 +79,6 @@ __all__ += ["FeaturesDataSet", "PathRoutes", "SetFeaturesHubLevelRequest", "SetL
             "FeatureResponseScheme", "ProsConsItem", "ProsConsItemUpdate", "FeatureCategory",
             "UpdateFeatureCategoryRequest", "InnerRowRequest", "UpdateInnerRowRequest", "FeatureIds", "TypesAndBrands",
             "CreateFeaturesGlobal", "SetFeaturesFormulaRequest", "SetFormulaResponse"]
+
+__all__ += ["ProductTypeWeightRuleSchema", "ProductTypeWeightRuleCreate", "ProductTypeWeightRuleDelete",
+            "ProductTypeWeightRuleUpdate", "ProductTypeWeightRuleSwitch"]

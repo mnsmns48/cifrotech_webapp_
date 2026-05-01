@@ -6,6 +6,7 @@ from api_service.routers.formula import formula_router
 from api_service.routers.hub import hub_router
 from api_service.routers.hubstock import hubstock_router
 from api_service.routers.printer import printer_router
+from api_service.routers.product import product_router
 from api_service.routers.reward_range import reward_range_router
 from api_service.routers.service import utils_router
 from api_service.routers.vendor import vendor_router
@@ -30,3 +31,5 @@ service_router.include_router(formula_router)
 service_router.include_router(features_router)
 
 service_router.include_router(analytics_router)
+
+service_router.include_router(product_router)

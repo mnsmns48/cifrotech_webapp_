@@ -1,0 +1,47 @@
+from pydantic import BaseModel, ConfigDict
+
+from api_service.schemas import TypeModel, AttributeKey, AttributeValueSchema
+
+
+class ProductTypeValueMapSchema(BaseModel):
+    id: int
+    attr_value: AttributeValueSchema
+    multiplier: float
+
+
+class ProductTypeWeightRuleSchema(BaseModel):
+    id: int
+    product_type: TypeModel
+    attr_key: AttributeKey
+    weight: float
+    value_maps: list[ProductTypeValueMapSchema] | None = None
+    description: str | None = None
+    is_enabled: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ProductTypeWeightRuleCreate(BaseModel):
+    product_type_id: int
+    attr_key_id: int
+    weight: float
+    description: str | None = None
+    is_enabled: bool = True
+
+
+class ProductTypeWeightRuleDelete(BaseModel):
+    id: int
+
+
+class ProductTypeWeightRuleUpdate(BaseModel):
+    id: int
+    product_type_id: int
+    attr_key_id: int
+    weight: float
+    description: str | None = None
+    is_enabled: bool = True
+
+
+class ProductTypeWeightRuleSwitch(BaseModel):
+    id: int
+    is_enabled: bool
