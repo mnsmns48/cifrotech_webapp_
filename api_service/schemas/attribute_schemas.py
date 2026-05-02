@@ -170,3 +170,8 @@ class AttributeKeyValueSchema(BaseModel):
     key: AttributeKey
     value: str
     alias: Optional[str]
+
+
+class AttrValueRequestByKeyAndExcludes(BaseModel):
+    key_id: int
+    exclude_value_id_list: list[int] | None = None

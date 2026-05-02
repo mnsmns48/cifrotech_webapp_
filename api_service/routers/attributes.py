@@ -1,5 +1,6 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.crud.attributes import fetch_all_attribute_keys, create_attribute_key, update_attribute_key, \
@@ -11,9 +12,10 @@ from api_service.crud.attributes import fetch_all_attribute_keys, create_attribu
 
 from api_service.schemas import CreateAttribute, UpdateAttribute, TypesDependenciesResponse, TypeDependencyLink, \
     AttributeBrandRuleLink, ProductFeaturesAttributeOptions, Types, ModelAttributesRequest, ModelAttributesResponse, \
-    AttributeModelOptionLink, AttributeOriginValueCheckRequest, AttributeOriginValueCheckResponse
+    AttributeModelOptionLink, AttributeOriginValueCheckRequest, AttributeOriginValueCheckResponse, AttributeValueSchema, \
+    AttrValueRequestByKeyAndExcludes
 from engine import db
-from models.attributes import OverrideType
+from models.attributes import OverrideType, AttributeValue
 
 attributes_router = APIRouter(tags=['Attributes'], prefix='/attributes')
 
@@ -60,6 +62,17 @@ async def get_attr_keys_and_values(session: AsyncSession = Depends(db.scoped_ses
         result["values"].append(v)
 
     return result
+
+
+@attributes_router.post("/get_attribute_values_by_key_and_excludes", response_model=list[AttributeValueSchema])
+async def get_attribute_by_key(payload: AttrValueRequestByKeyAndExcludes,
+                               session: AsyncSession = Depends(db.scoped_session_dependency)):
+    query = select(AttributeValue).where(AttributeValue.attr_key_id == payload.key_id)
+    if payload.exclude_value_id_list:
+        query = query.where(AttributeValue.id.notin_(payload.exclude_value_id_list))
+
+    result = await session.execute(query.order_by(AttributeValue.alias))
+    return result.scalars().all()
 
 
 @attributes_router.post("/create_attribute")

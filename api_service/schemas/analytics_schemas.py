@@ -45,3 +45,15 @@ class ProductTypeWeightRuleUpdate(BaseModel):
 class ProductTypeWeightRuleSwitch(BaseModel):
     id: int
     is_enabled: bool
+
+
+class ProductTypeValueMapScheme(BaseModel):
+    id: int
+    attr_value: AttributeValueSchema
+    multiplier: float
+
+
+class ProductTypeValueMapCreateSchema(BaseModel):
+    rule_id: int
+    attr_value_ids: list[int]
+    multiplier: float

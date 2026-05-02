@@ -1,8 +1,10 @@
 from sqlalchemy import select, delete, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.modulars.analytics.crud import update_rule_line_db, add_rule_line_db
-from api_service.schemas import ProductTypeWeightRuleCreate, ProductTypeWeightRuleUpdate
+from api_service.schemas import ProductTypeWeightRuleCreate, ProductTypeWeightRuleUpdate, \
+    ProductTypeValueMapCreateSchema
 from models import ProductTypeWeightRule
 
 from sqlalchemy.orm import selectinload
@@ -56,3 +58,30 @@ class AnalyticService:
         )
 
         return result.scalar_one_or_none()
+
+    @staticmethod
+    async def fetch_value_map(rule_id: int, session: AsyncSession):
+        result = await session.execute(
+            select(ProductTypeValueMap)
+            .where(ProductTypeValueMap.rule_id == rule_id)
+            .options(
+                selectinload(ProductTypeValueMap.attr_value)
+            )
+        )
+        return result.scalars().all()
+
+    @staticmethod
+    async def create_value_map_line(payload: ProductTypeValueMapCreateSchema, session: AsyncSession):
+        stmt = (
+            insert(ProductTypeValueMap)
+            .values([{"rule_id": payload.rule_id,
+                      "attr_value_id": attr_value_id,
+                      "multiplier": payload.multiplier}
+                     for attr_value_id in payload.attr_value_ids
+                     ])
+            .returning(ProductTypeValueMap)
+        )
+
+        result = await session.execute(stmt)
+        await session.commit()
+        return result.scalars().all()

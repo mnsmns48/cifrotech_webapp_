@@ -22,7 +22,7 @@ from api_service.schemas.attribute_schemas import CreateAttribute, UpdateAttribu
     TypeDependencyLink, AttributeBrandRuleLink, TypeAndBrandPayload, ProductFeaturesAttributeOptions, \
     AttributeValueSchema, ModelAttributeValuesSchema, Types, ModelAttributesRequest, ModelAttributesResponse, \
     AttributeModelOptionLink, ParsingResultAttributeResponse, AttributeValueSchema, AttributeOriginValueCheckRequest, \
-    AttributeOriginValueCheckResponse, AttributeKeyValueSchema, AttributeKey
+    AttributeOriginValueCheckResponse, AttributeKeyValueSchema, AttributeKey, AttrValueRequestByKeyAndExcludes
 
 from api_service.schemas.formula import FormulaBase, FormulaCreate, FormulaUpdate, FormulaResponse, \
     FormulaPreviewResponse, FormulaPreviewRequest, FormulaValidateRequest, FormulaIdObj
@@ -33,7 +33,8 @@ from api_service.schemas.features_schemas import FeaturesDataSet, SetFeaturesHub
     CreateFeaturesGlobal, SetFeaturesFormulaRequest, SetFormulaResponse
 
 from api_service.schemas.analytics_schemas import ProductTypeWeightRuleSchema, ProductTypeWeightRuleCreate, \
-    ProductTypeWeightRuleDelete, ProductTypeWeightRuleUpdate, ProductTypeWeightRuleSwitch
+    ProductTypeWeightRuleDelete, ProductTypeWeightRuleUpdate, ProductTypeWeightRuleSwitch, ProductTypeValueMapScheme, \
+    ProductTypeValueMapCreateSchema
 
 __all__ = list()
 
@@ -42,7 +43,7 @@ __all__ += ["VSLScheme", "VslId"]
 __all__ += ["ParsingRequest", "ParsingLinesIn", "ParsingToDiffData", "SourceContext", "ParsingResultOut",
             "AddAttributesValuesRequest", "DependencyImageItem", "DependencyOriginImplementation", "ImageResponseItem"]
 __all__ += ["RewardRangeLineSchema", "RewardRangeSchema", "RewardRangeResponseSchema", "RewardRangeBaseSchema",
-            "AttributeKeyValueSchema", "AttributeKey"]
+            "AttributeKeyValueSchema", "AttributeKey", "AttrValueRequestByKeyAndExcludes"]
 __all__ += [
     "ProductOriginUpdate", "ProductDependencyUpdate", "ProductResponse", "RecalcPricesRequest", "RecalcPricesResponse",
     "ProductOriginCreate", "ProductDependencyBatchUpdate", "OriginsList", "OriginHubLevelMap", "BrandModel",
@@ -81,4 +82,5 @@ __all__ += ["FeaturesDataSet", "PathRoutes", "SetFeaturesHubLevelRequest", "SetL
             "CreateFeaturesGlobal", "SetFeaturesFormulaRequest", "SetFormulaResponse"]
 
 __all__ += ["ProductTypeWeightRuleSchema", "ProductTypeWeightRuleCreate", "ProductTypeWeightRuleDelete",
-            "ProductTypeWeightRuleUpdate", "ProductTypeWeightRuleSwitch"]
+            "ProductTypeWeightRuleUpdate", "ProductTypeWeightRuleSwitch", "ProductTypeValueMapScheme",
+            "ProductTypeValueMapCreateSchema"]
