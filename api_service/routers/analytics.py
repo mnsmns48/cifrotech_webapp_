@@ -4,6 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api_service.modulars.analytics.service import AnalyticService
 from api_service.schemas import ProductTypeWeightRuleSchema, ProductTypeWeightRuleCreate, ProductTypeWeightRuleDelete, \
     ProductTypeWeightRuleUpdate, ProductTypeWeightRuleSwitch, ProductTypeValueMapScheme, ProductTypeValueMapCreateSchema
+from api_service.schemas.analytics_schemas import ProductTypeValueMapSchema, ProductTypeValueMapUpdateSchema, \
+    ProductTypeValueMapDeleteSchema
 from engine import db
 
 analytics_router = APIRouter(tags=['Analytics'], prefix='/analytics')
@@ -47,3 +49,15 @@ async def fetch_value_map(rule_id: int, session: AsyncSession = Depends(db.scope
 async def create_value_map_bulk(payload: ProductTypeValueMapCreateSchema,
                                 session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await AnalyticService.create_value_map_line(payload, session)
+
+
+@analytics_router.post("/update_value_map_bulk", response_model=ProductTypeValueMapSchema)
+async def update_value_map_bulk(payload: ProductTypeValueMapUpdateSchema,
+                                session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await AnalyticService.update_value_map_bulk(payload, session)
+
+
+@analytics_router.post("/delete_value_map_bulk", response_model=list[int])
+async def delete_value_map_bulk(payload: ProductTypeValueMapDeleteSchema,
+                                session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await AnalyticService.delete_value_map_bulk(payload, session)

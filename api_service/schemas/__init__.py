@@ -34,7 +34,7 @@ from api_service.schemas.features_schemas import FeaturesDataSet, SetFeaturesHub
 
 from api_service.schemas.analytics_schemas import ProductTypeWeightRuleSchema, ProductTypeWeightRuleCreate, \
     ProductTypeWeightRuleDelete, ProductTypeWeightRuleUpdate, ProductTypeWeightRuleSwitch, ProductTypeValueMapScheme, \
-    ProductTypeValueMapCreateSchema
+    ProductTypeValueMapCreateSchema, ProductTypeValueMapUpdateSchema, ProductTypeValueMapDeleteSchema
 
 __all__ = list()
 
@@ -83,4 +83,4 @@ __all__ += ["FeaturesDataSet", "PathRoutes", "SetFeaturesHubLevelRequest", "SetL
 
 __all__ += ["ProductTypeWeightRuleSchema", "ProductTypeWeightRuleCreate", "ProductTypeWeightRuleDelete",
             "ProductTypeWeightRuleUpdate", "ProductTypeWeightRuleSwitch", "ProductTypeValueMapScheme",
-            "ProductTypeValueMapCreateSchema"]
+            "ProductTypeValueMapCreateSchema", "ProductTypeValueMapUpdateSchema", "ProductTypeValueMapDeleteSchema"]

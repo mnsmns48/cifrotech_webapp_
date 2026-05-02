@@ -57,3 +57,12 @@ class ProductTypeValueMapCreateSchema(BaseModel):
     rule_id: int
     attr_value_ids: list[int]
     multiplier: float
+
+
+class ProductTypeValueMapUpdateSchema(BaseModel):
+    id: int | list[int]
+    multiplier: float
+
+
+class ProductTypeValueMapDeleteSchema(BaseModel):
+    ids: list[int]

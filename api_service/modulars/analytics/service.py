@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.modulars.analytics.crud import update_rule_line_db, add_rule_line_db
 from api_service.schemas import ProductTypeWeightRuleCreate, ProductTypeWeightRuleUpdate, \
-    ProductTypeValueMapCreateSchema
+    ProductTypeValueMapCreateSchema, ProductTypeValueMapUpdateSchema, ProductTypeValueMapDeleteSchema
 from models import ProductTypeWeightRule
 
 from sqlalchemy.orm import selectinload
@@ -72,16 +72,50 @@ class AnalyticService:
 
     @staticmethod
     async def create_value_map_line(payload: ProductTypeValueMapCreateSchema, session: AsyncSession):
-        stmt = (
-            insert(ProductTypeValueMap)
-            .values([{"rule_id": payload.rule_id,
-                      "attr_value_id": attr_value_id,
-                      "multiplier": payload.multiplier}
-                     for attr_value_id in payload.attr_value_ids
-                     ])
-            .returning(ProductTypeValueMap)
-        )
+        stmt = (insert(ProductTypeValueMap).values([{
+            "rule_id": payload.rule_id,
+            "attr_value_id": attr_value_id,
+            "multiplier": payload.multiplier
+        }
+            for attr_value_id in payload.attr_value_ids
+        ])
+                .returning(ProductTypeValueMap.id)
+                )
+        result = await session.execute(stmt)
+        await session.commit()
+        new_ids = result.scalars().all()
+        rows = await session.execute(select(ProductTypeValueMap)
+                                     .options(selectinload(ProductTypeValueMap.attr_value))
+                                     .where(ProductTypeValueMap.id.in_(new_ids)))
+        return rows.scalars().all()
+
+    @staticmethod
+    async def update_value_map_bulk(payload: ProductTypeValueMapUpdateSchema, session: AsyncSession):
+        ids = payload.id if isinstance(payload.id, list) else [payload.id]
+
+        stmt = (update(ProductTypeValueMap).where(ProductTypeValueMap.id.in_(ids))
+                .values(multiplier=payload.multiplier).returning(ProductTypeValueMap.id))
 
         result = await session.execute(stmt)
         await session.commit()
-        return result.scalars().all()
+
+        updated_ids = result.scalars().all()
+
+        rows = await session.execute(
+            select(ProductTypeValueMap)
+            .options(selectinload(ProductTypeValueMap.attr_value))
+            .where(ProductTypeValueMap.id.in_(updated_ids))
+        )
+
+        return rows.scalars().all()
+
+    @staticmethod
+    async def delete_value_map_bulk(payload: ProductTypeValueMapDeleteSchema, session: AsyncSession):
+        stmt = (delete(ProductTypeValueMap)
+                .where(ProductTypeValueMap.id.in_(payload.ids))
+                .returning(ProductTypeValueMap.id)
+                )
+        result = await session.execute(stmt)
+        await session.commit()
+        deleted_ids = result.scalars().all()
+        return deleted_ids
