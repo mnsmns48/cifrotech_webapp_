@@ -1058,6 +1058,12 @@ async def render_models_structured_db(vsl_id: int, session: AsyncSession) -> Lis
 
 
 async def approve_origins_for_update_db(payload, session, s3_client):
+    print("\n================= PAYLOAD =================")
+    print(payload)
+
+    # -----------------------------------------
+    # 1. Собираем path_to_features
+    # -----------------------------------------
     path_to_features, path_ids, feature_ids = dict(), list(), set()
     for item in payload.items:
         pid = item.path_id
@@ -1071,8 +1077,23 @@ async def approve_origins_for_update_db(payload, session, s3_client):
                 path_to_features[pid].append(fid)
                 feature_ids.add(fid)
 
-    hubstock: Dict[int, Dict[int, HUbStock]] = await _load_approve_hubstock_for_paths(session, path_ids)
+    print("\n================= PATHS & FEATURES =================")
+    print("path_ids:", path_ids)
+    print("path_to_features:", path_to_features)
+    print("feature_ids:", feature_ids)
 
+    # -----------------------------------------
+    # 2. Загружаем hubstock
+    # -----------------------------------------
+    hubstock = await _load_approve_hubstock_for_paths(session, path_ids)
+
+    print("\n================= HUBSTOCK =================")
+    for pid, origins in hubstock.items():
+        print(f"path {pid}: {[ (oid, s.input_price if hasattr(s,'input_price') else None) for oid,s in origins.items() ]}")
+
+    # -----------------------------------------
+    # 3. Собираем vsl_ids и origin_ids
+    # -----------------------------------------
     path_to_vsl_map, vsl_ids, origin_ids = dict(), set(), set()
 
     for pid, origins_map in hubstock.items():
@@ -1086,24 +1107,44 @@ async def approve_origins_for_update_db(payload, session, s3_client):
                 vsl_list.append(vsl)
                 vsl_ids.add(vsl)
 
+    print("\n================= ORIGIN IDS =================")
+    print("origin_ids:", origin_ids)
+    print("vsl_ids:", vsl_ids)
+
+    # -----------------------------------------
+    # 4. Загружаем rows
+    # -----------------------------------------
     rows = await _load_approve_origin_data(session, list(vsl_ids), list(feature_ids))
+
+    print("\n================= RAW ROWS =================")
+    for r in rows:
+        print(f"origin={r.origin} price={r.input_price} feature={r.feature_id} attr={r.attr_id} key={r.key_name} val={r.attr_value}")
+
+    # -----------------------------------------
+    # 5. Загружаем features, paths, images
+    # -----------------------------------------
     features = await _load_approve_features(session, list(feature_ids))
     paths = await _load_approve_paths(session, path_ids)
     images = await load_images_for_origins(session, s3_client, list(origin_ids))
 
-    origin_map: dict[int, dict] = dict()
+    # -----------------------------------------
+    # 6. Строим origin_map
+    # -----------------------------------------
+    origin_map: dict[int, dict] = {}
 
     for row in rows:
         origin = row.origin
 
         if origin not in origin_map:
-            origin_map[origin] = {"origin": origin,
-                                  "vsl_id": row.vsl_id,
-                                  "feature_id": row.feature_id,
-                                  "input_price": row.input_price,
-                                  "output_price": row.output_price,
-                                  "title": row.origin_title,
-                                  "attrs_map": {}}
+            origin_map[origin] = {
+                "origin": origin,
+                "vsl_id": row.vsl_id,
+                "feature_id": row.feature_id,
+                "input_price": row.input_price,
+                "output_price": row.output_price,
+                "title": row.origin_title,
+                "attrs_map": {}
+            }
 
         if row.attr_id and row.attr_id not in origin_map[origin]["attrs_map"]:
             origin_map[origin]["attrs_map"][row.attr_id] = AttributeKeyValueSchema(
@@ -1113,6 +1154,13 @@ async def approve_origins_for_update_db(payload, session, s3_client):
                 alias=row.attr_alias,
             )
 
+    print("\n================= ORIGIN MAP =================")
+    for oid, data in origin_map.items():
+        print(f"origin={oid} price={data['input_price']} attrs={list(data['attrs_map'].keys())}")
+
+    # -----------------------------------------
+    # 7. Загружаем правила анализа
+    # -----------------------------------------
     features_map = {f.id: f for f in features}
 
     product_type_ids = {f.type.id for f in features}
@@ -1122,18 +1170,52 @@ async def approve_origins_for_update_db(payload, session, s3_client):
     value_multiplier_map = await load_value_maps(session, set(rule_weight_map.keys()))
     brand_rule_map = await load_brand_rules(session, product_type_ids, brand_ids)
 
-    analyze_map = compute_analyze_map(origin_map=origin_map, features_map=features_map, rule_weight_map=rule_weight_map,
-                                      type_key_to_rule=type_key_to_rule, value_multiplier_map=value_multiplier_map,
-                                      brand_rule_map=brand_rule_map)
+    print("\n================= RULES =================")
+    print("rule_weight_map:", rule_weight_map)
+    print("type_key_to_rule:", type_key_to_rule)
+    print("value_multiplier_map:", value_multiplier_map)
+    print("brand_rule_map:", brand_rule_map)
 
-    return _build_approve_response(origin_map=origin_map,
-                                   analyze_map=analyze_map,
-                                   features=features,
-                                   paths=paths,
-                                   hubstock=hubstock,
-                                   path_to_features=path_to_features,
-                                   path_ids=path_ids,
-                                   images=images)
+    # -----------------------------------------
+    # 8. Строим analyze_map
+    # -----------------------------------------
+    analyze_map = compute_analyze_map(
+        origin_map=origin_map,
+        features_map=features_map,
+        rule_weight_map=rule_weight_map,
+        type_key_to_rule=type_key_to_rule,
+        value_multiplier_map=value_multiplier_map,
+        brand_rule_map=brand_rule_map
+    )
+
+    print("\n================= ANALYZE MAP =================")
+    for oid, a in analyze_map.items():
+        print(
+            f"origin={oid} "
+            f"value={a.value} "
+            f"value↑={a.value_increase} "
+            f"price↑={a.price_increase} "
+            f"threshold={a.threshold} "
+            f"ratio={a.ratio} "
+            f"verdict={a.verdict}"
+        )
+
+    # -----------------------------------------
+    # 9. Собираем финальный ответ
+    # -----------------------------------------
+    print("\n================= BUILD RESPONSE =================")
+
+    return _build_approve_response(
+        origin_map=origin_map,
+        analyze_map=analyze_map,
+        features=features,
+        paths=paths,
+        hubstock=hubstock,
+        path_to_features=path_to_features,
+        path_ids=path_ids,
+        images=images
+    )
+
 
 
 def _build_approve_response(origin_map: dict[int, dict],
