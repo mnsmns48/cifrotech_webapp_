@@ -7,7 +7,7 @@ from aiohttp import ClientSession
 from botocore.exceptions import ClientError, BotoCoreError
 from fastapi import HTTPException
 from redis.asyncio import Redis
-from sqlalchemy import delete, update, and_, select, func, case, Row
+from sqlalchemy import delete, update, and_, select, func, case
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +16,10 @@ from sqlalchemy.orm import selectinload, InstrumentedAttribute, aliased
 from api_service.api_connect import get_one_by_dtube
 from api_service.crud._optional_funcs import assemble_comparable_models, load_hubstock_origins_by_path_ids, \
     load_parsing_origins, load_feature_ids, load_models, load_unique_models_by_origin, _load_approve_hubstock_for_paths, \
-    _load_approve_origin_data, _load_approve_features, _load_approve_paths
+    _load_approve_origin_data, _load_approve_features, _load_approve_paths, load_weight_rules, load_value_maps, \
+    load_brand_rules
+from api_service.modulars.analytics.compute import compute_analyze_map
+
 from api_service.s3_helper import generate_presigned_image_urls, load_images_for_origins
 
 from api_service.utils import normalize_origin, update_feature_if_changed
@@ -29,8 +32,8 @@ from api_service.schemas import SourceContext, ParsingLinesIn, ParsingResultOut,
     HubToDiffData, RecomputedResult, RecomputedNewPriceLines, ParsingResultAttributeResponse, AttributeValueSchema, \
     AddAttributesValuesRequest, DependencyImageItem, DependencyOriginImplementation, ImageResponseItem, \
     ComparisonOutScheme, UnidentifiedOrigin, UnidentifiedOrigins, TypeModel, BrandModel, ResolveFeatureModel, \
-    ComparableModel, AttributeKeyValueSchema, AttributeKey, ApproveAnalyzedResponse, ProductsAnalyzeScheme, \
-    OriginAnalyzedItem, HubMenuLevelSchema
+    ComparableModel, AttributeKeyValueSchema, AttributeKey, ApproveAnalyzedResponse, AnalyzeItem, ProductsAnalyzeScheme, \
+    HubMenuLevelSchema, OriginAnalyzedItem
 
 
 async def get_vendor_and_vsl(session: AsyncSession, vsl_id: int) -> Optional[SourceContext]:
@@ -1083,26 +1086,10 @@ async def approve_origins_for_update_db(payload, session, s3_client):
                 vsl_list.append(vsl)
                 vsl_ids.add(vsl)
 
-    return _build_approve_response(
-        rows=await _load_approve_origin_data(session, list(vsl_ids), list(feature_ids)),
-        features=await _load_approve_features(session, list(feature_ids)),
-        paths=await _load_approve_paths(session, path_ids),
-        hubstock=hubstock,
-        path_to_features=path_to_features,
-        path_ids=path_ids,
-        images=await load_images_for_origins(session, s3_client, list(origin_ids)))
-
-
-def _build_approve_response(rows: list[Row],
-                            features: list[ProductFeaturesGlobal],
-                            paths: list[HUbMenuLevel],
-                            hubstock: dict[int, dict[int, HUbStock]],
-                            path_to_features: dict[int, list[int]],
-                            path_ids: list[int],
-                            images: dict[int, list]
-                            ) -> list[ApproveAnalyzedResponse]:
-    features_map = {f.id: f for f in features}
-    paths_map = {p.id: p for p in paths}
+    rows = await _load_approve_origin_data(session, list(vsl_ids), list(feature_ids))
+    features = await _load_approve_features(session, list(feature_ids))
+    paths = await _load_approve_paths(session, path_ids)
+    images = await load_images_for_origins(session, s3_client, list(origin_ids))
 
     origin_map: dict[int, dict] = dict()
 
@@ -1126,6 +1113,40 @@ def _build_approve_response(rows: list[Row],
                 alias=row.attr_alias,
             )
 
+    features_map = {f.id: f for f in features}
+
+    product_type_ids = {f.type.id for f in features}
+    brand_ids = {f.brand.id for f in features}
+
+    rule_weight_map, type_key_to_rule = await load_weight_rules(session, product_type_ids)
+    value_multiplier_map = await load_value_maps(session, set(rule_weight_map.keys()))
+    brand_rule_map = await load_brand_rules(session, product_type_ids, brand_ids)
+
+    analyze_map = compute_analyze_map(origin_map=origin_map, features_map=features_map, rule_weight_map=rule_weight_map,
+                                      type_key_to_rule=type_key_to_rule, value_multiplier_map=value_multiplier_map,
+                                      brand_rule_map=brand_rule_map)
+
+    return _build_approve_response(origin_map=origin_map,
+                                   analyze_map=analyze_map,
+                                   features=features,
+                                   paths=paths,
+                                   hubstock=hubstock,
+                                   path_to_features=path_to_features,
+                                   path_ids=path_ids,
+                                   images=images)
+
+
+def _build_approve_response(origin_map: dict[int, dict],
+                            analyze_map: dict[int, AnalyzeItem],
+                            features: list[ProductFeaturesGlobal],
+                            paths: list[HUbMenuLevel],
+                            hubstock: dict[int, dict[int, HUbStock]],
+                            path_to_features: dict[int, list[int]],
+                            path_ids: list[int],
+                            images: dict[int, list]) -> list[ApproveAnalyzedResponse]:
+    features_map = {f.id: f for f in features}
+    paths_map = {p.id: p for p in paths}
+
     result: list[ApproveAnalyzedResponse] = list()
 
     for pid in path_ids:
@@ -1139,7 +1160,8 @@ def _build_approve_response(rows: list[Row],
                 continue
 
             feature = features_map[fid]
-            groups: dict[tuple, list] = dict()
+
+            groups: dict[tuple, list[dict]] = dict()
 
             for data in origin_map.values():
                 if data["feature_id"] != fid:
@@ -1157,12 +1179,13 @@ def _build_approve_response(rows: list[Row],
                 items.append(
                     OriginAnalyzedItem(
                         origin=origin,
-                        origin_in_hub=pid in hubstock and origin in hubstock[pid],
+                        origin_in_hub=(pid in hubstock and origin in hubstock[pid]),
                         title=best["title"],
                         input_price=best["input_price"],
                         output_price=best["output_price"],
                         attrs=list(best["attrs_map"].values()) if best["attrs_map"] else None,
                         pics=images.get(origin, []),
+                        analyze=analyze_map[origin]
                     )
                 )
 

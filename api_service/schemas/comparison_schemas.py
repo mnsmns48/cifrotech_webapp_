@@ -161,8 +161,7 @@ class OriginForApproveItem(BaseModel):
 
 
 class OriginAnalyzedItem(OriginForApproveItem):
-    pass
-    # analyze: AnalyzeItem
+    analyze: AnalyzeItem
 
 
 class ProductsAnalyzeScheme(BaseModel):

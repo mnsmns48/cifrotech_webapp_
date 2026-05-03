@@ -1,20 +1,15 @@
 from typing import List, Dict
-
-from aiobotocore.client import AioBaseClient
 from sqlalchemy import select, func, Row
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
 
-from api_service.modulars.analytics.compute import compute_analyze
-from api_service.s3_helper import load_images_for_origins
-from api_service.schemas import ResolveFeatureModel, TypeModel, BrandModel, ComparableModel, ConcurrentAvailable, \
-    HubMenuLevelSchema, AttributeKeyValueSchema
-from api_service.schemas.comparison_schemas import OriginForApproveItem
-from app_utils import get_url_from_s3
-from config import settings
+from api_service.schemas import ResolveFeatureModel, TypeModel, BrandModel, ComparableModel, ConcurrentAvailable
 
 from models import HUbStock, ParsingLine, ProductFeaturesLink, ProductType, ProductBrand, ProductFeaturesGlobal, \
-    ProductOrigin, AttributeOriginValue, AttributeValue, AttributeKey, ProductImage, HUbMenuLevel
+    ProductOrigin, AttributeOriginValue, AttributeValue, AttributeKey, ProductImage, HUbMenuLevel, \
+    ProductTypeWeightRule, AttributeBrandRule
+from models.analytics import ProductTypeValueMap
+from models.attributes import OverrideType
 
 
 async def load_hubstock_origins_by_path_ids(path_ids, session):
@@ -302,3 +297,36 @@ async def _load_approve_paths(session, path_ids):
     stmt = select(HUbMenuLevel).where(HUbMenuLevel.id.in_(path_ids))
     result = await session.execute(stmt)
     return result.scalars().all()
+
+
+async def load_weight_rules(session: AsyncSession, product_type_ids: set[int]) \
+        -> tuple[dict[int, float], dict[tuple[int, int], int]]:
+    rows = await session.execute(select(ProductTypeWeightRule)
+                                 .where(ProductTypeWeightRule.product_type_id.in_(product_type_ids))
+                                 .where(ProductTypeWeightRule.is_enabled == True))
+    rules = rows.scalars().all()
+    rule_weight_map = {r.id: r.weight for r in rules}
+    type_key_to_rule = {(r.product_type_id, r.attr_key_id): r.id for r in rules}
+
+    return rule_weight_map, type_key_to_rule
+
+
+async def load_value_maps(session: AsyncSession, rule_ids: set[int]) -> dict[int, float]:
+    if not rule_ids:
+        return {}
+
+    rows = await session.execute(select(ProductTypeValueMap).where(ProductTypeValueMap.rule_id.in_(rule_ids)))
+    maps = rows.scalars().all()
+    return {m.attr_value_id: m.multiplier for m in maps}
+
+
+async def load_brand_rules(session: AsyncSession, product_type_ids: set[int], brand_ids: set[int]) \
+        -> dict[tuple[int, int, int], OverrideType]:
+    if not product_type_ids or not brand_ids:
+        return {}
+
+    rows = await session.execute(select(AttributeBrandRule)
+                                 .where(AttributeBrandRule.product_type_id.in_(product_type_ids))
+                                 .where(AttributeBrandRule.brand_id.in_(brand_ids)))
+    rules = rows.scalars().all()
+    return {(r.product_type_id, r.brand_id, r.attr_key_id): r.rule_type for r in rules}
