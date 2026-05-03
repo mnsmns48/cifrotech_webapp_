@@ -37,5 +37,3 @@ class ProductTypeValueMap(Base):
 
     rule: Mapped["ProductTypeWeightRule"] = relationship(back_populates="value_maps")
     attr_value: Mapped["AttributeValue"] = relationship(back_populates="value_maps")
-
-

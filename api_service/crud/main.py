@@ -7,7 +7,7 @@ from aiohttp import ClientSession
 from botocore.exceptions import ClientError, BotoCoreError
 from fastapi import HTTPException
 from redis.asyncio import Redis
-from sqlalchemy import delete, update, and_, select, func, case
+from sqlalchemy import delete, update, and_, select, func, case, Row
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,9 +16,8 @@ from sqlalchemy.orm import selectinload, InstrumentedAttribute, aliased
 from api_service.api_connect import get_one_by_dtube
 from api_service.crud._optional_funcs import assemble_comparable_models, load_hubstock_origins_by_path_ids, \
     load_parsing_origins, load_feature_ids, load_models, load_unique_models_by_origin, _load_approve_hubstock_for_paths, \
-    _extract_approve_vsl_by_path, _load_approve_features_and_paths, \
-    _assemble_approve_response, _load_approve_origin_data
-from api_service.s3_helper import generate_presigned_image_urls
+    _load_approve_origin_data, _load_approve_features, _load_approve_paths
+from api_service.s3_helper import generate_presigned_image_urls, load_images_for_origins
 
 from api_service.utils import normalize_origin, update_feature_if_changed
 from config import settings
@@ -30,7 +29,8 @@ from api_service.schemas import SourceContext, ParsingLinesIn, ParsingResultOut,
     HubToDiffData, RecomputedResult, RecomputedNewPriceLines, ParsingResultAttributeResponse, AttributeValueSchema, \
     AddAttributesValuesRequest, DependencyImageItem, DependencyOriginImplementation, ImageResponseItem, \
     ComparisonOutScheme, UnidentifiedOrigin, UnidentifiedOrigins, TypeModel, BrandModel, ResolveFeatureModel, \
-    ComparableModel
+    ComparableModel, AttributeKeyValueSchema, AttributeKey, ApproveAnalyzedResponse, ProductsAnalyzeScheme, \
+    OriginAnalyzedItem, HubMenuLevelSchema
 
 
 async def get_vendor_and_vsl(session: AsyncSession, vsl_id: int) -> Optional[SourceContext]:
@@ -1003,23 +1003,16 @@ async def resolve_comparison_selected_models(path_ids, session) -> List[Comparab
 
 
 async def render_models_structured_db(vsl_id: int, session: AsyncSession) -> List[ResolveFeatureModel]:
-    origins_rows = (
-        await session.execute(
-            select(ParsingLine.origin)
-            .where(ParsingLine.vsl_id == vsl_id)
-        )
-    ).scalars().all()
+    stmt = select(ParsingLine.origin).where(ParsingLine.vsl_id == vsl_id)
+    origins_rows = (await session.execute(stmt)).scalars().all()
 
     origins = set(origins_rows)
     if not origins:
         return []
 
-    rows = (
-        await session.execute(
-            select(ProductFeaturesLink.origin, ProductFeaturesLink.feature_id)
-            .where(ProductFeaturesLink.origin.in_(origins))
-        )
-    ).mappings().all()
+    rows = (await session.execute(
+        select(ProductFeaturesLink.origin, ProductFeaturesLink.feature_id)
+        .where(ProductFeaturesLink.origin.in_(origins)))).mappings().all()
 
     feature_id_by_origin = {r["origin"]: r["feature_id"] for r in rows}
     feature_ids = set(feature_id_by_origin.values())
@@ -1028,9 +1021,7 @@ async def render_models_structured_db(vsl_id: int, session: AsyncSession) -> Lis
         return []
 
     model_by_id = await load_models(feature_ids, session)
-
     unique_by_origin = await load_unique_models_by_origin(origins, session)
-
     result: List[ResolveFeatureModel] = list()
 
     for fid in sorted(feature_ids):
@@ -1049,33 +1040,25 @@ async def render_models_structured_db(vsl_id: int, session: AsyncSession) -> Lis
 
             available_items.append(unique_by_origin[item])
 
-        result.append(
-            ResolveFeatureModel(
-                id=row["id"],
-                title=row["title"],
-                info=row["info"],
-                source=row["source"],
-                type_=TypeModel(id=row["type_id"], type=row["type_name"]),
-                brand=BrandModel(id=row["brand_id"], brand=row["brand_name"]),
-                in_hub=False,
-                in_parsing=True,
-                available=available_items
-            )
-        )
+        result.append(ResolveFeatureModel(id=row["id"],
+                                          title=row["title"],
+                                          info=row["info"],
+                                          source=row["source"],
+                                          type_=TypeModel(id=row["type_id"], type=row["type_name"]),
+                                          brand=BrandModel(id=row["brand_id"], brand=row["brand_name"]),
+                                          in_hub=False,
+                                          in_parsing=True,
+                                          available=available_items))
 
-    result.sort(
-        key=lambda m: min(a.input_price for a in m.available)
-    )
-
+    result.sort(key=lambda m: min(a.input_price for a in m.available))
     return result
 
 
 async def approve_origins_for_update_db(payload, session, s3_client):
-    path_to_features = dict()
-    path_ids = list()
-
+    path_to_features, path_ids, feature_ids = dict(), list(), set()
     for item in payload.items:
         pid = item.path_id
+
         if pid not in path_to_features:
             path_to_features[pid] = []
             path_ids.append(pid)
@@ -1083,26 +1066,123 @@ async def approve_origins_for_update_db(payload, session, s3_client):
         for fid in item.models_ids:
             if fid not in path_to_features[pid]:
                 path_to_features[pid].append(fid)
+                feature_ids.add(fid)
 
-    hubstock = await _load_approve_hubstock_for_paths(session, path_ids)
-    path_to_vsl = _extract_approve_vsl_by_path(hubstock)
+    hubstock: Dict[int, Dict[int, HUbStock]] = await _load_approve_hubstock_for_paths(session, path_ids)
 
-    vsl_ids = list()
-    feature_ids = list()
+    path_to_vsl_map, vsl_ids, origin_ids = dict(), set(), set()
 
-    for pid, vsl_list in path_to_vsl.items():
-        for v in vsl_list:
-            if v not in vsl_ids:
-                vsl_ids.append(v)
+    for pid, origins_map in hubstock.items():
+        vsl_list = path_to_vsl_map.setdefault(pid, [])
 
-    for pid, fids in path_to_features.items():
-        for fid in fids:
-            if fid not in feature_ids:
-                feature_ids.append(fid)
+        for origin_id, stock in origins_map.items():
+            origin_ids.add(origin_id)
 
-    rows = await _load_approve_origin_data(session, vsl_ids, feature_ids)
-    features, paths = await _load_approve_features_and_paths(session, feature_ids, path_ids)
+            vsl = stock.vsl_id
+            if vsl not in vsl_list:
+                vsl_list.append(vsl)
+                vsl_ids.add(vsl)
 
-    return await _assemble_approve_response(rows=rows, features=features, paths=paths, hubstock=hubstock,
-                                            path_to_features=path_to_features, path_ids=path_ids, session=session,
-                                            s3_client=s3_client)
+    return _build_approve_response(
+        rows=await _load_approve_origin_data(session, list(vsl_ids), list(feature_ids)),
+        features=await _load_approve_features(session, list(feature_ids)),
+        paths=await _load_approve_paths(session, path_ids),
+        hubstock=hubstock,
+        path_to_features=path_to_features,
+        path_ids=path_ids,
+        images=await load_images_for_origins(session, s3_client, list(origin_ids)))
+
+
+def _build_approve_response(rows: list[Row],
+                            features: list[ProductFeaturesGlobal],
+                            paths: list[HUbMenuLevel],
+                            hubstock: dict[int, dict[int, HUbStock]],
+                            path_to_features: dict[int, list[int]],
+                            path_ids: list[int],
+                            images: dict[int, list]
+                            ) -> list[ApproveAnalyzedResponse]:
+    features_map = {f.id: f for f in features}
+    paths_map = {p.id: p for p in paths}
+
+    origin_map: dict[int, dict] = dict()
+
+    for row in rows:
+        origin = row.origin
+
+        if origin not in origin_map:
+            origin_map[origin] = {"origin": origin,
+                                  "vsl_id": row.vsl_id,
+                                  "feature_id": row.feature_id,
+                                  "input_price": row.input_price,
+                                  "output_price": row.output_price,
+                                  "title": row.origin_title,
+                                  "attrs_map": {}}
+
+        if row.attr_id and row.attr_id not in origin_map[origin]["attrs_map"]:
+            origin_map[origin]["attrs_map"][row.attr_id] = AttributeKeyValueSchema(
+                id=row.attr_id,
+                key=AttributeKey(id=row.key_id, key=row.key_name),
+                value=row.attr_value,
+                alias=row.attr_alias,
+            )
+
+    result: list[ApproveAnalyzedResponse] = list()
+
+    for pid in path_ids:
+        if pid not in paths_map:
+            continue
+
+        products: list[ProductsAnalyzeScheme] = list()
+
+        for fid in path_to_features[pid]:
+            if fid not in features_map:
+                continue
+
+            feature = features_map[fid]
+            groups: dict[tuple, list] = dict()
+
+            for data in origin_map.values():
+                if data["feature_id"] != fid:
+                    continue
+
+                attrs_tuple = tuple(sorted(data["attrs_map"].keys())) if data["attrs_map"] else ()
+                groups.setdefault(attrs_tuple, []).append(data)
+
+            items: list[OriginAnalyzedItem] = list()
+
+            for group_items in groups.values():
+                best = min(group_items, key=lambda x: x["input_price"])
+                origin = best["origin"]
+
+                items.append(
+                    OriginAnalyzedItem(
+                        origin=origin,
+                        origin_in_hub=pid in hubstock and origin in hubstock[pid],
+                        title=best["title"],
+                        input_price=best["input_price"],
+                        output_price=best["output_price"],
+                        attrs=list(best["attrs_map"].values()) if best["attrs_map"] else None,
+                        pics=images.get(origin, []),
+                    )
+                )
+
+            if items:
+                products.append(
+                    ProductsAnalyzeScheme(
+                        id=feature.id,
+                        title=feature.title,
+                        brand=BrandModel(id=feature.brand.id, brand=feature.brand.brand),
+                        type=TypeModel(id=feature.type.id, type=feature.type.type),
+                        items=items,
+                    )
+                )
+
+        if products:
+            result.append(
+                ApproveAnalyzedResponse(
+                    path=HubMenuLevelSchema.model_validate(paths_map[pid]),
+                    products=products,
+                )
+            )
+
+    return result

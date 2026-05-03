@@ -11,7 +11,7 @@ from api_service.func import generate_diff_tabs
 from api_service.s3_helper import get_s3_client
 from api_service.schemas import ComparisonOutScheme, ComparisonInScheme, HubLevelPath, VSLScheme, ParsingHubDiffOut, \
     ParsingToDiffData, HubToDiffData, RecalcScheme, RecomputedResult, UnidentifiedOrigins, HubRoutes, \
-    ComparableModel, ComparableUnion, UpdateHubApproveItems, UpdateApproveItemResponse
+    ComparableModel, ComparableUnion, UpdateHubApproveItems, ApproveAnalyzedResponse
 
 from engine import db
 from models import VendorSearchLine
@@ -110,7 +110,7 @@ async def fetch_hub_routes(payload: ComparisonOutScheme,
     return merged
 
 
-@comparison_router.post("/approve_origins_for_update", response_model=List[UpdateApproveItemResponse])
+@comparison_router.post("/approve_origins_for_update", response_model=list[ApproveAnalyzedResponse])
 async def approve_origins_for_update(payload: UpdateHubApproveItems,
                                      s3_client=Depends(get_s3_client),
                                      session: AsyncSession = Depends(db.scoped_session_dependency)):

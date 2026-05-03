@@ -5,10 +5,10 @@ from sqlalchemy import select, func, Row
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
 
+from api_service.modulars.analytics.compute import compute_analyze
 from api_service.s3_helper import load_images_for_origins
 from api_service.schemas import ResolveFeatureModel, TypeModel, BrandModel, ComparableModel, ConcurrentAvailable, \
-    UpdateApproveItemResponse, HubMenuLevelSchema, ProductForApproveScheme, \
-    AttributeKeyValueSchema
+    HubMenuLevelSchema, AttributeKeyValueSchema
 from api_service.schemas.comparison_schemas import OriginForApproveItem
 from app_utils import get_url_from_s3
 from config import settings
@@ -215,7 +215,7 @@ def assemble_comparable_models(path_ids,
     return result
 
 
-async def _load_approve_hubstock_for_paths(session: AsyncSession, path_ids: List[int]):
+async def _load_approve_hubstock_for_paths(session: AsyncSession, path_ids: List[int]) -> dict:
     if not path_ids:
         return {}
 
@@ -223,7 +223,7 @@ async def _load_approve_hubstock_for_paths(session: AsyncSession, path_ids: List
     result = await session.execute(stmt)
     rows = result.scalars().all()
 
-    hub: Dict[int, Dict[int, HUbStock]] = {}
+    hub: Dict[int, Dict[int, HUbStock]] = dict()
 
     for row in rows:
         pid = row.path_id
@@ -232,21 +232,6 @@ async def _load_approve_hubstock_for_paths(session: AsyncSession, path_ids: List
         hub[pid][row.origin] = row
 
     return hub
-
-
-def _extract_approve_vsl_by_path(hubstock):
-    mapping = dict()
-
-    for pid, origins_map in hubstock.items():
-        if pid not in mapping:
-            mapping[pid] = []
-
-        for origin, stock in origins_map.items():
-            vsl = stock.vsl_id
-            if vsl not in mapping[pid]:
-                mapping[pid].append(vsl)
-
-    return mapping
 
 
 async def _load_approve_origin_data(session: AsyncSession, vsl_ids: List[int], feature_ids: List[int]):
@@ -305,118 +290,15 @@ async def _load_approve_origin_data(session: AsyncSession, vsl_ids: List[int], f
     return result.fetchall()
 
 
-async def _load_approve_features_and_paths(session, feature_ids, path_ids):
-    stmt_features = (
-        select(ProductFeaturesGlobal)
-        .options(selectinload(ProductFeaturesGlobal.brand), selectinload(ProductFeaturesGlobal.type))
-        .where(ProductFeaturesGlobal.id.in_(feature_ids))
-    )
-
-    stmt_paths = select(HUbMenuLevel).where(HUbMenuLevel.id.in_(path_ids))
-    features_result = await session.execute(stmt_features)
-    paths_result = await session.execute(stmt_paths)
-
-    return features_result.scalars().all(), paths_result.scalars().all()
+async def _load_approve_features(session, feature_ids):
+    stmt = (select(ProductFeaturesGlobal).options(selectinload(ProductFeaturesGlobal.brand),
+                                                  selectinload(ProductFeaturesGlobal.type))
+            .where(ProductFeaturesGlobal.id.in_(feature_ids)))
+    result = await session.execute(stmt)
+    return result.scalars().all()
 
 
-async def _assemble_approve_response(rows: list[Row],
-                                     features: list[ProductFeaturesGlobal],
-                                     paths: list[HUbMenuLevel],
-                                     hubstock: dict[int, dict[int, HUbStock]],
-                                     path_to_features: dict[int, list[int]],
-                                     path_ids: list[int],
-                                     session: AsyncSession,
-                                     s3_client: AioBaseClient) -> list[UpdateApproveItemResponse]:
-    features_map = {f.id: f for f in features}
-    paths_map = {p.id: p for p in paths}
-
-    origin_map: dict[int, dict] = dict()
-
-    for row in rows:
-        origin = row.origin
-
-        if origin not in origin_map:
-            origin_map[origin] = {"origin": origin,
-                                  "vsl_id": row.vsl_id,
-                                  "feature_id": row.feature_id,
-                                  "input_price": row.input_price,
-                                  "output_price": row.output_price,
-                                  "title": row.origin_title,
-                                  "attrs_map": {}}
-
-        if row.attr_id:
-            if row.attr_id not in origin_map[origin]["attrs_map"]:
-                origin_map[origin]["attrs_map"][row.attr_id] = AttributeKeyValueSchema(
-                    id=row.attr_id,
-                    key=AttributeKey(id=row.key_id, key=row.key_name),
-                    value=row.attr_value,
-                    alias=row.attr_alias,
-                )
-
-    all_origins = list(origin_map.keys())
-    origin_to_images = await load_images_for_origins(session, s3_client, all_origins)
-
-    responses: list[UpdateApproveItemResponse] = list()
-
-    for pid in path_ids:
-        if pid not in paths_map:
-            continue
-
-        products: list[ProductForApproveScheme] = list()
-
-        for fid in path_to_features[pid]:
-            if fid not in features_map:
-                continue
-
-            feature = features_map[fid]
-            groups: dict[tuple, list] = dict()
-
-            for origin, data in origin_map.items():
-                if data["feature_id"] != fid:
-                    continue
-
-                attrs_tuple = tuple(sorted(data["attrs_map"].keys())) if data["attrs_map"] else ()
-
-                groups.setdefault(attrs_tuple, []).append(data)
-
-            items: list[OriginForApproveItem] = list()
-
-            for attrs_tuple, group_items in groups.items():
-                best = min(group_items, key=lambda x: x["input_price"])
-                origin = best["origin"]
-
-                origin_in_hub = pid in hubstock and origin in hubstock[pid]
-                attrs_list = list(best["attrs_map"].values()) if best["attrs_map"] else None
-
-                pics = origin_to_images.get(origin, [])
-
-                items.append(
-                    OriginForApproveItem(
-                        origin=origin,
-                        origin_in_hub=origin_in_hub,
-                        title=best["title"],
-                        input_price=best["input_price"],
-                        output_price=best["output_price"],
-                        attrs=attrs_list,
-                        pics=pics
-                    )
-                )
-
-            if items:
-                products.append(
-                    ProductForApproveScheme(id=feature.id,
-                                            title=feature.title,
-                                            brand=BrandModel(id=feature.brand.id, brand=feature.brand.brand),
-                                            type=TypeModel(id=feature.type.id, type=feature.type.type),
-                                            items=items)
-                )
-
-        if products:
-            responses.append(
-                UpdateApproveItemResponse(
-                    path=HubMenuLevelSchema.model_validate(paths_map[pid]),
-                    products=products,
-                )
-            )
-
-    return responses
+async def _load_approve_paths(session, path_ids):
+    stmt = select(HUbMenuLevel).where(HUbMenuLevel.id.in_(path_ids))
+    result = await session.execute(stmt)
+    return result.scalars().all()

@@ -1,6 +1,7 @@
 from pydantic import BaseModel, ConfigDict
 
-from api_service.schemas import TypeModel, AttributeKey, AttributeValueSchema
+from api_service.schemas.product_schemas import TypeModel
+from api_service.schemas.attribute_schemas import AttributeKey, AttributeValueSchema
 
 
 class ProductTypeValueMapSchema(BaseModel):
@@ -66,3 +67,12 @@ class ProductTypeValueMapUpdateSchema(BaseModel):
 
 class ProductTypeValueMapDeleteSchema(BaseModel):
     ids: list[int]
+
+
+class AnalyzeItem(BaseModel):
+    verdict: bool
+    ratio: float
+    threshold: float
+    price_increase: float
+    value_increase: float
+    value: float

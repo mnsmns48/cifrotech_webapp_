@@ -3,6 +3,7 @@ from typing import Optional, List
 
 from pydantic import BaseModel, HttpUrl, model_validator
 
+from api_service.schemas.analytics_schemas import AnalyzeItem
 from api_service.schemas.vsl_schemas import VSLScheme
 from api_service.schemas.hub_schemas import HubLevelPath, HubMenuLevelSchema
 from api_service.schemas.product_schemas import TypeModel, BrandModel, ResolveFeatureModel, ImageWithPreview
@@ -159,14 +160,19 @@ class OriginForApproveItem(BaseModel):
     pics: Optional[List[ImageWithPreview]]
 
 
-class ProductForApproveScheme(BaseModel):
+class OriginAnalyzedItem(OriginForApproveItem):
+    pass
+    # analyze: AnalyzeItem
+
+
+class ProductsAnalyzeScheme(BaseModel):
     id: int
     title: str
     brand: BrandModel
     type: TypeModel
-    items: list[OriginForApproveItem]
+    items: List[OriginAnalyzedItem]
 
 
-class UpdateApproveItemResponse(BaseModel):
+class ApproveAnalyzedResponse(BaseModel):
     path: HubMenuLevelSchema
-    products: list[ProductForApproveScheme]
+    products: List[ProductsAnalyzeScheme]
