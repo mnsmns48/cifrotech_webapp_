@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional, List
 
-from pydantic import BaseModel, HttpUrl, model_validator
+from pydantic import BaseModel, HttpUrl, model_validator, Field
 
 from api_service.schemas.analytics_schemas import AnalyzeItem
 from api_service.schemas.vsl_schemas import VSLScheme
@@ -161,6 +161,7 @@ class OriginForApproveItem(BaseModel):
 
 
 class OriginAnalyzedItem(OriginForApproveItem):
+    origin_in_hub: None = Field(default=None, exclude=True)
     analyze: AnalyzeItem
 
 

@@ -1058,12 +1058,7 @@ async def render_models_structured_db(vsl_id: int, session: AsyncSession) -> Lis
 
 
 async def approve_origins_for_update_db(payload, session, s3_client):
-    print("\n================= PAYLOAD =================")
-    print(payload)
 
-    # -----------------------------------------
-    # 1. Собираем path_to_features
-    # -----------------------------------------
     path_to_features, path_ids, feature_ids = dict(), list(), set()
     for item in payload.items:
         pid = item.path_id
@@ -1089,7 +1084,8 @@ async def approve_origins_for_update_db(payload, session, s3_client):
 
     print("\n================= HUBSTOCK =================")
     for pid, origins in hubstock.items():
-        print(f"path {pid}: {[ (oid, s.input_price if hasattr(s,'input_price') else None) for oid,s in origins.items() ]}")
+        print(
+            f"path {pid}: {[(oid, s.input_price if hasattr(s, 'input_price') else None) for oid, s in origins.items()]}")
 
     # -----------------------------------------
     # 3. Собираем vsl_ids и origin_ids
@@ -1118,7 +1114,8 @@ async def approve_origins_for_update_db(payload, session, s3_client):
 
     print("\n================= RAW ROWS =================")
     for r in rows:
-        print(f"origin={r.origin} price={r.input_price} feature={r.feature_id} attr={r.attr_id} key={r.key_name} val={r.attr_value}")
+        print(
+            f"origin={r.origin} price={r.input_price} feature={r.feature_id} attr={r.attr_id} key={r.key_name} val={r.attr_value}")
 
     # -----------------------------------------
     # 5. Загружаем features, paths, images
@@ -1146,7 +1143,7 @@ async def approve_origins_for_update_db(payload, session, s3_client):
                 "attrs_map": {}
             }
 
-        if row.attr_id and row.attr_id not in origin_map[origin]["attrs_map"]:
+        if row.attr_id not in origin_map[origin]["attrs_map"]:
             origin_map[origin]["attrs_map"][row.attr_id] = AttributeKeyValueSchema(
                 id=row.attr_id,
                 key=AttributeKey(id=row.key_id, key=row.key_name),
@@ -1210,19 +1207,16 @@ async def approve_origins_for_update_db(payload, session, s3_client):
         analyze_map=analyze_map,
         features=features,
         paths=paths,
-        hubstock=hubstock,
         path_to_features=path_to_features,
         path_ids=path_ids,
         images=images
     )
 
 
-
 def _build_approve_response(origin_map: dict[int, dict],
                             analyze_map: dict[int, AnalyzeItem],
                             features: list[ProductFeaturesGlobal],
                             paths: list[HUbMenuLevel],
-                            hubstock: dict[int, dict[int, HUbStock]],
                             path_to_features: dict[int, list[int]],
                             path_ids: list[int],
                             images: dict[int, list]) -> list[ApproveAnalyzedResponse]:
@@ -1261,7 +1255,6 @@ def _build_approve_response(origin_map: dict[int, dict],
                 items.append(
                     OriginAnalyzedItem(
                         origin=origin,
-                        origin_in_hub=(pid in hubstock and origin in hubstock[pid]),
                         title=best["title"],
                         input_price=best["input_price"],
                         output_price=best["output_price"],
