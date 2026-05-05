@@ -6,7 +6,7 @@ from api_service.schemas.hubstock_schemas import (HubLoadingData, StockHubItemRe
                                                   HubItemTitlePatch, HubItemsChangePriceRequest,
                                                   HubItemsChangePriceResponse)
 
-from api_service.schemas.comparison_schemas import ComparisonInScheme, ComparisonOutScheme, ParsingLine, \
+from api_service.schemas.comparison_schemas import ComparisonSchemeQuery, ComparisonResponse, ParsingLine, \
     ConsentProcessScheme, ParsingHubDiffOut, HubToDiffData, RecalcScheme, RecomputedResult, RecomputedNewPriceLines, \
     ParsingHubDiffItem, UnidentifiedOrigins, UnidentifiedOrigin, HubRoutes, ComparableModel, ComparableUnion, \
     UpdateHubApproveItems, OriginAnalyzedItem, ProductsAnalyzeScheme, ApproveAnalyzedResponse, ProductsAnalyzeScheme
@@ -65,7 +65,7 @@ __all__ += [
     "HubLoadingData", "StockHubItemResult", "OriginsPayload", "HubItemTitlePatch", "HubItemsChangePriceRequest",
     "HubItemsChangePriceResponse"]
 
-__all__ += ["ComparisonInScheme", "ComparisonOutScheme", "ParsingLine", "ConsentProcessScheme",
+__all__ += ["ComparisonSchemeQuery", "ComparisonResponse", "ParsingLine", "ConsentProcessScheme",
             "ParsingHubDiffOut", "HubToDiffData", "RecalcScheme", "RecomputedResult", "RecomputedNewPriceLines",
             "ParsingHubDiffItem", "UnidentifiedOrigins", "UnidentifiedOrigin", "HubRoutes", "ComparableModel",
             "ComparableUnion", "UpdateHubApproveItems", "OriginAnalyzedItem", "ApproveAnalyzedResponse",

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional, List
 
-from pydantic import BaseModel, HttpUrl, model_validator, Field
+from pydantic import BaseModel, HttpUrl, model_validator
 
 from api_service.schemas.analytics_schemas import AnalyzeItem
 from api_service.schemas.vsl_schemas import VSLScheme
@@ -11,14 +11,13 @@ from api_service.schemas.attribute_schemas import AttributeValueSchema, Attribut
 from var_types import PriceDiffStatus
 
 
-class ComparisonInScheme(BaseModel):
+class ComparisonSchemeQuery(BaseModel):
     origins: Optional[list[int]] = None
     path_id: int
 
 
-class ComparisonOutScheme(BaseModel):
+class ComparisonResponse(HubMenuLevelSchema):
     vsl_list: list[VSLScheme]
-    path_ids: list[HubLevelPath]
 
     model_config = {"from_attributes": True}
 

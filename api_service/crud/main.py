@@ -374,7 +374,7 @@ async def get_all_children_cte(session: AsyncSession, parent_id: int) -> List[Hu
     return result
 
 
-async def get_lines_by_origins(origins: list[int], session: AsyncSession) -> list[VendorSearchLine]:
+async def get_vsl_by_origins(origins: list[int], session: AsyncSession) -> list[VendorSearchLine]:
     stmt = (select(VendorSearchLine)
             .join(HUbStock, VendorSearchLine.id == HUbStock.vsl_id).where(HUbStock.origin.in_(origins)))
     result = await session.execute(stmt)

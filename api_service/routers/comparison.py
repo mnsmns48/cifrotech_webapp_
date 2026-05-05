@@ -1,15 +1,16 @@
+from collections import defaultdict
 from typing import List, Dict
 
 from fastapi import Depends, APIRouter
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api_service.crud.hub import fetch_final_leaf_ids, fetch_hub_routes_db
-from api_service.crud.main import get_all_children_cte, get_lines_by_origins, get_origins_by_path_ids, get_parsing_map, \
+from api_service.crud.hub import fetch_leaf_routes
+from api_service.crud.main import get_all_children_cte, get_vsl_by_origins, get_origins_by_path_ids, get_parsing_map, \
     get_hub_map, get_recomputed_lines, update_hubstock_prices, fetch_unidentified_origins_db, \
     resolve_comparison_selected_models, approve_origins_for_update_db
 from api_service.func import generate_diff_tabs
 from api_service.s3_helper import get_s3_client
-from api_service.schemas import ComparisonOutScheme, ComparisonInScheme, HubLevelPath, VSLScheme, ParsingHubDiffOut, \
+from api_service.schemas import ComparisonResponse, ComparisonSchemeQuery, HubLevelPath, VSLScheme, ParsingHubDiffOut, \
     ParsingToDiffData, HubToDiffData, RecalcScheme, RecomputedResult, UnidentifiedOrigins, HubRoutes, \
     ComparableModel, ComparableUnion, UpdateHubApproveItems, ApproveAnalyzedResponse
 
@@ -19,36 +20,30 @@ from models import VendorSearchLine
 comparison_router = APIRouter(tags=['Comparison'])
 
 
-@comparison_router.post("/start_comparison_process", response_model=ComparisonOutScheme)
-async def comparison_process(payload: ComparisonInScheme,
+@comparison_router.post("/start_comparison_process", response_model=List[ComparisonResponse])
+async def comparison_process(payload: ComparisonSchemeQuery,
                              session: AsyncSession = Depends(db.scoped_session_dependency)):
-    path_ids: List[HubLevelPath] = await get_all_children_cte(session=session, parent_id=payload.path_id)
-
+    leaf_routes = await fetch_leaf_routes(path_ids=[payload.path_id], session=session)
     if payload.origins:
-        raw_vsl_list: list[VendorSearchLine] = await get_lines_by_origins(origins=payload.origins, session=session)
+        raw_vsl_list = await get_vsl_by_origins(payload.origins, session)
     else:
-        only_paths = [p.path_id for p in path_ids]
-        origins = await get_origins_by_path_ids(only_paths, session)
-        raw_vsl_list: list[VendorSearchLine] = await get_lines_by_origins(origins, session)
+        leaf_ids = [leaf.path_id for leaf in leaf_routes]
+        origins = await get_origins_by_path_ids(leaf_ids, session)
+        raw_vsl_list = await get_vsl_by_origins(origins, session)
 
-    vsl_list: list[VSLScheme] = list()
-    for vsl in raw_vsl_list:
-        vsl_list.append(VSLScheme.model_validate(vsl))
+    vsl_list = [VSLScheme.model_validate(vsl) for vsl in raw_vsl_list]
+    vsl_by_path = defaultdict(list)
+    for vsl in vsl_list:
+        vsl_by_path[vsl.path_id].append(vsl)
 
-    return ComparisonOutScheme(vsl_list=vsl_list, path_ids=path_ids)
-
-
-@comparison_router.post(path="/give_me_consent", response_model=List[ParsingHubDiffOut])
-async def consent_process(payload: ComparisonOutScheme,
-                          session: AsyncSession = Depends(db.scoped_session_dependency)):
-    parsing_map: Dict[int, List[ParsingToDiffData]] = await get_parsing_map(session, payload.vsl_list)
-    path_ids: List[int] = [p.path_id for p in payload.path_ids]
-    hub_map: Dict[int, List[HubToDiffData]] = await get_hub_map(session, path_ids)
-    path_map: Dict[int, str] = dict()
-    for p in payload.path_ids:
-        if p.path_id in hub_map.keys():
-            path_map.update({p.path_id: p.label})
-    result: List[ParsingHubDiffOut] = generate_diff_tabs(parsing_map, hub_map, path_map)
+    result: List[ComparisonResponse] = list()
+    for leaf in leaf_routes:
+        result.append(ComparisonResponse(id=leaf.route[-1].id,
+                                         sort_order=leaf.route[-1].sort_order,
+                                         label=leaf.route[-1].label,
+                                         icon=leaf.route[-1].icon,
+                                         parent_id=leaf.route[-1].parent_id,
+                                         vsl_list=vsl_by_path.get(leaf.route[-1].id, [])))
     return result
 
 
@@ -62,22 +57,6 @@ async def recompute_prices(payload: RecalcScheme, session: AsyncSession = Depend
     return changed_lines
 
 
-@comparison_router.patch("/store_new_prices_hubstock_items")
-async def store_new_prices_hubstock_items(
-        patch_data: List[RecomputedResult], session: AsyncSession = Depends(db.scoped_session_dependency)):
-    price_map = dict()
-    for group in patch_data:
-        for item in group.recomputed_items:
-            price_map.update({item.origin:
-                                  {'input_price': item.input_parsing_price,
-                                   'output_price': item.output_parsing_price}
-                              })
-    result = await update_hubstock_prices(price_map, session)
-    if result:
-        await session.commit()
-    return patch_data
-
-
 @comparison_router.post("/fetch_unidentified_origins", response_model=UnidentifiedOrigins)
 async def fetch_unidentified_origins(payload: ComparisonOutScheme,
                                      session: AsyncSession = Depends(db.scoped_session_dependency)):
@@ -86,10 +65,10 @@ async def fetch_unidentified_origins(payload: ComparisonOutScheme,
 
 @comparison_router.post("/resolve_models_for_comparison", response_model=List[ComparableUnion])
 async def resolve_models_for_comparison(payload: ComparisonOutScheme,
-                           session: AsyncSession = Depends(db.scoped_session_dependency)):
-    leaf_path_ids: List = await fetch_final_leaf_ids(path_ids=payload.path_ids, session=session)
-    routes: List[HubRoutes] = await fetch_hub_routes_db(leaf_path_ids, session)
-    models_in_hub_: List[ComparableModel] = await resolve_comparison_selected_models(leaf_path_ids, session)
+                                        session: AsyncSession = Depends(db.scoped_session_dependency)):
+    path_ids = [p.path_id for p in payload.path_ids]
+    leaf_routes: List[HubRoutes] = await fetch_leaf_routes(path_ids=path_ids, session=session)
+    models_in_hub_: List[ComparableModel] = await resolve_comparison_selected_models(path_ids, session)
 
     merged: List[ComparableUnion] = list()
     _buffer = dict()
@@ -97,7 +76,7 @@ async def resolve_models_for_comparison(payload: ComparisonOutScheme,
     for item in models_in_hub_:
         _buffer[item.path_id] = item.models
 
-    for route_item in routes:
+    for route_item in leaf_routes:
         pid = route_item.path_id
 
         if pid in _buffer:
@@ -108,7 +87,6 @@ async def resolve_models_for_comparison(payload: ComparisonOutScheme,
         merged.append(ComparableUnion(path_id=pid, route=route_item.route, models=models))
 
     return merged
-
 
 # @comparison_router.post("/approve_origins_for_update", response_model=list[ApproveAnalyzedResponse])
 # async def approve_origins_for_update(payload: UpdateHubApproveItems,
