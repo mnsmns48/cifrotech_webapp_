@@ -11,12 +11,12 @@ from api_service.schemas.attribute_schemas import AttributeValueSchema, Attribut
 from var_types import PriceDiffStatus
 
 
-class ComparisonSchemeQuery(BaseModel):
+class PriceSyncRequest(BaseModel):
     origins: Optional[list[int]] = None
     path_id: int
 
 
-class ComparisonResponse(HubMenuLevelSchema):
+class PriceSyncPickedPath(HubMenuLevelSchema):
     vsl_list: list[VSLScheme]
 
     model_config = {"from_attributes": True}

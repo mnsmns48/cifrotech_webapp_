@@ -31,7 +31,7 @@ from api_service.schemas import SourceContext, ParsingLinesIn, ParsingResultOut,
     RewardRangeResponseSchema, RewardRangeLineSchema, RewardRangeBaseSchema, HubLevelPath, VSLScheme, ParsingToDiffData, \
     HubToDiffData, RecomputedResult, RecomputedNewPriceLines, ParsingResultAttributeResponse, AttributeValueSchema, \
     AddAttributesValuesRequest, DependencyImageItem, DependencyOriginImplementation, ImageResponseItem, \
-    ComparisonOutScheme, UnidentifiedOrigin, UnidentifiedOrigins, TypeModel, BrandModel, ResolveFeatureModel, \
+    PriceSyncPickedPath, UnidentifiedOrigin, UnidentifiedOrigins, TypeModel, BrandModel, ResolveFeatureModel, \
     ComparableModel, AttributeKeyValueSchema, AttributeKey, ApproveAnalyzedResponse, AnalyzeItem, ProductsAnalyzeScheme, \
     HubMenuLevelSchema, OriginAnalyzedItem
 
@@ -358,39 +358,6 @@ async def get_parsing_result(session: AsyncSession, vsl_id: int) -> List[Parsing
         )
 
     return parsing_results
-
-
-async def get_all_children_cte(session: AsyncSession, parent_id: int) -> List[HubLevelPath]:
-    base = select(HUbMenuLevel.id, HUbMenuLevel.label).where(HUbMenuLevel.id == parent_id)
-    cte = base.cte(name="menu_cte", recursive=True)
-    recursive = select(HUbMenuLevel.id, HUbMenuLevel.label).where(HUbMenuLevel.parent_id == cte.c.id)
-    cte = cte.union_all(recursive)
-    query = select(cte.c.id, cte.c.label)
-    execute = await session.execute(query)
-    rows = execute.all()
-    result = list()
-    for path_id, label in rows:
-        result.append(HubLevelPath(path_id=path_id, label=label))
-    return result
-
-
-async def get_vsl_by_origins(origins: list[int], session: AsyncSession) -> list[VendorSearchLine]:
-    stmt = (select(VendorSearchLine)
-            .join(HUbStock, VendorSearchLine.id == HUbStock.vsl_id).where(HUbStock.origin.in_(origins)))
-    result = await session.execute(stmt)
-    not_repeated, unique_lines = set(), list()
-    bulk = result.scalars().all()
-    for line in bulk:
-        if line.id not in not_repeated:
-            not_repeated.add(line.id)
-            unique_lines.append(line)
-    return unique_lines
-
-
-async def get_origins_by_path_ids(path_ids: list | Sequence, session: AsyncSession) -> list[int]:
-    stmt = select(HUbStock.origin).where(HUbStock.path_id.in_(path_ids))
-    result = await session.execute(stmt)
-    return [row[0] for row in result.all()]
 
 
 async def get_parsing_map(session: AsyncSession, vsl_list: List[VSLScheme]) -> Dict[int, List[ParsingToDiffData]]:
@@ -879,7 +846,7 @@ async def implement_dependency_images_logic(
         return None
 
 
-async def fetch_unidentified_origins_db(payload: ComparisonOutScheme, session: AsyncSession) -> UnidentifiedOrigins:
+async def fetch_unidentified_origins_db(payload: PriceSyncPickedPath, session: AsyncSession) -> UnidentifiedOrigins:
     vsl_ids = [v.id for v in payload.vsl_list]
 
     if not vsl_ids:
@@ -1058,7 +1025,6 @@ async def render_models_structured_db(vsl_id: int, session: AsyncSession) -> Lis
 
 
 async def approve_origins_for_update_db(payload, session, s3_client):
-
     path_to_features, path_ids, feature_ids = dict(), list(), set()
     for item in payload.items:
         pid = item.path_id

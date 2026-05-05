@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from api_service.routers.analytics import analytics_router
-from api_service.routers.comparison import comparison_router
+from api_service.routers.price_sync import comparison_router
 from api_service.routers.formula import formula_router
 from api_service.routers.hub import hub_router
 from api_service.routers.hubstock import hubstock_router

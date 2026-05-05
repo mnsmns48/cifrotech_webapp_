@@ -1,88 +1,12 @@
-from typing import List
-
-from sqlalchemy import not_, exists, select
+from sqlalchemy import select, exists
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from api_service.schemas import HubMenuLevelSchema, HubRoutes
+from api_service.schemas import HubRoutes, HubMenuLevelSchema
 from app_utils import get_url_from_s3
 from config import settings
-from models import HUbMenuLevel
+from models import HUbMenuLevel, VendorSearchLine, HUbStock
 
-
-# async def fetch_final_leaf_ids(path_ids: List, session: AsyncSession) -> List:
-#     raw_ids: List = [p.path_id for p in path_ids]
-#     child = aliased(HUbMenuLevel)
-#
-#     leaf_condition = not_(exists().where(child.parent_id == HUbMenuLevel.id))
-#     leaf_rows = ((await session.execute(select(HUbMenuLevel.id)
-#                                         .where(HUbMenuLevel.id.in_(raw_ids)).where(leaf_condition)
-#                                         .order_by(HUbMenuLevel.parent_id, HUbMenuLevel.sort_order)))
-#                  .mappings().all())
-#     leaf_ids: List = [r["id"] for r in leaf_rows]
-#
-#     return leaf_ids
-#
-#
-# async def fetch_hub_routes_db(path_ids, session) -> List[HubRoutes]:
-#     base = (select(HUbMenuLevel.id,
-#                    HUbMenuLevel.label,
-#                    HUbMenuLevel.icon,
-#                    HUbMenuLevel.parent_id,
-#                    HUbMenuLevel.sort_order,
-#                    HUbMenuLevel.id.label("root_path_id"),
-#                    )
-#             .where(HUbMenuLevel.id.in_(path_ids))
-#             .cte("routes_cte", recursive=True)
-#             )
-#
-#     parent = aliased(HUbMenuLevel)
-#
-#     recursive = (select(parent.id,
-#                         parent.label,
-#                         parent.icon,
-#                         parent.parent_id,
-#                         parent.sort_order,
-#                         base.c.root_path_id,
-#                         )
-#                  .join(base, parent.id == base.c.parent_id)
-#                  .where(parent.parent_id != 0))
-#
-#     routes_cte = base.union_all(recursive)
-#
-#     rows = ((await session.execute(
-#         select(routes_cte)))
-#             .mappings().all())
-#
-#     grouped = dict()
-#     for r in rows:
-#         grouped.setdefault(r["root_path_id"], []).append(r)
-#
-#     result: List[HubRoutes] = list()
-#
-#     for path_id in path_ids:
-#         nodes = grouped.get(path_id, [])
-#
-#         route = [
-#             HubMenuLevelSchema(id=n["id"],
-#                                sort_order=n["sort_order"],
-#                                label=n["label"],
-#                                icon=get_url_from_s3(filename=n["icon"], path=settings.s3.utils_path)
-#                                if n["icon"] else None,
-#                                parent_id=n["parent_id"],
-#                                )
-#             for n in nodes
-#         ]
-#
-#         route.reverse()
-#         result.append(
-#             HubRoutes(
-#                 path_id=path_id,
-#                 route=route
-#             )
-#         )
-#
-#     return result
 
 async def fetch_leaf_routes(path_ids: list[int], session: AsyncSession) -> list[HubRoutes]:
     down_base = (select(HUbMenuLevel.id,
@@ -154,3 +78,22 @@ async def fetch_leaf_routes(path_ids: list[int], session: AsyncSession) -> list[
         result.append(HubRoutes(path_id=leaf_id, route=route))
 
     return result
+
+
+async def get_vsl_by_origins(origins: list[int], session: AsyncSession) -> list[VendorSearchLine]:
+    stmt = (select(VendorSearchLine)
+            .join(HUbStock, VendorSearchLine.id == HUbStock.vsl_id).where(HUbStock.origin.in_(origins)))
+    result = await session.execute(stmt)
+    not_repeated, unique_lines = set(), list()
+    bulk = result.scalars().all()
+    for line in bulk:
+        if line.id not in not_repeated:
+            not_repeated.add(line.id)
+            unique_lines.append(line)
+    return unique_lines
+
+
+async def get_origins_by_path_ids(path_ids: list | Sequence, session: AsyncSession) -> list[int]:
+    stmt = select(HUbStock.origin).where(HUbStock.path_id.in_(path_ids))
+    result = await session.execute(stmt)
+    return [row[0] for row in result.all()]
