@@ -150,18 +150,13 @@ class UpdateHubApproveItems(BaseModel):
     items: List[UpdateHubApproveItem]
 
 
-class OriginForApproveItem(BaseModel):
+class OriginAnalyzedItem(BaseModel):
     origin: int
-    origin_in_hub: bool
     title: str
     input_price: Optional[float]
     output_price: Optional[float]
     attrs: Optional[list[AttributeKeyValueSchema]]
     pics: Optional[List[ImageWithPreview]]
-
-
-class OriginAnalyzedItem(OriginForApproveItem):
-    origin_in_hub: None = Field(default=None, exclude=True)
     analyze: AnalyzeItem
 
 

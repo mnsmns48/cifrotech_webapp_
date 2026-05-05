@@ -9,8 +9,7 @@ from api_service.schemas.hubstock_schemas import (HubLoadingData, StockHubItemRe
 from api_service.schemas.comparison_schemas import ComparisonInScheme, ComparisonOutScheme, ParsingLine, \
     ConsentProcessScheme, ParsingHubDiffOut, HubToDiffData, RecalcScheme, RecomputedResult, RecomputedNewPriceLines, \
     ParsingHubDiffItem, UnidentifiedOrigins, UnidentifiedOrigin, HubRoutes, ComparableModel, ComparableUnion, \
-    UpdateHubApproveItems, OriginForApproveItem, OriginAnalyzedItem, ProductsAnalyzeScheme, ApproveAnalyzedResponse, \
-    ProductsAnalyzeScheme
+    UpdateHubApproveItems, OriginAnalyzedItem, ProductsAnalyzeScheme, ApproveAnalyzedResponse, ProductsAnalyzeScheme
 from api_service.schemas.parsing_schemas import ParsingRequest, ParsingLinesIn, ParsingToDiffData, SourceContext, \
     ParsingResultOut, AddAttributesValuesRequest, DependencyImageItem, DependencyOriginImplementation, ImageResponseItem
 
@@ -69,8 +68,8 @@ __all__ += [
 __all__ += ["ComparisonInScheme", "ComparisonOutScheme", "ParsingLine", "ConsentProcessScheme",
             "ParsingHubDiffOut", "HubToDiffData", "RecalcScheme", "RecomputedResult", "RecomputedNewPriceLines",
             "ParsingHubDiffItem", "UnidentifiedOrigins", "UnidentifiedOrigin", "HubRoutes", "ComparableModel",
-            "ComparableUnion", "UpdateHubApproveItems", "OriginForApproveItem", "OriginAnalyzedItem",
-            "ApproveAnalyzedResponse", "ProductsAnalyzeScheme"]
+            "ComparableUnion", "UpdateHubApproveItems", "OriginAnalyzedItem", "ApproveAnalyzedResponse",
+            "ProductsAnalyzeScheme"]
 
 __all__ += ["ServiceImageResponse", "ServiceImageCreate", "ServiceImageUpdate"]
 

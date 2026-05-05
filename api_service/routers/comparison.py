@@ -85,7 +85,7 @@ async def fetch_unidentified_origins(payload: ComparisonOutScheme,
 
 
 @comparison_router.post("/resolve_models_for_comparison", response_model=List[ComparableUnion])
-async def fetch_hub_routes(payload: ComparisonOutScheme,
+async def resolve_models_for_comparison(payload: ComparisonOutScheme,
                            session: AsyncSession = Depends(db.scoped_session_dependency)):
     leaf_path_ids: List = await fetch_final_leaf_ids(path_ids=payload.path_ids, session=session)
     routes: List[HubRoutes] = await fetch_hub_routes_db(leaf_path_ids, session)
@@ -110,8 +110,8 @@ async def fetch_hub_routes(payload: ComparisonOutScheme,
     return merged
 
 
-@comparison_router.post("/approve_origins_for_update", response_model=list[ApproveAnalyzedResponse])
-async def approve_origins_for_update(payload: UpdateHubApproveItems,
-                                     s3_client=Depends(get_s3_client),
-                                     session: AsyncSession = Depends(db.scoped_session_dependency)):
-    return await approve_origins_for_update_db(payload, session, s3_client)
+# @comparison_router.post("/approve_origins_for_update", response_model=list[ApproveAnalyzedResponse])
+# async def approve_origins_for_update(payload: UpdateHubApproveItems,
+#                                      s3_client=Depends(get_s3_client),
+#                                      session: AsyncSession = Depends(db.scoped_session_dependency)):
+#     return await approve_origins_for_update_db(payload, session, s3_client)
