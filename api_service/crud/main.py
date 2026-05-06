@@ -1,7 +1,7 @@
 from asyncio import gather
 from collections import defaultdict
 from datetime import datetime
-from typing import List, Optional, Sequence, Dict, Union, Any
+from typing import List, Optional, Dict, Union, Any
 
 from aiohttp import ClientSession
 from botocore.exceptions import ClientError, BotoCoreError
@@ -31,7 +31,7 @@ from api_service.schemas import SourceContext, ParsingLinesIn, ParsingResultOut,
     RewardRangeResponseSchema, RewardRangeLineSchema, RewardRangeBaseSchema, HubLevelPath, VSLScheme, ParsingToDiffData, \
     HubToDiffData, RecomputedResult, RecomputedNewPriceLines, ParsingResultAttributeResponse, AttributeValueSchema, \
     AddAttributesValuesRequest, DependencyImageItem, DependencyOriginImplementation, ImageResponseItem, \
-    PriceSyncPickedPath, UnidentifiedOrigin, UnidentifiedOrigins, TypeModel, BrandModel, ResolveFeatureModel, \
+    PriceSyncPickedPath, TypeModel, BrandModel, ResolveFeatureModel, \
     ComparableModel, AttributeKeyValueSchema, AttributeKey, ApproveAnalyzedResponse, AnalyzeItem, ProductsAnalyzeScheme, \
     HubMenuLevelSchema, OriginAnalyzedItem
 
@@ -846,106 +846,7 @@ async def implement_dependency_images_logic(
         return None
 
 
-async def fetch_unidentified_origins_db(payload: PriceSyncPickedPath, session: AsyncSession) -> UnidentifiedOrigins:
-    vsl_ids = [v.id for v in payload.vsl_list]
 
-    if not vsl_ids:
-        return UnidentifiedOrigins(origins=[])
-
-    pfl2 = aliased(ProductFeaturesLink)
-    hs2 = aliased(HUbStock)
-
-    model_in_hub_by_feature = (
-        select(func.count())
-        .select_from(pfl2)
-        .join(hs2, and_(hs2.origin == pfl2.origin))
-        .where(and_(pfl2.feature_id == ProductFeaturesLink.feature_id))
-        .correlate(ProductFeaturesLink)
-        .scalar_subquery()
-    )
-
-    model_in_hub_by_origin = (select(func.count())
-                              .select_from(HUbStock)
-                              .where(HUbStock.origin == ParsingLine.origin)
-                              .correlate(ParsingLine)
-                              .scalar_subquery()
-                              )
-
-    model_in_hub = case(
-        (ProductFeaturesLink.feature_id.isnot(None),
-         model_in_hub_by_feature), else_=model_in_hub_by_origin).label("model_in_hub")
-
-    has_model = case((ProductFeaturesLink.feature_id.isnot(None), 1), else_=0).label("has_model")
-    img_count = func.count(ProductImage.id).label("img_count")
-
-    stmt = (
-        select(ParsingLine.origin,
-               ParsingLine.vsl_id,
-               ProductOrigin.title,
-               ParsingLine.output_price.label("price"),
-               img_count,
-               model_in_hub,
-               has_model,
-               ProductFeaturesGlobal.id.label("model_id"),
-               ProductFeaturesGlobal.title.label("model_title"),
-               ProductType.id.label("type_id"),
-               ProductType.type.label("type_name"),
-               ProductBrand.id.label("brand_id"),
-               ProductBrand.brand.label("brand_name"))
-        .select_from(ParsingLine)
-        .join(ProductOrigin, ProductOrigin.origin == ParsingLine.origin)
-        .join(ProductImage, ProductImage.origin_id == ProductOrigin.origin, isouter=True)
-        .join(ProductFeaturesLink, ProductFeaturesLink.origin == ParsingLine.origin, isouter=True)
-        .join(ProductFeaturesGlobal, ProductFeaturesGlobal.id == ProductFeaturesLink.feature_id, isouter=True)
-        .join(ProductType, ProductType.id == ProductFeaturesGlobal.type_id, isouter=True)
-        .join(ProductBrand, ProductBrand.id == ProductFeaturesGlobal.brand_id, isouter=True)
-        .join(AttributeOriginValue, AttributeOriginValue.origin_id == ParsingLine.origin, isouter=True)
-
-        .where(ProductOrigin.is_deleted.is_(False))
-        .where(ParsingLine.vsl_id.in_(vsl_ids))
-
-        .where(AttributeOriginValue.origin_id.is_(None))
-
-        .group_by(
-            ParsingLine.origin,
-            ParsingLine.vsl_id,
-            ProductOrigin.title,
-            ParsingLine.output_price,
-            ProductFeaturesGlobal.id,
-            ProductFeaturesGlobal.title,
-            ProductType.id,
-            ProductType.type,
-            ProductBrand.id,
-            ProductBrand.brand,
-            model_in_hub,
-            has_model
-        )
-
-        .order_by((model_in_hub > 0).desc(),
-                  has_model.desc(),
-                  ParsingLine.vsl_id,
-                  ParsingLine.output_price))
-
-    result = await session.execute(stmt)
-
-    origins: list[UnidentifiedOrigin] = list()
-
-    for row in result.all():
-        origins.append(UnidentifiedOrigin(origin=row.origin,
-                                          title=row.title,
-                                          vsl_id=row.vsl_id,
-                                          price=row.price,
-                                          have_images=row.img_count > 0,
-                                          have_attributes=[],
-                                          model_id=row.model_id,
-                                          model_title=row.model_title,
-                                          type_=TypeModel(id=row.type_id, type=row.type_name) if row.type_id else None,
-                                          brand=BrandModel(id=row.brand_id,
-                                                           brand=row.brand_name) if row.brand_id else None,
-                                          model_in_hub=row.model_in_hub > 0)
-                       )
-
-    return UnidentifiedOrigins(origins=origins)
 
 
 async def resolve_comparison_selected_models(path_ids, session) -> List[ComparableModel]:

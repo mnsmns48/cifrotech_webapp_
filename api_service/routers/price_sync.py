@@ -1,39 +1,26 @@
-from collections import defaultdict
-from typing import List, Dict
+from typing import List
 
 from fastapi import Depends, APIRouter
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api_service.crud.main import get_parsing_map, \
-    get_hub_map, get_recomputed_lines, update_hubstock_prices, fetch_unidentified_origins_db, \
-    resolve_comparison_selected_models, approve_origins_for_update_db
-from api_service.func import generate_diff_tabs
 from api_service.modulars.price_sync.service import PriceSync
-from api_service.s3_helper import get_s3_client
-from api_service.schemas import PriceSyncPickedPath, PriceSyncRequest, HubLevelPath, VSLScheme, ParsingHubDiffOut, \
-    ParsingToDiffData, HubToDiffData, RecalcScheme, RecomputedResult, UnidentifiedOrigins, HubRoutes, \
-    ComparableModel, ComparableUnion, UpdateHubApproveItems, ApproveAnalyzedResponse
+from api_service.schemas import PriceSyncPickedPath, PathIdRequest, RawOrigin
 
 from engine import db
-from models import VendorSearchLine
 
 price_sync_router = APIRouter(tags=['Price Sync'])
 
 
 @price_sync_router.post("/start_price_sync_process", response_model=List[PriceSyncPickedPath])
-async def start_price_sync_process(payload: PriceSyncRequest,
+async def start_price_sync_process(payload: PathIdRequest,
                                    session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await PriceSync.start_sync_process(payload, session)
 
 
-
-
-# @price_sync_router.post("/fetch_unidentified_origins", response_model=UnidentifiedOrigins)
-# async def fetch_unidentified_origins(payload: ComparisonOutScheme,
-#                                      session: AsyncSession = Depends(db.scoped_session_dependency)):
-#     return await fetch_unidentified_origins_db(payload, session)
-
-
+@price_sync_router.post("/fetch_raw_origins", response_model=List[RawOrigin])
+async def fetch_raw_origins(payload: List[PriceSyncPickedPath],
+                            session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await PriceSync.fetch_raw_origins(payload, session)
 
 # @comparison_router.post("/resolve_models_for_comparison", response_model=List[ComparableUnion])
 # async def resolve_models_for_comparison(payload: ComparisonOutScheme,

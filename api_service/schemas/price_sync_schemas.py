@@ -5,21 +5,43 @@ from pydantic import BaseModel, HttpUrl, model_validator
 
 from api_service.schemas.analytics_schemas import AnalyzeItem
 from api_service.schemas.vsl_schemas import VSLScheme
-from api_service.schemas.hub_schemas import HubLevelPath, HubMenuLevelSchema
+from api_service.schemas.hub_schemas import HubMenuLevelSchema
 from api_service.schemas.product_schemas import TypeModel, BrandModel, ResolveFeatureModel, ImageWithPreview
 from api_service.schemas.attribute_schemas import AttributeValueSchema, AttributeKeyValueSchema
 from var_types import PriceDiffStatus
 
 
-class PriceSyncRequest(BaseModel):
-    origins: Optional[list[int]] = None
+class PathIdRequest(BaseModel):
     path_id: int
 
 
-class PriceSyncPickedPath(HubMenuLevelSchema):
+class HubRoutes(BaseModel):
+    path_id: int
+    route: List[HubMenuLevelSchema]
+
+
+class PriceSyncPickedPath(HubRoutes):
     vsl_list: list[VSLScheme]
 
     model_config = {"from_attributes": True}
+
+
+class RawOrigin(BaseModel):
+    type_: Optional[TypeModel]
+    brand: Optional[BrandModel]
+    origin: int
+    title: str
+    vsl_id: int
+    price: Optional[float]
+    model_id: Optional[int]
+    model_title: Optional[str]
+    have_attributes: Optional[list[AttributeValueSchema]]
+    have_images: bool
+    model_in_hub: bool
+
+
+class SyncPathWOrigins(PriceSyncPickedPath):
+    raw_origin_ids: list[RawOrigin]
 
 
 class ParsingLine(BaseModel):
@@ -104,29 +126,6 @@ class RecomputedResult(BaseModel):
     path_id: int
     label: str
     recomputed_items: Optional[List[RecomputedNewPriceLines]]
-
-
-class UnidentifiedOrigin(BaseModel):
-    type_: Optional[TypeModel]
-    brand: Optional[BrandModel]
-    origin: int
-    title: str
-    vsl_id: int
-    price: Optional[float]
-    model_id: Optional[int]
-    model_title: Optional[str]
-    have_attributes: Optional[list[AttributeValueSchema]]
-    have_images: bool
-    model_in_hub: bool
-
-
-class UnidentifiedOrigins(BaseModel):
-    origins: List[UnidentifiedOrigin]
-
-
-class HubRoutes(BaseModel):
-    path_id: int
-    route: List[HubMenuLevelSchema]
 
 
 class ComparableModel(BaseModel):

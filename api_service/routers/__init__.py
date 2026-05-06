@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from api_service.routers.analytics import analytics_router
-from api_service.routers.price_sync import comparison_router
+from api_service.routers.price_sync import price_sync_router
 from api_service.routers.formula import formula_router
 from api_service.routers.hub import hub_router
 from api_service.routers.hubstock import hubstock_router
@@ -24,7 +24,7 @@ service_router.include_router(parsing_router)
 service_router.include_router(reward_range_router)
 service_router.include_router(hub_router)
 service_router.include_router(hubstock_router)
-service_router.include_router(comparison_router)
+service_router.include_router(price_sync_router)
 service_router.include_router(utils_router)
 service_router.include_router(attributes_router)
 service_router.include_router(formula_router)
