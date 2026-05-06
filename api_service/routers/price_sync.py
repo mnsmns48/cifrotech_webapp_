@@ -4,7 +4,7 @@ from fastapi import Depends, APIRouter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.modulars.price_sync.service import PriceSync
-from api_service.schemas import PriceSyncPickedPath, PathIdRequest, RawOrigin
+from api_service.schemas import PriceSyncPickedPath, PathIdRequest, SyncPathWOrigins
 
 from engine import db
 
@@ -17,7 +17,7 @@ async def start_price_sync_process(payload: PathIdRequest,
     return await PriceSync.start_sync_process(payload, session)
 
 
-@price_sync_router.post("/fetch_raw_origins", response_model=List[RawOrigin])
+@price_sync_router.post("/fetch_raw_origins", response_model=List[SyncPathWOrigins])
 async def fetch_raw_origins(payload: List[PriceSyncPickedPath],
                             session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await PriceSync.fetch_raw_origins(payload, session)

@@ -718,7 +718,14 @@ async def clear_features_dependencies(session: AsyncSession, origins: list) -> L
     stmt = (delete(ProductFeaturesLink).where(ProductFeaturesLink.origin.in_(safe_origins))
             .returning(ProductFeaturesLink.origin))
 
+    stmt_attrs = (
+        delete(AttributeOriginValue)
+        .where(AttributeOriginValue.origin_id.in_(safe_origins))
+        .returning(AttributeOriginValue.origin_id)
+    )
+
     result = await session.execute(stmt)
+    await session.execute(stmt_attrs)
     await session.commit()
 
     deleted = [row[0] for row in result.fetchall()]
@@ -844,9 +851,6 @@ async def implement_dependency_images_logic(
     except (IntegrityError, SQLAlchemyError):
         await session.rollback()
         return None
-
-
-
 
 
 async def resolve_comparison_selected_models(path_ids, session) -> List[ComparableModel]:

@@ -133,50 +133,50 @@ async def collect_price_sync_paths(session: AsyncSession, leaf_routes: list[HubR
 
 async def fetch_raw_origins_db(payload: List[PriceSyncPickedPath], session: AsyncSession) -> List[SyncPathWOrigins]:
     vsl_ids = list({v.id for item in payload for v in item.vsl_list})
-
     if not vsl_ids:
         return []
+
+    vsl_to_path: dict[int, int] = dict()
+    for item in payload:
+        for v in item.vsl_list:
+            vsl_to_path[v.id] = item.path_id
 
     pfl2 = aliased(ProductFeaturesLink)
     hs2 = aliased(HUbStock)
 
-    model_in_hub_by_feature = (
-        select(func.count())
-        .select_from(pfl2)
-        .join(hs2, and_(hs2.origin == pfl2.origin))
-        .where(and_(pfl2.feature_id == ProductFeaturesLink.feature_id))
-        .correlate(ProductFeaturesLink)
-        .scalar_subquery()
-    )
-
+    model_in_hub_by_feature = (select(func.count())
+                               .select_from(pfl2)
+                               .join(hs2, and_(hs2.origin == pfl2.origin))
+                               .where(and_(pfl2.feature_id == ProductFeaturesLink.feature_id))
+                               .correlate(ProductFeaturesLink)
+                               .scalar_subquery())
     model_in_hub_by_origin = (select(func.count())
                               .select_from(HUbStock)
                               .where(HUbStock.origin == ParsingLine.origin)
                               .correlate(ParsingLine)
-                              .scalar_subquery()
-                              )
+                              .scalar_subquery())
 
-    model_in_hub = case(
-        (ProductFeaturesLink.feature_id.isnot(None),
-         model_in_hub_by_feature), else_=model_in_hub_by_origin).label("model_in_hub")
-
+    model_in_hub = case((ProductFeaturesLink.feature_id.isnot(None), model_in_hub_by_feature),
+                        else_=model_in_hub_by_origin).label("model_in_hub")
     has_model = case((ProductFeaturesLink.feature_id.isnot(None), 1), else_=0).label("has_model")
     img_count = func.count(ProductImage.id).label("img_count")
 
     stmt = (
-        select(ParsingLine.origin,
-               ParsingLine.vsl_id,
-               ProductOrigin.title,
-               ParsingLine.output_price.label("price"),
-               img_count,
-               model_in_hub,
-               has_model,
-               ProductFeaturesGlobal.id.label("model_id"),
-               ProductFeaturesGlobal.title.label("model_title"),
-               ProductType.id.label("type_id"),
-               ProductType.type.label("type_name"),
-               ProductBrand.id.label("brand_id"),
-               ProductBrand.brand.label("brand_name"))
+        select(
+            ParsingLine.origin,
+            ParsingLine.vsl_id,
+            ProductOrigin.title,
+            ParsingLine.output_price.label("price"),
+            img_count,
+            model_in_hub,
+            has_model,
+            ProductFeaturesGlobal.id.label("model_id"),
+            ProductFeaturesGlobal.title.label("model_title"),
+            ProductType.id.label("type_id"),
+            ProductType.type.label("type_name"),
+            ProductBrand.id.label("brand_id"),
+            ProductBrand.brand.label("brand_name")
+        )
         .select_from(ParsingLine)
         .join(ProductOrigin, ProductOrigin.origin == ParsingLine.origin)
         .join(ProductImage, ProductImage.origin_id == ProductOrigin.origin, isouter=True)
@@ -185,12 +185,9 @@ async def fetch_raw_origins_db(payload: List[PriceSyncPickedPath], session: Asyn
         .join(ProductType, ProductType.id == ProductFeaturesGlobal.type_id, isouter=True)
         .join(ProductBrand, ProductBrand.id == ProductFeaturesGlobal.brand_id, isouter=True)
         .join(AttributeOriginValue, AttributeOriginValue.origin_id == ParsingLine.origin, isouter=True)
-
         .where(ProductOrigin.is_deleted.is_(False))
         .where(ParsingLine.vsl_id.in_(vsl_ids))
-
         .where(AttributeOriginValue.origin_id.is_(None))
-
         .group_by(ParsingLine.origin,
                   ParsingLine.vsl_id,
                   ProductOrigin.title,
@@ -203,29 +200,43 @@ async def fetch_raw_origins_db(payload: List[PriceSyncPickedPath], session: Asyn
                   ProductBrand.brand,
                   model_in_hub,
                   has_model)
-
         .order_by((model_in_hub > 0).desc(),
                   has_model.desc(),
                   ParsingLine.vsl_id,
                   ParsingLine.output_price))
 
     result = await session.execute(stmt)
+    rows = result.all()
 
-    origins: list[RawOrigin] = list()
+    raw_origins: list[RawOrigin] = list()
+    for row in rows:
+        raw_origins.append(
+            RawOrigin(
+                origin=row.origin,
+                title=row.title,
+                vsl_id=row.vsl_id,
+                price=row.price,
+                have_images=row.img_count > 0,
+                have_attributes=[],
+                model_id=row.model_id,
+                model_title=row.model_title,
+                type_=TypeModel(id=row.type_id, type=row.type_name) if row.type_id else None,
+                brand=BrandModel(id=row.brand_id, brand=row.brand_name) if row.brand_id else None,
+                model_in_hub=row.model_in_hub > 0
+            )
+        )
 
-    for row in result.all():
-        origins.append(RawOrigin(origin=row.origin,
-                                 title=row.title,
-                                 vsl_id=row.vsl_id,
-                                 price=row.price,
-                                 have_images=row.img_count > 0,
-                                 have_attributes=[],
-                                 model_id=row.model_id,
-                                 model_title=row.model_title,
-                                 type_=TypeModel(id=row.type_id, type=row.type_name) if row.type_id else None,
-                                 brand=BrandModel(id=row.brand_id,
-                                                  brand=row.brand_name) if row.brand_id else None,
-                                 model_in_hub=row.model_in_hub > 0)
-                       )
+    grouped_by_path: dict[int, list[RawOrigin]] = dict()
+    for origin in raw_origins:
+        path_id = vsl_to_path.get(origin.vsl_id)
+        if path_id is None:
+            continue
+        grouped_by_path.setdefault(path_id, []).append(origin)
 
-    return origins
+    result_list: list[SyncPathWOrigins] = list()
+    for item in payload:
+        result_list.append(SyncPathWOrigins(path_id=item.path_id,
+                                            route=item.route,
+                                            vsl_list=item.vsl_list,
+                                            raw_origin_ids=grouped_by_path.get(item.path_id, [])))
+    return result_list
