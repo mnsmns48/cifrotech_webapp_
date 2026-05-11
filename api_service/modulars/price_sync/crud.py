@@ -1,11 +1,14 @@
+from collections import defaultdict
 from typing import List
 
-from sqlalchemy import select, exists, func, and_, case
+from sqlalchemy import select, exists, func, and_, case, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from api_service.schemas import HubRoutes, HubMenuLevelSchema, PriceSyncPickedPath, RawOrigin, TypeModel, BrandModel, \
     VSLScheme, SyncPathWOrigins
+from api_service.schemas.price_sync_schemas import SyncPathWModels
+from api_service.schemas.product_schemas import OriginWithAttrsPicsAnalyze, ModelForApprove
 from app_utils import get_url_from_s3
 from config import settings
 from models import HUbMenuLevel, VendorSearchLine, HUbStock, ProductFeaturesLink, ParsingLine, ProductImage, \
@@ -240,3 +243,139 @@ async def fetch_raw_origins_db(payload: List[PriceSyncPickedPath], session: Asyn
                                             vsl_list=item.vsl_list,
                                             raw_origin_ids=grouped_by_path.get(item.path_id, [])))
     return result_list
+
+
+async def hubstock_origins_map_by_path_ids(path_ids, session) -> dict[int, set[int]]:
+    if not path_ids:
+        return {}
+
+    rows = ((await session.execute(select(HUbStock.path_id, HUbStock.origin)
+                                   .where(HUbStock.path_id.in_(path_ids)))).mappings().all())
+    origins = defaultdict(set)
+    for row in rows:
+        origins[row["path_id"]].add(row["origin"])
+
+    return dict(origins)
+
+
+async def load_parsing_origins_map(payload: list[PriceSyncPickedPath], session: AsyncSession) -> dict[int, set[int]]:
+    path_to_vsl: dict[int, list[int]] = {item.path_id: [v.id for v in item.vsl_list] for item in payload}
+    all_vsl_ids = {v.id for item in payload for v in item.vsl_list}
+    if not all_vsl_ids:
+        return {item.path_id: set() for item in payload}
+
+    rows = (await session.execute(select(ParsingLine.vsl_id, ParsingLine.origin)
+                                  .where(ParsingLine.vsl_id.in_(all_vsl_ids)))).all()
+
+    vsl_to_origins: dict[int, set[int]] = {}
+    for vsl_id, origin in rows:
+        vsl_to_origins.setdefault(vsl_id, set()).add(origin)
+
+    result: dict[int, set[int]] = {}
+    for path_id, vsl_ids in path_to_vsl.items():
+        origins = set()
+        for vsl_id in vsl_ids:
+            origins.update(vsl_to_origins.get(vsl_id, set()))
+        result[path_id] = origins
+
+    return result
+
+
+async def load_origin_feature_map(hubstock_origins: set[int] | None,
+                                  parsing_origins: set[int] | None,
+                                  session: AsyncSession) -> dict[int, dict[str, int | bool]]:
+    hubstock_origins = hubstock_origins or set()
+    parsing_origins = parsing_origins or set()
+
+    all_origins = hubstock_origins | parsing_origins
+    if not all_origins:
+        return {}
+
+    rows = ((await session.execute(select(ProductFeaturesLink.origin, ProductFeaturesLink.feature_id)
+                                   .where(ProductFeaturesLink.origin.in_(all_origins)))).mappings().all())
+
+    origin_feature_map: dict[int, dict[str, int | bool]] = dict()
+
+    for row in rows:
+        origin = row["origin"]
+        feature_id = row["feature_id"]
+        origin_feature_map[origin] = {"feature_id": feature_id, "in_hub": origin in hubstock_origins}
+
+    return origin_feature_map
+
+
+async def load_unique_models_by_origins(origin_feature_map: dict[int, dict[str, int | bool]],
+                                        session: AsyncSession) -> list[ModelForApprove]:
+    origins = set(origin_feature_map.keys())
+    if not origins:
+        return []
+
+    rows = ((await session.execute(
+        select(
+            ParsingLine.origin,
+            ParsingLine.input_price,
+            ParsingLine.output_price,
+            ProductOrigin.title.label("origin_title"),
+
+            ProductFeaturesGlobal.id.label("model_id"),
+            ProductFeaturesGlobal.title.label("model_title"),
+            ProductFeaturesGlobal.info.label("model_info"),
+            ProductFeaturesGlobal.source.label("model_source"),
+
+            ProductType.id.label("type_id"),
+            ProductType.type.label("type_name"),
+
+            ProductBrand.id.label("brand_id"),
+            ProductBrand.brand.label("brand_name"),
+
+            func.min(ParsingLine.input_price)
+            .over(partition_by=ProductFeaturesGlobal.id)
+            .label("model_min_price"),
+        )
+        .join(ProductOrigin, ProductOrigin.origin == ParsingLine.origin)
+        .join(ProductFeaturesLink, ProductFeaturesLink.origin == ParsingLine.origin)
+        .join(ProductFeaturesGlobal,
+              ProductFeaturesGlobal.id == ProductFeaturesLink.feature_id)
+        .join(ProductType, ProductType.id == ProductFeaturesGlobal.type_id)
+        .join(ProductBrand, ProductBrand.id == ProductFeaturesGlobal.brand_id)
+        .where(ParsingLine.origin.in_(origins))
+        .order_by(text("model_min_price NULLS LAST"))
+    )).mappings().all())
+
+    models: dict[int, ModelForApprove] = dict()
+
+    for r in rows:
+        origin = r["origin"]
+        model_id = r["model_id"]
+
+        if model_id not in models:
+            type_obj = TypeModel(id=r["type_id"], type=r["type_name"])
+            brand_obj = BrandModel(id=r["brand_id"], brand=r["brand_name"])
+
+            models[model_id] = ModelForApprove(
+                id=model_id,
+                title=r["model_title"],
+                info=r["model_info"],
+                source=r["model_source"],
+                type_=type_obj,
+                brand=brand_obj,
+                in_hub=False,
+                origins=[],
+            )
+
+        origin_item = OriginWithAttrsPicsAnalyze(
+            origin=origin,
+            title=r["origin_title"],
+            input_price=r["input_price"],
+            output_price=r["output_price"],
+            attrs=None,
+            pics=None,
+            analyze=None,
+        )
+
+        models[model_id].origins.append(origin_item)
+
+        if origin_feature_map[origin]["in_hub"]:
+            models[model_id].in_hub = True
+
+    return list(models.values())

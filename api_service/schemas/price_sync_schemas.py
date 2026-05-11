@@ -1,13 +1,12 @@
 from datetime import datetime
 from typing import Optional, List
 
-from pydantic import BaseModel, HttpUrl, model_validator
+from pydantic import BaseModel, HttpUrl
 
-from api_service.schemas.analytics_schemas import AnalyzeItem
 from api_service.schemas.vsl_schemas import VSLScheme
 from api_service.schemas.hub_schemas import HubMenuLevelSchema
-from api_service.schemas.product_schemas import TypeModel, BrandModel, ResolveFeatureModel, ImageWithPreview
-from api_service.schemas.attribute_schemas import AttributeValueSchema, AttributeKeyValueSchema
+from api_service.schemas.product_schemas import TypeModel, BrandModel, ModelForApprove
+from api_service.schemas.attribute_schemas import AttributeValueSchema
 from var_types import PriceDiffStatus
 
 
@@ -44,15 +43,17 @@ class SyncPathWOrigins(PriceSyncPickedPath):
     raw_origin_ids: list[RawOrigin]
 
 
+class SyncPathWModels(HubRoutes):
+    path_id: int
+    route: List[HubMenuLevelSchema]
+    models: List[ModelForApprove]
+
+
 class ParsingLine(BaseModel):
     key: int
     url: HttpUrl
     title: str
     dt_parsed: datetime
-
-
-class ConsentProcessScheme(BaseModel):
-    path_ids: List[int]
 
 
 class ParsingHubDiffItem(BaseModel):
@@ -103,17 +104,6 @@ class HubToDiffData(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class RecalcScheme(BaseModel):
-    path_ids: Optional[List[int]] = None
-    origins: Optional[List[int]] = None
-
-    @model_validator(mode="after")
-    def validate_exclusive_fields(self) -> "RecalcScheme":
-        if bool(self.path_ids) == bool(self.origins):
-            raise ValueError("Нужно передать либо список path_ids, либо список origins")
-        return self
-
-
 class RecomputedNewPriceLines(BaseModel):
     origin: int
     title: str
@@ -128,17 +118,6 @@ class RecomputedResult(BaseModel):
     recomputed_items: Optional[List[RecomputedNewPriceLines]]
 
 
-class ComparableModel(BaseModel):
-    path_id: int
-    models: List[ResolveFeatureModel]
-
-
-class ComparableUnion(BaseModel):
-    path_id: int
-    route: List[HubMenuLevelSchema]
-    models: List[ResolveFeatureModel]
-
-
 class UpdateHubApproveItem(BaseModel):
     path_id: int
     models_ids: list[int]
@@ -147,25 +126,14 @@ class UpdateHubApproveItem(BaseModel):
 class UpdateHubApproveItems(BaseModel):
     items: List[UpdateHubApproveItem]
 
-
-class OriginAnalyzedItem(BaseModel):
-    origin: int
-    title: str
-    input_price: Optional[float]
-    output_price: Optional[float]
-    attrs: Optional[list[AttributeKeyValueSchema]]
-    pics: Optional[List[ImageWithPreview]]
-    analyze: AnalyzeItem
-
-
-class ProductsAnalyzeScheme(BaseModel):
-    id: int
-    title: str
-    brand: BrandModel
-    type: TypeModel
-    items: List[OriginAnalyzedItem]
-
-
-class ApproveAnalyzedResponse(BaseModel):
-    path: HubMenuLevelSchema
-    products: List[ProductsAnalyzeScheme]
+# class ProductsAnalyzeScheme(BaseModel):
+#     id: int
+#     title: str
+#     brand: BrandModel
+#     type: TypeModel
+#     items: List[OriginAnalyzedItem]
+#
+#
+# class ApproveAnalyzedResponse(BaseModel):
+#     path: HubMenuLevelSchema
+#     products: List[ProductsAnalyzeScheme]

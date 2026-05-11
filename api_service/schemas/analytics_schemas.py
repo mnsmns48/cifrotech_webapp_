@@ -67,12 +67,3 @@ class ProductTypeValueMapUpdateSchema(BaseModel):
 
 class ProductTypeValueMapDeleteSchema(BaseModel):
     ids: list[int]
-
-
-class AnalyzeItem(BaseModel):
-    verdict: bool
-    ratio: float
-    threshold: float
-    price_increase: float
-    value_increase: float
-    value: float

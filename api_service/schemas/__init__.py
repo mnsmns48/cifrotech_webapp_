@@ -7,15 +7,15 @@ from api_service.schemas.hubstock_schemas import (HubLoadingData, StockHubItemRe
                                                   HubItemsChangePriceResponse)
 
 from api_service.schemas.price_sync_schemas import PathIdRequest, PriceSyncPickedPath, ParsingLine, \
-    ConsentProcessScheme, ParsingHubDiffOut, HubToDiffData, RecalcScheme, RecomputedResult, RecomputedNewPriceLines, \
-    ParsingHubDiffItem, HubRoutes, ComparableModel, ComparableUnion, RawOrigin, SyncPathWOrigins, \
-    UpdateHubApproveItems, OriginAnalyzedItem, ProductsAnalyzeScheme, ApproveAnalyzedResponse, ProductsAnalyzeScheme
+    ParsingHubDiffOut, HubToDiffData, RecomputedResult, RecomputedNewPriceLines, \
+    ParsingHubDiffItem, HubRoutes, RawOrigin, SyncPathWOrigins, \
+    UpdateHubApproveItems
 from api_service.schemas.parsing_schemas import ParsingRequest, ParsingLinesIn, ParsingToDiffData, SourceContext, \
     ParsingResultOut, AddAttributesValuesRequest, DependencyImageItem, DependencyOriginImplementation, ImageResponseItem
 
 from api_service.schemas.product_schemas import ProductOriginUpdate, ProductDependencyUpdate, ProductResponse, \
     RecalcPricesRequest, RecalcPricesResponse, ProductOriginCreate, ProductDependencyBatchUpdate, OriginsList, \
-    TypeModel, BrandModel, ResolveFeatureModel, ConcurrentAvailable, FetchProductInfoRequest, ImageWithPreview
+    TypeModel, BrandModel, ModelForApprove, FetchProductInfoRequest, ImageWithPreview, AnalyzeItem
 
 from api_service.schemas.range_reward_schemas import RewardRangeLineSchema, RewardRangeSchema, \
     RewardRangeResponseSchema, RewardRangeBaseSchema
@@ -42,7 +42,7 @@ from api_service.schemas.features_schemas import FeaturesDataSet, SetFeaturesHub
 
 from api_service.schemas.analytics_schemas import ProductTypeWeightRuleSchema, ProductTypeWeightRuleCreate, \
     ProductTypeWeightRuleDelete, ProductTypeWeightRuleUpdate, ProductTypeWeightRuleSwitch, ProductTypeValueMapScheme, \
-    ProductTypeValueMapCreateSchema, ProductTypeValueMapUpdateSchema, ProductTypeValueMapDeleteSchema, AnalyzeItem
+    ProductTypeValueMapCreateSchema, ProductTypeValueMapUpdateSchema, ProductTypeValueMapDeleteSchema
 
 __all__ = list()
 
@@ -55,7 +55,7 @@ __all__ += ["RewardRangeLineSchema", "RewardRangeSchema", "RewardRangeResponseSc
 __all__ += [
     "ProductOriginUpdate", "ProductDependencyUpdate", "ProductResponse", "RecalcPricesRequest", "RecalcPricesResponse",
     "ProductOriginCreate", "ProductDependencyBatchUpdate", "OriginsList", "OriginHubLevelMap", "BrandModel",
-    "TypeModel", "ResolveFeatureModel", "ConcurrentAvailable", "FetchProductInfoRequest", "ImageWithPreview"]
+    "TypeModel", "ModelForApprove", "FetchProductInfoRequest", "ImageWithPreview", "AnalyzeItem"]
 
 __all__ += ["HubMenuLevelSchema", "RenameRequest", "HubPositionPatchOut", "AddHubLevelScheme", "AddHubLevelOutScheme",
             "HubPositionPatch", "HubLevelPath", "UpdateDeleteImageScheme", "UpdatedImageScheme", "PathRoute",
@@ -65,10 +65,9 @@ __all__ += [
     "HubLoadingData", "StockHubItemResult", "OriginsPayload", "HubItemTitlePatch", "HubItemsChangePriceRequest",
     "HubItemsChangePriceResponse"]
 
-__all__ += ["PathIdRequest", "PriceSyncPickedPath", "ParsingLine", "ConsentProcessScheme",
-            "ParsingHubDiffOut", "HubToDiffData", "RecalcScheme", "RecomputedResult", "RecomputedNewPriceLines",
-            "ParsingHubDiffItem", "RawOrigin", "SyncPathWOrigins", "HubRoutes", "ComparableModel",
-            "ComparableUnion", "UpdateHubApproveItems", "OriginAnalyzedItem", "ApproveAnalyzedResponse",
+__all__ += ["PathIdRequest", "PriceSyncPickedPath", "ParsingLine", "ParsingHubDiffOut", "HubToDiffData",
+            "RecomputedResult", "RecomputedNewPriceLines", "ParsingHubDiffItem", "RawOrigin", "SyncPathWOrigins",
+            "HubRoutes", "UpdateHubApproveItems", "OriginAnalyzedItem", "ApproveAnalyzedResponse",
             "ProductsAnalyzeScheme"]
 
 __all__ += ["ServiceImageResponse", "ServiceImageCreate", "ServiceImageUpdate"]
@@ -92,5 +91,4 @@ __all__ += ["FeaturesDataSet", "PathRoutes", "SetFeaturesHubLevelRequest", "SetL
 
 __all__ += ["ProductTypeWeightRuleSchema", "ProductTypeWeightRuleCreate", "ProductTypeWeightRuleDelete",
             "ProductTypeWeightRuleUpdate", "ProductTypeWeightRuleSwitch", "ProductTypeValueMapScheme",
-            "ProductTypeValueMapCreateSchema", "ProductTypeValueMapUpdateSchema", "ProductTypeValueMapDeleteSchema",
-            "AnalyzeItem"]
+            "ProductTypeValueMapCreateSchema", "ProductTypeValueMapUpdateSchema", "ProductTypeValueMapDeleteSchema"]

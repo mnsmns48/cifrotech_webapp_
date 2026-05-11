@@ -5,6 +5,8 @@ from typing import Union, List, Dict, Any, Optional
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_core.core_schema import FieldValidationInfo
 
+from api_service.schemas.attribute_schemas import AttributeKeyValueSchema
+
 
 class ProductOriginBase(BaseModel):
     title: str
@@ -94,14 +96,32 @@ class TypeModel(BaseModel):
     type: str
 
 
-class ConcurrentAvailable(BaseModel):
+class ImageWithPreview(BaseModel):
+    url: str
+    filename: str
+    is_preview: bool
+
+
+class AnalyzeItem(BaseModel):
+    verdict: bool
+    ratio: float
+    threshold: float
+    price_increase: float
+    value_increase: float
+    value: float
+
+
+class OriginWithAttrsPicsAnalyze(BaseModel):
     origin: int
     title: str
-    input_price: int
-    output_price: int
+    input_price: Optional[float]
+    output_price: Optional[float]
+    attrs: list[AttributeKeyValueSchema] | None = None
+    pics: list[ImageWithPreview] | None = None
+    analyze: AnalyzeItem | None = None
 
 
-class ResolveFeatureModel(BaseModel):
+class ModelForApprove(BaseModel):
     id: int
     title: str
     info: Union[List[Dict[str, Any]], str]
@@ -109,8 +129,7 @@ class ResolveFeatureModel(BaseModel):
     type_: TypeModel
     brand: BrandModel
     in_hub: bool
-    in_parsing: bool
-    available: list[ConcurrentAvailable] = []
+    origins: list[OriginWithAttrsPicsAnalyze] = []
 
 
 class FetchProductInfoRequest(BaseModel):
@@ -131,9 +150,3 @@ class FetchProductInfoRequest(BaseModel):
             raise ValueError("Нужно передать ровно одно из полей: origin, features_id или features_title")
 
         return values
-
-
-class ImageWithPreview(BaseModel):
-    url: str
-    filename: str
-    is_preview: bool
