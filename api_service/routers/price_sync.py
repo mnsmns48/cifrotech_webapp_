@@ -4,6 +4,7 @@ from fastapi import Depends, APIRouter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.modulars.price_sync.service import PriceSync
+from api_service.s3_helper import get_s3_client
 from api_service.schemas import PriceSyncPickedPath, PathIdRequest, SyncPathWOrigins, HubRoutes
 from api_service.schemas.price_sync_schemas import SyncPathWModels
 
@@ -29,8 +30,9 @@ async def resolve_models_for_sync(payload: List[PriceSyncPickedPath],
                                   session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await PriceSync.resolve_models_sync(payload, session)
 
-# @comparison_router.post("/approve_origins_for_update", response_model=list[ApproveAnalyzedResponse])
-# async def approve_origins_for_update(payload: UpdateHubApproveItems,
-#                                      s3_client=Depends(get_s3_client),
-#                                      session: AsyncSession = Depends(db.scoped_session_dependency)):
-#     return await approve_origins_for_update_db(payload, session, s3_client)
+
+@price_sync_router.post("/approve_origins_for_update", response_model=List[SyncPathWModels])
+async def approve_origins_for_update(payload: List[SyncPathWModels],
+                                     s3_client=Depends(get_s3_client),
+                                     session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await PriceSync.approve_origins_for_update(payload, session, s3_client)
