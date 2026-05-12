@@ -1,9 +1,11 @@
+from collections import OrderedDict
 from typing import List
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.modulars.price_sync.crud import fetch_raw_origins_db, fetch_leaf_routes, collect_price_sync_paths, \
-    hubstock_origins_map_by_path_ids, load_parsing_origins_map, load_origin_feature_map, load_unique_models_by_origins
+    hubstock_origins_map_by_path_ids, load_parsing_origins_map, load_origin_feature_map, load_unique_models_by_origins, \
+    load_origins_attrs_map
 from api_service.modulars.price_sync.func import normalize_route
 from api_service.schemas import PathIdRequest, PriceSyncPickedPath, SyncPathWOrigins, ModelForApprove
 from api_service.schemas.price_sync_schemas import SyncPathWModels, HubRoutes
@@ -82,4 +84,36 @@ class PriceSync:
     async def approve_origins_for_update(payload: list[SyncPathWModels],
                                          session: AsyncSession,
                                          s3_client) -> list[SyncPathWModels]:
+
+        origin_ids = set()
+        for path_item in payload:
+            for model in path_item.models:
+                for origin in model.origins:
+                    origin_ids.add(origin.origin)
+
+        attrs_map = await load_origins_attrs_map(origin_ids, session)
+
+        for path_item in payload:
+            for model in path_item.models:
+                for origin in model.origins:
+                    origin.attrs = attrs_map.get(origin.origin, [])
+
+        for path_item in payload:
+            for model in path_item.models:
+
+                groups = OrderedDict()
+
+                for origin in model.origins:
+                    key = frozenset((attr.key.id, attr.value) for attr in (origin.attrs or []))
+                    if key not in groups:
+                        groups[key] = []
+                    groups[key].append(origin)
+
+                filtered = []
+                for key, origins in groups.items():
+                    best = min(origins, key=lambda o: o.input_price or float("inf"))
+                    filtered.append(best)
+
+                model.origins = sorted(filtered, key=lambda o: o.input_price or float("inf"))
+
         return payload

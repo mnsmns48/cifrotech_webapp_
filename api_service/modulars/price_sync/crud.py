@@ -6,13 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from api_service.schemas import HubRoutes, HubMenuLevelSchema, PriceSyncPickedPath, RawOrigin, TypeModel, BrandModel, \
-    VSLScheme, SyncPathWOrigins
+    VSLScheme, SyncPathWOrigins, AttributeKeyValueSchema
 from api_service.schemas.price_sync_schemas import SyncPathWModels
 from api_service.schemas.product_schemas import OriginWithAttrsPicsAnalyze, ModelForApprove
 from app_utils import get_url_from_s3
 from config import settings
 from models import HUbMenuLevel, VendorSearchLine, HUbStock, ProductFeaturesLink, ParsingLine, ProductImage, \
-    ProductOrigin, ProductFeaturesGlobal, ProductType, ProductBrand, AttributeOriginValue
+    ProductOrigin, ProductFeaturesGlobal, ProductType, ProductBrand, AttributeOriginValue, AttributeValue, AttributeKey
 
 
 async def fetch_leaf_routes(session: AsyncSession, path_ids: list[int]) -> list[HubRoutes]:
@@ -379,3 +379,28 @@ async def load_unique_models_by_origins(origin_feature_map: dict[int, dict[str, 
             models[model_id].in_hub = True
 
     return list(models.values())
+
+
+async def load_origins_attrs_map(origin_ids: list[int] | set[int],
+                                 session: AsyncSession) -> dict[int, list[AttributeKeyValueSchema]]:
+    if not origin_ids:
+        return {}
+
+    stmt = (select(AttributeOriginValue.origin_id,
+                   AttributeValue.id,
+                   AttributeValue.value,
+                   AttributeValue.alias,
+                   AttributeKey.id,
+                   AttributeKey.key)
+            .join(AttributeOriginValue.attr_value)
+            .join(AttributeValue.attr_key)
+            .where(AttributeOriginValue.origin_id.in_(origin_ids)))
+
+    rows = (await session.execute(stmt)).all()
+    result = defaultdict(list)
+    for origin_id, attr_value_id, value, alias, key_id, key_str in rows:
+        result[origin_id].append(AttributeKeyValueSchema(id=attr_value_id,
+                                                         key=AttributeKey(id=key_id, key=key_str),
+                                                         value=value,
+                                                         alias=alias))
+    return result
