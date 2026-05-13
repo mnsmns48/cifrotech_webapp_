@@ -114,9 +114,9 @@ async def create_attribute(session: AsyncSession, payload: CreateAttribute) -> A
 async def update_attribute_value(session: AsyncSession, value_id: int, new_value: str,
                                  new_alias: str | None) -> AttributeValue:
     exists_stmt = select(AttributeValue.id).where(AttributeValue.id == value_id)
-    exists = (await session.execute(exists_stmt)).scalar_one_or_none()
+    update_result = (await session.execute(exists_stmt)).scalar_one_or_none()
 
-    if exists is None:
+    if update_result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Attribute not found")
 
     stmt = (update(AttributeValue).where(AttributeValue.id == value_id)
@@ -135,9 +135,9 @@ async def update_attribute_value(session: AsyncSession, value_id: int, new_value
 
 async def delete_attribute_value(session: AsyncSession, value_id: int) -> bool | None:
     exists_stmt = select(AttributeValue.id).where(AttributeValue.id == value_id)
-    exists = (await session.execute(exists_stmt)).scalar_one_or_none()
+    delete_result = (await session.execute(exists_stmt)).scalar_one_or_none()
 
-    if exists is None:
+    if delete_result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Attribute value not found")
 
     stmt = delete(AttributeValue).where(AttributeValue.id == value_id).returning(AttributeValue.id)

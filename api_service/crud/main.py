@@ -26,13 +26,13 @@ from api_service.utils import normalize_origin, update_feature_if_changed
 from config import settings
 from models import Vendor, VendorSearchLine, ProductOrigin, ParsingLine, RewardRange, RewardRangeLine, \
     ProductFeaturesLink, ProductFeaturesGlobal, ProductType, ProductBrand, HUbStock, HUbMenuLevel, StockTableDependency, \
-    StockTable, ServiceImage, AttributeOriginValue, ProductImage
+    StockTable, ServiceImage, AttributeOriginValue, ProductImage, AttributeValue, AttributeKey
 from api_service.schemas import SourceContext, ParsingLinesIn, ParsingResultOut, ProductOriginCreate, \
     RewardRangeResponseSchema, RewardRangeLineSchema, RewardRangeBaseSchema, HubLevelPath, VSLScheme, ParsingToDiffData, \
     HubToDiffData, RecomputedResult, RecomputedNewPriceLines, ParsingResultAttributeResponse, AttributeValueSchema, \
     AddAttributesValuesRequest, DependencyImageItem, DependencyOriginImplementation, ImageResponseItem, \
     PriceSyncPickedPath, TypeModel, BrandModel, \
-    AttributeKeyValueSchema, AttributeKey, AnalyzeItem, \
+    AttributeKeyValueSchema, AnalyzeItem, \
     HubMenuLevelSchema, ModelForApprove
 
 
@@ -734,7 +734,34 @@ async def clear_features_dependencies(session: AsyncSession, origins: list) -> L
 
 async def add_attributes_values_db(payload: AddAttributesValuesRequest, session: AsyncSession):
     try:
-        stmt = (
+        stmt_keys = (
+            select(AttributeValue.id, AttributeKey.id)
+            .join(AttributeKey, AttributeValue.attr_key_id == AttributeKey.id)
+            .where(AttributeValue.id.in_(payload.values))
+        )
+
+        rows = (await session.execute(stmt_keys)).all()
+
+        if not rows:
+            return {"status": False, "message": "Unknown attribute values"}
+
+        key_to_values = dict()
+        for value_id, key_id in rows:
+            key_to_values.setdefault(key_id, []).append(value_id)
+
+        for key_id, value_ids in key_to_values.items():
+            delete_stmt = (
+                delete(AttributeOriginValue)
+                .where(AttributeOriginValue.origin_id == payload.origin)
+                .where(
+                    AttributeOriginValue.attr_value_id.in_(
+                        select(AttributeValue.id).where(AttributeValue.attr_key_id == key_id)
+                    )
+                )
+            )
+            await session.execute(delete_stmt)
+
+        insert_stmt = (
             insert(AttributeOriginValue)
             .values([
                 {"origin_id": payload.origin, "attr_value_id": value_id}
@@ -745,7 +772,7 @@ async def add_attributes_values_db(payload: AddAttributesValuesRequest, session:
             )
         )
 
-        await session.execute(stmt)
+        await session.execute(insert_stmt)
         await session.commit()
 
         return {"origin": payload.origin, "values": payload.values, "status": True}
@@ -855,110 +882,110 @@ async def implement_dependency_images_logic(
 
 async def approve_origins_for_update_db(payload, session, s3_client):
     pass
-#     path_to_features, path_ids, feature_ids = dict(), list(), set()
-#     for item in payload.items:
-#         pid = item.path_id
-#
-#         if pid not in path_to_features:
-#             path_to_features[pid] = []
-#             path_ids.append(pid)
-#
-#         for fid in item.models_ids:
-#             if fid not in path_to_features[pid]:
-#                 path_to_features[pid].append(fid)
-#                 feature_ids.add(fid)
-#
-#     print("\n================= PATHS & FEATURES =================")
-#     print("path_ids:", path_ids)
-#     print("path_to_features:", path_to_features)
-#     print("feature_ids:", feature_ids)
-#
-#     # -----------------------------------------
-#     # 2. Загружаем hubstock
-#     # -----------------------------------------
-#     hubstock = await _load_approve_hubstock_for_paths(session, path_ids)
-#
-#     print("\n================= HUBSTOCK =================")
-#     for pid, origins in hubstock.items():
-#         print(
-#             f"path {pid}: {[(oid, s.input_price if hasattr(s, 'input_price') else None) for oid, s in origins.items()]}")
-#
-#     # -----------------------------------------
-#     # 3. Собираем vsl_ids и origin_ids
-#     # -----------------------------------------
-#     path_to_vsl_map, vsl_ids, origin_ids = dict(), set(), set()
-#
-#     for pid, origins_map in hubstock.items():
-#         vsl_list = path_to_vsl_map.setdefault(pid, [])
-#
-#         for origin_id, stock in origins_map.items():
-#             origin_ids.add(origin_id)
-#
-#             vsl = stock.vsl_id
-#             if vsl not in vsl_list:
-#                 vsl_list.append(vsl)
-#                 vsl_ids.add(vsl)
-#
-#     print("\n================= ORIGIN IDS =================")
-#     print("origin_ids:", origin_ids)
-#     print("vsl_ids:", vsl_ids)
-#
-#     # -----------------------------------------
-#     # 4. Загружаем rows
-#     # -----------------------------------------
-#     rows = await _load_approve_origin_data(session, list(vsl_ids), list(feature_ids))
-#
-#     print("\n================= RAW ROWS =================")
-#     for r in rows:
-#         print(
-#             f"origin={r.origin} price={r.input_price} feature={r.feature_id} attr={r.attr_id} key={r.key_name} val={r.attr_value}")
-#
-#     # -----------------------------------------
-#     # 5. Загружаем features, paths, images
-#     # -----------------------------------------
+    #     path_to_features, path_ids, feature_ids = dict(), list(), set()
+    #     for item in payload.items:
+    #         pid = item.path_id
+    #
+    #         if pid not in path_to_features:
+    #             path_to_features[pid] = []
+    #             path_ids.append(pid)
+    #
+    #         for fid in item.models_ids:
+    #             if fid not in path_to_features[pid]:
+    #                 path_to_features[pid].append(fid)
+    #                 feature_ids.add(fid)
+    #
+    #     print("\n================= PATHS & FEATURES =================")
+    #     print("path_ids:", path_ids)
+    #     print("path_to_features:", path_to_features)
+    #     print("feature_ids:", feature_ids)
+    #
+    #     # -----------------------------------------
+    #     # 2. Загружаем hubstock
+    #     # -----------------------------------------
+    #     hubstock = await _load_approve_hubstock_for_paths(session, path_ids)
+    #
+    #     print("\n================= HUBSTOCK =================")
+    #     for pid, origins in hubstock.items():
+    #         print(
+    #             f"path {pid}: {[(oid, s.input_price if hasattr(s, 'input_price') else None) for oid, s in origins.items()]}")
+    #
+    #     # -----------------------------------------
+    #     # 3. Собираем vsl_ids и origin_ids
+    #     # -----------------------------------------
+    #     path_to_vsl_map, vsl_ids, origin_ids = dict(), set(), set()
+    #
+    #     for pid, origins_map in hubstock.items():
+    #         vsl_list = path_to_vsl_map.setdefault(pid, [])
+    #
+    #         for origin_id, stock in origins_map.items():
+    #             origin_ids.add(origin_id)
+    #
+    #             vsl = stock.vsl_id
+    #             if vsl not in vsl_list:
+    #                 vsl_list.append(vsl)
+    #                 vsl_ids.add(vsl)
+    #
+    #     print("\n================= ORIGIN IDS =================")
+    #     print("origin_ids:", origin_ids)
+    #     print("vsl_ids:", vsl_ids)
+    #
+    #     # -----------------------------------------
+    #     # 4. Загружаем rows
+    #     # -----------------------------------------
+    #     rows = await _load_approve_origin_data(session, list(vsl_ids), list(feature_ids))
+    #
+    #     print("\n================= RAW ROWS =================")
+    #     for r in rows:
+    #         print(
+    #             f"origin={r.origin} price={r.input_price} feature={r.feature_id} attr={r.attr_id} key={r.key_name} val={r.attr_value}")
+    #
+    #     # -----------------------------------------
+    #     # 5. Загружаем features, paths, images
+    #     # -----------------------------------------
     features = await _load_approve_features(session, list(feature_ids))
-#     paths = await _load_approve_paths(session, path_ids)
-#     images = await load_images_for_origins(session, s3_client, list(origin_ids))
-#
-#     # -----------------------------------------
-#     # 6. Строим origin_map
-#     # -----------------------------------------
-#     origin_map: dict[int, dict] = {}
-#
-#     for row in rows:
-#         origin = row.origin
-#
-#         if origin not in origin_map:
-#             origin_map[origin] = {
-#                 "origin": origin,
-#                 "vsl_id": row.vsl_id,
-#                 "feature_id": row.feature_id,
-#                 "input_price": row.input_price,
-#                 "output_price": row.output_price,
-#                 "title": row.origin_title,
-#                 "attrs_map": {}
-#             }
-#
-#         if row.attr_id not in origin_map[origin]["attrs_map"]:
-#             origin_map[origin]["attrs_map"][row.attr_id] = AttributeKeyValueSchema(
-#                 id=row.attr_id,
-#                 key=AttributeKey(id=row.key_id, key=row.key_name),
-#                 value=row.attr_value,
-#                 alias=row.attr_alias,
-#             )
-#
-#     print("\n================= ORIGIN MAP =================")
-#     for oid, data in origin_map.items():
-#         print(f"origin={oid} price={data['input_price']} attrs={list(data['attrs_map'].keys())}")
-#
-#     # -----------------------------------------
-#     # 7. Загружаем правила анализа
-#     # -----------------------------------------
-#     features_map = {f.id: f for f in features}
-#
-#     product_type_ids = {f.type.id for f in features}
-#     brand_ids = {f.brand.id for f in features}
-#
+    #     paths = await _load_approve_paths(session, path_ids)
+    #     images = await load_images_for_origins(session, s3_client, list(origin_ids))
+    #
+    #     # -----------------------------------------
+    #     # 6. Строим origin_map
+    #     # -----------------------------------------
+    #     origin_map: dict[int, dict] = {}
+    #
+    #     for row in rows:
+    #         origin = row.origin
+    #
+    #         if origin not in origin_map:
+    #             origin_map[origin] = {
+    #                 "origin": origin,
+    #                 "vsl_id": row.vsl_id,
+    #                 "feature_id": row.feature_id,
+    #                 "input_price": row.input_price,
+    #                 "output_price": row.output_price,
+    #                 "title": row.origin_title,
+    #                 "attrs_map": {}
+    #             }
+    #
+    #         if row.attr_id not in origin_map[origin]["attrs_map"]:
+    #             origin_map[origin]["attrs_map"][row.attr_id] = AttributeKeyValueSchema(
+    #                 id=row.attr_id,
+    #                 key=AttributeKey(id=row.key_id, key=row.key_name),
+    #                 value=row.attr_value,
+    #                 alias=row.attr_alias,
+    #             )
+    #
+    #     print("\n================= ORIGIN MAP =================")
+    #     for oid, data in origin_map.items():
+    #         print(f"origin={oid} price={data['input_price']} attrs={list(data['attrs_map'].keys())}")
+    #
+    #     # -----------------------------------------
+    #     # 7. Загружаем правила анализа
+    #     # -----------------------------------------
+    #     features_map = {f.id: f for f in features}
+    #
+    #     product_type_ids = {f.type.id for f in features}
+    #     brand_ids = {f.brand.id for f in features}
+    #
     rule_weight_map, type_key_to_rule = await load_weight_rules(session, product_type_ids)
 #     value_multiplier_map = await load_value_maps(session, set(rule_weight_map.keys()))
 #     brand_rule_map = await load_brand_rules(session, product_type_ids, brand_ids)
