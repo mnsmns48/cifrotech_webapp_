@@ -30,7 +30,6 @@ def compute_dynamic_threshold(group_items: list, attrs: dict) -> float:
 
     deltas = [p - base_price for p in prices]
     T1 = statistics.median(deltas)
-
     T2 = statistics.pstdev(prices) if len(prices) > 1 else 0
 
     avg_price = sum(prices) / len(prices)

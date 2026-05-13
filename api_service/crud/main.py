@@ -11,7 +11,7 @@ from sqlalchemy import delete, update, and_, select, func, case
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload, InstrumentedAttribute, aliased
+from sqlalchemy.orm import selectinload, InstrumentedAttribute
 
 from api_service.api_connect import get_one_by_dtube
 from api_service.crud._optional_funcs import load_models, \
@@ -916,7 +916,7 @@ async def approve_origins_for_update_db(payload, session, s3_client):
 #     # -----------------------------------------
 #     # 5. Загружаем features, paths, images
 #     # -----------------------------------------
-#     features = await _load_approve_features(session, list(feature_ids))
+    features = await _load_approve_features(session, list(feature_ids))
 #     paths = await _load_approve_paths(session, path_ids)
 #     images = await load_images_for_origins(session, s3_client, list(origin_ids))
 #
@@ -959,7 +959,7 @@ async def approve_origins_for_update_db(payload, session, s3_client):
 #     product_type_ids = {f.type.id for f in features}
 #     brand_ids = {f.brand.id for f in features}
 #
-#     rule_weight_map, type_key_to_rule = await load_weight_rules(session, product_type_ids)
+    rule_weight_map, type_key_to_rule = await load_weight_rules(session, product_type_ids)
 #     value_multiplier_map = await load_value_maps(session, set(rule_weight_map.keys()))
 #     brand_rule_map = await load_brand_rules(session, product_type_ids, brand_ids)
 #

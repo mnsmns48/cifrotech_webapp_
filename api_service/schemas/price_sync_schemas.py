@@ -125,15 +125,3 @@ class UpdateHubApproveItem(BaseModel):
 
 class UpdateHubApproveItems(BaseModel):
     items: List[UpdateHubApproveItem]
-
-# class ProductsAnalyzeScheme(BaseModel):
-#     id: int
-#     title: str
-#     brand: BrandModel
-#     type: TypeModel
-#     items: List[OriginAnalyzedItem]
-#
-#
-# class ApproveAnalyzedResponse(BaseModel):
-#     path: HubMenuLevelSchema
-#     products: List[ProductsAnalyzeScheme]

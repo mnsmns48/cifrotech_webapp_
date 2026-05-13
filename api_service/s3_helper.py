@@ -296,13 +296,15 @@ async def safe_presign(s3_client, bucket, key, retries=3):
                 return None
 
 
-async def load_images_for_origins(session: AsyncSession, s3_client, origins: list[int]):
-    if not origins:
+async def load_images_for_origins(session: AsyncSession,
+                                  s3_client,
+                                  origin_ids: list[int] | set[int]) -> dict[int, list[ImageWithPreview]]:
+    if not origin_ids:
         return {}
 
     stmt = (
         select(ProductImage)
-        .where(ProductImage.origin_id.in_(origins))
+        .where(ProductImage.origin_id.in_(origin_ids))
         .order_by(
             ProductImage.origin_id.asc(),
             ProductImage.is_preview.desc(),
@@ -337,7 +339,7 @@ async def load_images_for_origins(session: AsyncSession, s3_client, origins: lis
             )
         )
 
-    for origin in origins:
+    for origin in origin_ids:
         origin_to_images.setdefault(origin, [])
 
     return origin_to_images

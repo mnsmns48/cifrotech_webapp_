@@ -7,7 +7,9 @@ from api_service.modulars.price_sync.crud import fetch_raw_origins_db, fetch_lea
     hubstock_origins_map_by_path_ids, load_parsing_origins_map, load_origin_feature_map, load_unique_models_by_origins, \
     load_origins_attrs_map
 from api_service.modulars.price_sync.func import normalize_route
-from api_service.schemas import PathIdRequest, PriceSyncPickedPath, SyncPathWOrigins, ModelForApprove
+from api_service.s3_helper import load_images_for_origins
+from api_service.schemas import PathIdRequest, PriceSyncPickedPath, SyncPathWOrigins, ModelForApprove, \
+    AttributeKeyValueSchema, ImageWithPreview
 from api_service.schemas.price_sync_schemas import SyncPathWModels, HubRoutes
 
 
@@ -85,25 +87,23 @@ class PriceSync:
                                          session: AsyncSession,
                                          s3_client) -> list[SyncPathWModels]:
 
-        origin_ids = set()
-        for path_item in payload:
-            for model in path_item.models:
-                for origin in model.origins:
-                    origin_ids.add(origin.origin)
+        origin_ids: set[int] = {item.origin
+                                for path_item in payload
+                                for model in path_item.models
+                                for item in model.origins
+                                }
 
-        attrs_map = await load_origins_attrs_map(origin_ids, session)
-
-        for path_item in payload:
-            for model in path_item.models:
-                for origin in model.origins:
-                    origin.attrs = attrs_map.get(origin.origin, [])
+        attrs_map: dict[int, list[AttributeKeyValueSchema]] = await load_origins_attrs_map(origin_ids, session)
+        images_map: dict[int, list[ImageWithPreview]] = await load_images_for_origins(session, s3_client, origin_ids)
 
         for path_item in payload:
             for model in path_item.models:
-
                 groups = OrderedDict()
-
                 for origin in model.origins:
+
+                    origin.attrs = attrs_map.get(origin.origin, [])
+                    origin.pics = images_map.get(origin.origin, [])
+
                     key = frozenset((attr.key.id, attr.value) for attr in (origin.attrs or []))
                     if key not in groups:
                         groups[key] = []
