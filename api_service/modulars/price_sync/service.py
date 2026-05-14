@@ -3,6 +3,7 @@ from typing import List
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api_service.modulars.analytics.origin_analyzer import OriginAnalyzer
 from api_service.modulars.price_sync.crud import fetch_raw_origins_db, fetch_leaf_routes, collect_price_sync_paths, \
     hubstock_origins_map_by_path_ids, load_parsing_origins_map, load_origin_feature_map, load_unique_models_by_origins, \
     load_origins_attrs_map
@@ -112,12 +113,18 @@ class PriceSync:
                                 for path_item in payload
                                 for model in path_item.models
                                 for item in model.origins}
-        # attrs_map = await load_origins_attrs_map(origin_ids, session)
-        images_map = await load_images_for_origins(session, s3_client, origin_ids)
+        attrs_map: dict[int, list[AttributeKeyValueSchema]] = await load_origins_attrs_map(origin_ids, session)
+        images_map: dict[int, list[ImageWithPreview]] = await load_images_for_origins(session, s3_client, origin_ids)
+
+        analyzer = OriginAnalyzer(session)
+        await analyzer.load()
 
         for path_item in payload:
             for model in path_item.models:
                 for origin in model.origins:
+                    origin.attrs = attrs_map.get(origin.origin, [])
                     origin.pics = images_map.get(origin.origin, [])
-            # filter_unique_origins_by_attrs(path_item.models, attrs_map)
+                analyzer.analyze_model(model)
+                analyzer.debug_print(model)
+
         return payload

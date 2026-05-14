@@ -3,8 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from api_service.schemas import ProductTypeWeightRuleUpdate, ProductTypeWeightRuleCreate
-from models import ProductTypeWeightRule
-from models.analytics import ProductTypeValueMap
+from models import ProductTypeWeightRule, AttributeBrandRule, AttributeValue, ProductTypeValueMap
 
 
 async def add_rule_line_db(payload: ProductTypeWeightRuleCreate, session: AsyncSession):
@@ -63,3 +62,46 @@ async def update_rule_line_db(payload: ProductTypeWeightRuleUpdate,
                                    .order_by(ProductTypeWeightRule.id)
                                    )
     return result.scalar_one_or_none()
+
+
+async def load_weight_rules(session: AsyncSession):
+    rows = await session.execute(
+        select(
+            ProductTypeWeightRule.product_type_id,
+            ProductTypeWeightRule.attr_key_id,
+            ProductTypeWeightRule.weight
+        )
+    )
+    return rows.all()
+
+
+async def load_value_maps(session: AsyncSession):
+    rows = await session.execute(
+        select(
+            ProductTypeValueMap.attr_value_id,
+            ProductTypeValueMap.multiplier
+        )
+    )
+    return rows.all()
+
+
+async def load_brand_overrides(session: AsyncSession):
+    rows = await session.execute(
+        select(
+            AttributeBrandRule.product_type_id,
+            AttributeBrandRule.brand_id,
+            AttributeBrandRule.attr_key_id,
+            AttributeBrandRule.rule_type
+        )
+    )
+    return rows.all()
+
+
+async def load_value_key_map(session: AsyncSession):
+    rows = await session.execute(
+        select(
+            AttributeValue.id,
+            AttributeValue.attr_key_id
+        )
+    )
+    return rows.all()
