@@ -125,6 +125,5 @@ class PriceSync:
                     origin.attrs = attrs_map.get(origin.origin, [])
                     origin.pics = images_map.get(origin.origin, [])
                 analyzer.analyze_model(model)
-                analyzer.debug_print(model)
 
         return payload
