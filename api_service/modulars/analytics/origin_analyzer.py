@@ -2,6 +2,7 @@ from collections import defaultdict
 from functools import partial
 from statistics import median
 
+from fastapi_cache.decorator import cache
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.modulars.analytics.crud import (load_weight_rules,
@@ -10,6 +11,25 @@ from api_service.modulars.analytics.crud import (load_weight_rules,
                                                  load_value_key_map)
 
 from api_service.schemas import AnalyzeItem, ProductMarketSettingsSchema
+from engine import db
+
+
+async def load_analyzer_cache_data(session: AsyncSession):
+    return {
+        "rules": await load_weight_rules(session),
+        "value_maps": await load_value_maps(session),
+        "brand_overrides": await load_brand_overrides(session),
+        "value_key_map": await load_value_key_map(session),
+    }
+
+
+@cache(expire=1000)
+async def load_analyzer_cache():
+    async with db.session_factory() as session:
+        return {"rules": await load_weight_rules(session),
+                "value_maps": await load_value_maps(session),
+                "brand_overrides": await load_brand_overrides(session),
+                "value_key_map": await load_value_key_map(session)}
 
 
 class OriginAnalyzer:
@@ -29,18 +49,15 @@ class OriginAnalyzer:
         self.key_by_value = {}
 
     async def load(self):
-        rows = await load_weight_rules(self.session)
-        for type_id, key_id, weight in rows:
-            self.weight_rules[(type_id, key_id)] = float(weight)
-        rows = await load_value_maps(self.session)
-        for value_id, multiplier in rows:
-            self.value_multiplier[value_id] = float(multiplier)
-        rows = await load_brand_overrides(self.session)
-        for type_id, brand_id, key_id, rule_type in rows:
-            self.brand_overrides[(type_id, brand_id, key_id)] = rule_type
-        rows = await load_value_key_map(self.session)
-        for value_id, key_id in rows:
-            self.key_by_value[value_id] = key_id
+        cached = await load_analyzer_cache()
+        for row in cached["rules"]:
+            self.weight_rules[(row["type_id"], row["key_id"])] = float(row["weight"])
+        for row in cached["value_maps"]:
+            self.value_multiplier[row["value_id"]] = float(row["multiplier"])
+        for row in cached["brand_overrides"]:
+            self.brand_overrides[(row["type_id"], row["brand_id"], row["key_id"])] = row["rule_type"]
+        for row in cached["value_key_map"]:
+            self.key_by_value[row["value_id"]] = row["key_id"]
 
     @staticmethod
     def _get_price(origin) -> float:

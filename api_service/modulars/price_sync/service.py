@@ -153,7 +153,6 @@ class PriceSync:
         await analyzer.load()
         for model in payload.models:
             analyzer.analyze_model(model, payload.path_id)
-
         return [SyncPathWMarket(path_id=payload.path_id,
                                 route=payload.route,
                                 models=payload.models,
@@ -165,16 +164,14 @@ class PriceSync:
         rows = list()
         for model in payload.models:
             for origin in model.origins:
-                rows.append({
-                    "origin": origin.origin,
-                    "path_id": payload.path_id,
-                    "vsl_id": origin.vsl_id,
-                    "input_price": origin.input_price,
-                    "output_price": origin.output_price,
-                    "warranty": origin.warranty,
-                    "profit_range_id": origin.profit_range_id,
-                    "updated_at": datetime.now(),
-                })
+                rows.append({"origin": origin.origin,
+                             "path_id": payload.path_id,
+                             "vsl_id": origin.vsl_id,
+                             "input_price": origin.input_price,
+                             "output_price": origin.output_price,
+                             "warranty": origin.warranty,
+                             "profit_range_id": origin.profit_range_id,
+                             "updated_at": datetime.now()})
         await session.execute(insert(HUbStock), rows)
         await session.commit()
         return {"updated": len(rows)}

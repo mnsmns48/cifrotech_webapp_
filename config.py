@@ -96,4 +96,4 @@ settings = Settings()
 
 
 def redis_session():
-    return redis.from_url(settings.redis.redis_url, decode_responses=True)
+    return redis.from_url(settings.redis.redis_url, decode_responses=False)

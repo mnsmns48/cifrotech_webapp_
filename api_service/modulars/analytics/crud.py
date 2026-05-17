@@ -68,39 +68,43 @@ async def update_rule_line_db(payload: ProductTypeWeightRuleUpdate,
 async def load_weight_rules(session: AsyncSession):
     rows = await session.execute(
         select(
-            ProductTypeWeightRule.product_type_id,
-            ProductTypeWeightRule.attr_key_id,
-            ProductTypeWeightRule.weight
+            ProductTypeWeightRule.product_type_id.label("type_id"),
+            ProductTypeWeightRule.attr_key_id.label("key_id"),
+            ProductTypeWeightRule.weight.label("weight")
         )
     )
-    return rows.all()
+    return rows.mappings().all()
 
 
 async def load_value_maps(session: AsyncSession):
     rows = await session.execute(
         select(
-            ProductTypeValueMap.attr_value_id,
-            ProductTypeValueMap.multiplier
+            ProductTypeValueMap.attr_value_id.label("value_id"),
+            ProductTypeValueMap.multiplier.label("multiplier")
         )
     )
-    return rows.all()
+    return rows.mappings().all()
 
 
 async def load_brand_overrides(session: AsyncSession):
     rows = await session.execute(
         select(
-            AttributeBrandRule.product_type_id,
-            AttributeBrandRule.brand_id,
-            AttributeBrandRule.attr_key_id,
-            AttributeBrandRule.rule_type
+            AttributeBrandRule.product_type_id.label("type_id"),
+            AttributeBrandRule.brand_id.label("brand_id"),
+            AttributeBrandRule.attr_key_id.label("key_id"),
+            AttributeBrandRule.rule_type.label("rule_type")
         )
     )
-    return rows.all()
+    return rows.mappings().all()
 
 
 async def load_value_key_map(session: AsyncSession):
-    rows = await session.execute(select(AttributeValue.id, AttributeValue.attr_key_id))
-    return rows.all()
+    rows = await session.execute(select(
+        AttributeValue.id.label("value_id"),
+        AttributeValue.attr_key_id.label("key_id")
+    )
+    )
+    return rows.mappings().all()
 
 
 async def load_market_settings(session: AsyncSession,
