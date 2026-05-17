@@ -6,10 +6,10 @@ from api_service.schemas.hubstock_schemas import (HubLoadingData, StockHubItemRe
                                                   HubItemTitlePatch, HubItemsChangePriceRequest,
                                                   HubItemsChangePriceResponse)
 
-from api_service.schemas.price_sync_schemas import PathIdRequest, PriceSyncPickedPath, ParsingLine, \
-    ParsingHubDiffOut, HubToDiffData, RecomputedResult, RecomputedNewPriceLines, \
-    ParsingHubDiffItem, HubRoutes, RawOrigin, SyncPathWOrigins, \
-    UpdateHubApproveItems
+from api_service.schemas.price_sync_schemas import PathIdRequest, PriceSyncPickedPath, ParsingLine, ParsingHubDiffOut, \
+    HubToDiffData, RecomputedResult, RecomputedNewPriceLines, ParsingHubDiffItem, HubRoutes, RawOrigin, \
+    SyncPathWOrigins, UpdateHubApproveItems, SyncPathWMarket, SyncPathWModels, ProductMarketSettingsSchema, \
+    UpdateMarketSettingsRequest
 from api_service.schemas.parsing_schemas import ParsingRequest, ParsingLinesIn, ParsingToDiffData, SourceContext, \
     ParsingResultOut, AddAttributesValuesRequest, DependencyImageItem, DependencyOriginImplementation, ImageResponseItem
 
@@ -68,7 +68,7 @@ __all__ += [
 __all__ += ["PathIdRequest", "PriceSyncPickedPath", "ParsingLine", "ParsingHubDiffOut", "HubToDiffData",
             "RecomputedResult", "RecomputedNewPriceLines", "ParsingHubDiffItem", "RawOrigin", "SyncPathWOrigins",
             "HubRoutes", "UpdateHubApproveItems", "OriginAnalyzedItem", "ApproveAnalyzedResponse",
-            "ProductsAnalyzeScheme"]
+            "ProductsAnalyzeScheme", "SyncPathWMarket", "SyncPathWModels"]
 
 __all__ += ["ServiceImageResponse", "ServiceImageCreate", "ServiceImageUpdate"]
 
@@ -91,4 +91,5 @@ __all__ += ["FeaturesDataSet", "PathRoutes", "SetFeaturesHubLevelRequest", "SetL
 
 __all__ += ["ProductTypeWeightRuleSchema", "ProductTypeWeightRuleCreate", "ProductTypeWeightRuleDelete",
             "ProductTypeWeightRuleUpdate", "ProductTypeWeightRuleSwitch", "ProductTypeValueMapScheme",
-            "ProductTypeValueMapCreateSchema", "ProductTypeValueMapUpdateSchema", "ProductTypeValueMapDeleteSchema"]
+            "ProductTypeValueMapCreateSchema", "ProductTypeValueMapUpdateSchema", "ProductTypeValueMapDeleteSchema",
+            "ProductMarketSettingsSchema", "UpdateMarketSettingsRequest"]

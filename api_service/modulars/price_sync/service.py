@@ -1,8 +1,11 @@
-from collections import OrderedDict
+from datetime import datetime
 from typing import List
 
+from sqlalchemy import delete
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api_service.modulars.analytics.crud import load_market_settings, update_market_setting
 from api_service.modulars.analytics.origin_analyzer import OriginAnalyzer
 from api_service.modulars.price_sync.crud import fetch_raw_origins_db, fetch_leaf_routes, collect_price_sync_paths, \
     hubstock_origins_map_by_path_ids, load_parsing_origins_map, load_origin_feature_map, load_unique_models_by_origins, \
@@ -10,8 +13,9 @@ from api_service.modulars.price_sync.crud import fetch_raw_origins_db, fetch_lea
 from api_service.modulars.price_sync.func import normalize_route, filter_unique_origins_by_attrs
 from api_service.s3_helper import load_images_for_origins
 from api_service.schemas import PathIdRequest, PriceSyncPickedPath, SyncPathWOrigins, ModelForApprove, \
-    AttributeKeyValueSchema, ImageWithPreview
-from api_service.schemas.price_sync_schemas import SyncPathWModels, HubRoutes
+    AttributeKeyValueSchema, ImageWithPreview, ProductMarketSettingsSchema, HubRoutes, SyncPathWMarket, SyncPathWModels, \
+    UpdateMarketSettingsRequest
+from models import HUbStock
 
 
 class PriceSync:
@@ -108,22 +112,69 @@ class PriceSync:
     @staticmethod
     async def approve_origins_for_update(payload: list[SyncPathWModels],
                                          session: AsyncSession,
-                                         s3_client) -> list[SyncPathWModels]:
+                                         s3_client) -> list[SyncPathWMarket]:
+        path_ids = {path_item.path_id for path_item in payload}
         origin_ids: set[int] = {item.origin
                                 for path_item in payload
                                 for model in path_item.models
                                 for item in model.origins}
         attrs_map: dict[int, list[AttributeKeyValueSchema]] = await load_origins_attrs_map(origin_ids, session)
         images_map: dict[int, list[ImageWithPreview]] = await load_images_for_origins(session, s3_client, origin_ids)
-
-        analyzer = OriginAnalyzer(session)
+        market_settings: list[ProductMarketSettingsSchema] = await load_market_settings(session, path_ids)
+        market_settings_map = {s.path_id: s for s in market_settings}
+        analyzer = OriginAnalyzer(session, market_settings_map)
         await analyzer.load()
-
-        for path_item in payload:
-            for model in path_item.models:
+        result: list[SyncPathWMarket] = list()
+        for line in payload:
+            market = market_settings_map.get(line.path_id) or ProductMarketSettingsSchema(id=0,
+                                                                                          path_id=line.path_id,
+                                                                                          market_variance_scale=5.0,
+                                                                                          market_variance_exponent=1.1)
+            for model in line.models:
                 for origin in model.origins:
                     origin.attrs = attrs_map.get(origin.origin, [])
                     origin.pics = images_map.get(origin.origin, [])
-                analyzer.analyze_model(model)
+                analyzer.analyze_model(model, line.path_id)
+            result.append(
+                SyncPathWMarket(
+                    path_id=line.path_id,
+                    route=line.route,
+                    models=line.models,
+                    market=market
+                )
+            )
+        return result
 
-        return payload
+    @staticmethod
+    async def update_market_param(payload: UpdateMarketSettingsRequest, session: AsyncSession) -> List[SyncPathWMarket]:
+        updated_market = await update_market_setting(payload, session)
+        market_settings_map = {payload.path_id: updated_market}
+        analyzer = OriginAnalyzer(session, market_settings_map)
+        await analyzer.load()
+        for model in payload.models:
+            analyzer.analyze_model(model, payload.path_id)
+
+        return [SyncPathWMarket(path_id=payload.path_id,
+                                route=payload.route,
+                                models=payload.models,
+                                market=updated_market)]
+
+    @staticmethod
+    async def update_origins_in_hubstock(payload: SyncPathWModels, session: AsyncSession):
+        await session.execute(delete(HUbStock).where(HUbStock.path_id == payload.path_id))
+        rows = list()
+        for model in payload.models:
+            for origin in model.origins:
+                rows.append({
+                    "origin": origin.origin,
+                    "path_id": payload.path_id,
+                    "vsl_id": origin.vsl_id,
+                    "input_price": origin.input_price,
+                    "output_price": origin.output_price,
+                    "warranty": origin.warranty,
+                    "profit_range_id": origin.profit_range_id,
+                    "updated_at": datetime.now(),
+                })
+        await session.execute(insert(HUbStock), rows)
+        await session.commit()
+        return {"updated": len(rows)}

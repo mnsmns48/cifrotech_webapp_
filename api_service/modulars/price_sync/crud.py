@@ -7,7 +7,7 @@ from sqlalchemy.orm import aliased
 
 from api_service.schemas import HubRoutes, HubMenuLevelSchema, PriceSyncPickedPath, RawOrigin, TypeModel, BrandModel, \
     VSLScheme, SyncPathWOrigins, AttributeKeyValueSchema
-from api_service.schemas.price_sync_schemas import SyncPathWModels
+
 from api_service.schemas.product_schemas import OriginWithAttrsPicsAnalyze, ModelForApprove
 from app_utils import get_url_from_s3
 from config import settings
@@ -315,6 +315,10 @@ async def load_unique_models_by_origins(origin_feature_map: dict[int, dict[str, 
             ParsingLine.origin,
             ParsingLine.input_price,
             ParsingLine.output_price,
+            ParsingLine.vsl_id,
+            ParsingLine.profit_range_id.label("profit_range_id"),
+            ParsingLine.warranty.label("warranty"),
+
             ProductOrigin.title.label("origin_title"),
 
             ProductFeaturesGlobal.id.label("model_id"),
@@ -368,6 +372,9 @@ async def load_unique_models_by_origins(origin_feature_map: dict[int, dict[str, 
             title=r["origin_title"],
             input_price=r["input_price"],
             output_price=r["output_price"],
+            warranty=r["warranty"],
+            profit_range_id=r["profit_range_id"],
+            vsl_id=r["vsl_id"],
             attrs=None,
             pics=None,
             analyze=None,
@@ -395,7 +402,6 @@ async def load_origins_attrs_map(origin_ids: list[int] | set[int],
             .join(AttributeOriginValue.attr_value)
             .join(AttributeValue.attr_key)
             .where(AttributeOriginValue.origin_id.in_(origin_ids)))
-
     rows = (await session.execute(stmt)).all()
     result = defaultdict(list)
     for origin_id, attr_value_id, value, alias, key_id, key_str in rows:

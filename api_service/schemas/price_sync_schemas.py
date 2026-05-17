@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional, List
 
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, model_validator
 
 from api_service.schemas.vsl_schemas import VSLScheme
 from api_service.schemas.hub_schemas import HubMenuLevelSchema
@@ -59,7 +59,6 @@ class ParsingLine(BaseModel):
 class ParsingHubDiffItem(BaseModel):
     origin: int
     title: str
-
     warranty: Optional[str] = None
     optional: Optional[str] = None
     shipment: Optional[str] = None
@@ -125,3 +124,35 @@ class UpdateHubApproveItem(BaseModel):
 
 class UpdateHubApproveItems(BaseModel):
     items: List[UpdateHubApproveItem]
+
+
+class ProductMarketSettingsSchema(BaseModel):
+    id: int
+    path_id: int
+    market_variance_scale: float = 5.0
+    market_variance_exponent: float = 1.1
+
+    model_config = {
+        "from_attributes": True
+    }
+
+
+class SyncPathWMarket(SyncPathWModels):
+    market: ProductMarketSettingsSchema
+
+
+class UpdateMarketSettingsRequest(SyncPathWModels):
+    market_variance_scale: float | None = None
+    market_variance_exponent: float | None = None
+
+    @model_validator(mode="after")
+    def validate_at_least_one(self):
+        if (
+                self.market_variance_scale is None and
+                self.market_variance_exponent is None
+        ):
+            raise ValueError(
+                "Нужно передать хотя бы одно из полей: "
+                "market_variance_scale или market_variance_exponent"
+            )
+        return self

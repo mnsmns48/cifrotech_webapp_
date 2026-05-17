@@ -5,8 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.modulars.price_sync.service import PriceSync
 from api_service.s3_helper import get_s3_client
-from api_service.schemas import PriceSyncPickedPath, PathIdRequest, SyncPathWOrigins, HubRoutes
-from api_service.schemas.price_sync_schemas import SyncPathWModels
+from api_service.schemas import PriceSyncPickedPath, PathIdRequest, SyncPathWOrigins, UpdateMarketSettingsRequest
+from api_service.schemas.price_sync_schemas import SyncPathWModels, SyncPathWMarket
 
 from engine import db
 
@@ -31,8 +31,20 @@ async def resolve_models_for_sync(payload: List[PriceSyncPickedPath],
     return await PriceSync.resolve_models_sync(payload, session)
 
 
-@price_sync_router.post("/approve_origins_for_update", response_model=List[SyncPathWModels])
+@price_sync_router.post("/approve_origins_for_update", response_model=List[SyncPathWMarket])
 async def approve_origins_for_update(payload: List[SyncPathWModels],
                                      s3_client=Depends(get_s3_client),
                                      session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await PriceSync.approve_origins_for_update(payload, session, s3_client)
+
+
+@price_sync_router.post("/update_market_param", response_model=List[SyncPathWMarket])
+async def update_market_param(payload: UpdateMarketSettingsRequest,
+                              session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await PriceSync.update_market_param(payload, session)
+
+
+@price_sync_router.post("/update_origins_in_hubstock")
+async def update_origins_in_hubstock(payload: SyncPathWModels,
+                                     session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await PriceSync.update_origins_in_hubstock(payload, session)

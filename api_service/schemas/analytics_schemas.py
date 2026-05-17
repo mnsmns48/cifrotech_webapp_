@@ -1,5 +1,6 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
+from api_service.schemas.price_sync_schemas import SyncPathWModels
 from api_service.schemas.product_schemas import TypeModel
 from api_service.schemas.attribute_schemas import AttributeKey, AttributeValueSchema
 
@@ -67,3 +68,5 @@ class ProductTypeValueMapUpdateSchema(BaseModel):
 
 class ProductTypeValueMapDeleteSchema(BaseModel):
     ids: list[int]
+
+

@@ -104,11 +104,14 @@ class ImageWithPreview(BaseModel):
 
 class AnalyzeItem(BaseModel):
     verdict: bool
-    ratio: float
-    threshold: float
-    price_increase: float
-    value_increase: float
+    reason: str
     value: float
+    market_price: float
+    market_baseline: float
+    market_upper_limit: float
+    market_delta: float
+    market_mad: float
+    market_effective_tolerance: float
 
 
 class OriginWithAttrsPicsAnalyze(BaseModel):
@@ -116,6 +119,9 @@ class OriginWithAttrsPicsAnalyze(BaseModel):
     title: str
     input_price: Optional[float]
     output_price: Optional[float]
+    warranty: Optional[str]
+    vsl_id: int
+    profit_range_id: Optional[int]
     attrs: list[AttributeKeyValueSchema] | None = None
     pics: list[ImageWithPreview] | None = None
     analyze: AnalyzeItem | None = None

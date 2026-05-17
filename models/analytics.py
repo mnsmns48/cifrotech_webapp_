@@ -7,7 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from models.base import Base
 
 if TYPE_CHECKING:
-    from models import AttributeValue
+    from models import AttributeValue, HUbMenuLevel
 
 
 class ProductTypeWeightRule(Base):
@@ -37,3 +37,15 @@ class ProductTypeValueMap(Base):
 
     rule: Mapped["ProductTypeWeightRule"] = relationship(back_populates="value_maps")
     attr_value: Mapped["AttributeValue"] = relationship(back_populates="value_maps")
+
+
+class ProductMarketSettings(Base):
+    __tablename__ = "product_market_settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
+    path_id: Mapped[int] = mapped_column(ForeignKey("hub_menu_levels.id", ondelete="CASCADE"),
+                                         nullable=False, index=True, unique=True)
+    market_variance_scale: Mapped[float] = mapped_column(default=5.0)
+    market_variance_exponent: Mapped[float] = mapped_column(default=1.1)
+
+    menu_level: Mapped["HUbMenuLevel"] = relationship("HUbMenuLevel", back_populates="market_settings")

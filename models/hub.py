@@ -2,13 +2,13 @@ import datetime
 from typing import TYPE_CHECKING
 from typing import Optional
 
-from sqlalchemy import BigInteger, ForeignKey, DateTime, String, func, UniqueConstraint
+from sqlalchemy import BigInteger, ForeignKey, DateTime, func, UniqueConstraint
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from models import Base
 
 if TYPE_CHECKING:
-    from models import ProductOrigin, VendorSearchLine, RewardRange, ProductFeaturesGlobal
+    from models import ProductOrigin, VendorSearchLine, RewardRange, ProductFeaturesGlobal, ProductMarketSettings
 
 
 class HUbMenuLevel(Base):
@@ -23,6 +23,12 @@ class HUbMenuLevel(Base):
         "HUbStock", back_populates="menu_level", cascade="all, delete-orphan")
     features: Mapped[list["ProductFeaturesGlobal"]] = relationship(secondary="product_features_hub_menu_level_link",
                                                                    back_populates="hub_levels")
+    market_settings: Mapped[Optional["ProductMarketSettings"]] = relationship(
+        "ProductMarketSettings",
+        back_populates="menu_level",
+        uselist=False,
+        cascade="all, delete-orphan"
+    )
 
 
 class HUbStock(Base):
