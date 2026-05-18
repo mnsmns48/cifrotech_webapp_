@@ -11,25 +11,16 @@ from api_service.modulars.analytics.crud import (load_weight_rules,
                                                  load_value_key_map)
 
 from api_service.schemas import AnalyzeItem, ProductMarketSettingsSchema
-from engine import db
+from config import cache_key_builder
 
 
-async def load_analyzer_cache_data(session: AsyncSession):
-    return {
-        "rules": await load_weight_rules(session),
-        "value_maps": await load_value_maps(session),
-        "brand_overrides": await load_brand_overrides(session),
-        "value_key_map": await load_value_key_map(session),
-    }
-
-
-@cache(expire=1000)
-async def load_analyzer_cache():
-    async with db.session_factory() as session:
-        return {"rules": await load_weight_rules(session),
-                "value_maps": await load_value_maps(session),
-                "brand_overrides": await load_brand_overrides(session),
-                "value_key_map": await load_value_key_map(session)}
+@cache(expire=1000, key_builder=cache_key_builder)
+async def load_analyzer_cache(session: AsyncSession):
+    return {"rules": await load_weight_rules(session),
+            "value_maps": await load_value_maps(session),
+            "brand_overrides": await load_brand_overrides(session),
+            "value_key_map": await load_value_key_map(session),
+            }
 
 
 class OriginAnalyzer:
@@ -49,7 +40,7 @@ class OriginAnalyzer:
         self.key_by_value = {}
 
     async def load(self):
-        cached = await load_analyzer_cache()
+        cached = await load_analyzer_cache(self.session)
         for row in cached["rules"]:
             self.weight_rules[(row["type_id"], row["key_id"])] = float(row["weight"])
         for row in cached["value_maps"]:

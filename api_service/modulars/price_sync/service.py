@@ -15,6 +15,7 @@ from api_service.s3_helper import load_images_for_origins
 from api_service.schemas import PathIdRequest, PriceSyncPickedPath, SyncPathWOrigins, ModelForApprove, \
     AttributeKeyValueSchema, ImageWithPreview, ProductMarketSettingsSchema, HubRoutes, SyncPathWMarket, SyncPathWModels, \
     UpdateMarketSettingsRequest
+
 from models import HUbStock
 
 

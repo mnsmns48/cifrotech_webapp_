@@ -1,11 +1,13 @@
 import os
 from pathlib import Path
-from typing import List, Union
+from typing import List, Union, Any, cast
 
 import redis.asyncio as redis
 from dotenv import load_dotenv
+from fastapi_cache import default_key_builder, KeyBuilder
 from pydantic import PostgresDsn, field_validator, Field, SecretStr
 from pydantic_settings import BaseSettings
+from sqlalchemy.ext.asyncio import AsyncSession
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -97,3 +99,20 @@ settings = Settings()
 
 def redis_session():
     return redis.from_url(settings.redis.redis_url, decode_responses=False)
+
+
+IGNORED_CACHE_KEYS = {"session", "db", "redis", "redis_session", "s3_client"}
+
+
+def _cache_key_builder(func, namespace: str = "", *, request=None, response=None,
+                       args: tuple[Any, ...] = (), kwargs: dict[str, Any] | None = None, ) -> str:
+    kwargs = kwargs.copy() if kwargs else {}
+    for key in IGNORED_CACHE_KEYS:
+        kwargs.pop(key, None)
+    clean_args = tuple(arg for arg in args if not isinstance(arg, AsyncSession))
+
+    return default_key_builder(
+        func=func, namespace=namespace, request=request, response=response, args=clean_args, kwargs=kwargs)
+
+
+cache_key_builder = cast(KeyBuilder, _cache_key_builder)

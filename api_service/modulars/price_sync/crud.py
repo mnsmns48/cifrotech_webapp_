@@ -1,6 +1,7 @@
 from collections import defaultdict
 from typing import List
 
+from fastapi_cache.decorator import cache
 from sqlalchemy import select, exists, func, and_, case, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -10,7 +11,7 @@ from api_service.schemas import HubRoutes, HubMenuLevelSchema, PriceSyncPickedPa
 
 from api_service.schemas.product_schemas import OriginWithAttrsPicsAnalyze, ModelForApprove
 from app_utils import get_url_from_s3
-from config import settings
+from config import settings, cache_key_builder
 from models import HUbMenuLevel, VendorSearchLine, HUbStock, ProductFeaturesLink, ParsingLine, ProductImage, \
     ProductOrigin, ProductFeaturesGlobal, ProductType, ProductBrand, AttributeOriginValue, AttributeValue, AttributeKey
 
