@@ -5,6 +5,7 @@ from typing import Union, List, Dict, Any, Optional
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_core.core_schema import FieldValidationInfo
 
+from api_service.schemas.range_reward_schemas import RewardRangeBaseSchema
 from api_service.schemas.attribute_schemas import AttributeKeyValueSchema
 
 
@@ -121,7 +122,8 @@ class OriginWithAttrsPicsAnalyze(BaseModel):
     output_price: Optional[float]
     warranty: Optional[str]
     vsl_id: int
-    profit_range_id: Optional[int]
+    dt_parsed: datetime
+    profit_range: Optional[RewardRangeBaseSchema]
     attrs: list[AttributeKeyValueSchema] | None = None
     pics: list[ImageWithPreview] | None = None
     analyze: AnalyzeItem | None = None

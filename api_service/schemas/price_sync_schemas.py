@@ -3,6 +3,7 @@ from typing import Optional, List
 
 from pydantic import BaseModel, HttpUrl, model_validator
 
+from api_service.schemas.range_reward_schemas import RewardRangeBaseSchema
 from api_service.schemas.vsl_schemas import VSLScheme
 from api_service.schemas.hub_schemas import HubMenuLevelSchema
 from api_service.schemas.product_schemas import TypeModel, BrandModel, ModelForApprove
@@ -156,3 +157,22 @@ class UpdateMarketSettingsRequest(SyncPathWModels):
                 "market_variance_scale или market_variance_exponent"
             )
         return self
+
+
+class HubPayloadPriceSyncItem(BaseModel):
+    origin: int
+    title: str
+    vsl_id: int
+    warranty: Optional[str]
+    input_price: float
+    output_price: float
+    dt_parsed: datetime
+    model_title: str
+    profit_range: Optional[RewardRangeBaseSchema]
+
+    model_config = {"from_attributes": True}
+
+
+class HubStockUpdateSyncPathItem(BaseModel):
+    path_id: int
+    hub_item: HubPayloadPriceSyncItem

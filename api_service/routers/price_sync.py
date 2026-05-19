@@ -5,8 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.modulars.price_sync.service import PriceSync
 from api_service.s3_helper import get_s3_client
-from api_service.schemas import PriceSyncPickedPath, PathIdRequest, SyncPathWOrigins, UpdateMarketSettingsRequest
-from api_service.schemas.price_sync_schemas import SyncPathWModels, SyncPathWMarket
+from api_service.schemas import PriceSyncPickedPath, PathIdRequest, SyncPathWOrigins, UpdateMarketSettingsRequest, \
+    StockHubItemResult
+from api_service.schemas.price_sync_schemas import SyncPathWModels, SyncPathWMarket, HubStockUpdateSyncPathItem
 
 from engine import db
 
@@ -44,7 +45,7 @@ async def update_market_param(payload: UpdateMarketSettingsRequest,
     return await PriceSync.update_market_param(payload, session)
 
 
-@price_sync_router.post("/update_origins_in_hubstock")
-async def update_origins_in_hubstock(payload: SyncPathWModels,
+@price_sync_router.post("/update_origins_in_hubstock", response_model=List[StockHubItemResult])
+async def update_origins_in_hubstock(payload: List[HubStockUpdateSyncPathItem],
                                      session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await PriceSync.update_origins_in_hubstock(payload, session)

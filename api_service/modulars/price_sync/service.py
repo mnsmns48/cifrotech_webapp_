@@ -14,7 +14,7 @@ from api_service.modulars.price_sync.func import normalize_route, filter_unique_
 from api_service.s3_helper import load_images_for_origins
 from api_service.schemas import PathIdRequest, PriceSyncPickedPath, SyncPathWOrigins, ModelForApprove, \
     AttributeKeyValueSchema, ImageWithPreview, ProductMarketSettingsSchema, HubRoutes, SyncPathWMarket, SyncPathWModels, \
-    UpdateMarketSettingsRequest
+    UpdateMarketSettingsRequest, HubStockUpdateSyncPathItem, StockHubItemResult
 
 from models import HUbStock
 
@@ -160,19 +160,31 @@ class PriceSync:
                                 market=updated_market)]
 
     @staticmethod
-    async def update_origins_in_hubstock(payload: SyncPathWModels, session: AsyncSession):
-        await session.execute(delete(HUbStock).where(HUbStock.path_id == payload.path_id))
-        rows = list()
-        for model in payload.models:
-            for origin in model.origins:
-                rows.append({"origin": origin.origin,
-                             "path_id": payload.path_id,
-                             "vsl_id": origin.vsl_id,
-                             "input_price": origin.input_price,
-                             "output_price": origin.output_price,
-                             "warranty": origin.warranty,
-                             "profit_range_id": origin.profit_range_id,
-                             "updated_at": datetime.now()})
-        await session.execute(insert(HUbStock), rows)
+    async def update_origins_in_hubstock(payload: List[HubStockUpdateSyncPathItem],
+                                         session: AsyncSession) -> list[StockHubItemResult]:
+        path_ids = [item.path_id for item in payload]
+        await session.execute(delete(HUbStock).where(HUbStock.path_id.in_(path_ids)))
+        rows, result_items = list(), list()
+        for line in payload:
+            item = line.hub_item
+            rows.append({"origin": item.origin,
+                         "path_id": line.path_id,
+                         "vsl_id": item.vsl_id,
+                         "input_price": item.input_price,
+                         "output_price": item.output_price,
+                         "warranty": item.warranty,
+                         "profit_range_id": item.profit_range.id if item.profit_range else None,
+                         "updated_at": datetime.now()})
+            result_items.append(StockHubItemResult(origin=item.origin,
+                                                   title=item.title,
+                                                   warranty=item.warranty,
+                                                   input_price=item.input_price,
+                                                   output_price=item.output_price,
+                                                   updated_at=datetime.now(),
+                                                   dt_parsed=item.dt_parsed,
+                                                   features_title=[item.model_title],
+                                                   profit_range=item.profit_range))
+        if rows:
+            await session.execute(insert(HUbStock), rows)
         await session.commit()
-        return {"updated": len(rows)}
+        return result_items

@@ -6,13 +6,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from api_service.schemas import HubRoutes, HubMenuLevelSchema, PriceSyncPickedPath, RawOrigin, TypeModel, BrandModel, \
-    VSLScheme, SyncPathWOrigins, AttributeKeyValueSchema
+    VSLScheme, SyncPathWOrigins, AttributeKeyValueSchema, RewardRangeBaseSchema
 
 from api_service.schemas.product_schemas import OriginWithAttrsPicsAnalyze, ModelForApprove
 from app_utils import get_url_from_s3
 from config import settings
 from models import HUbMenuLevel, VendorSearchLine, HUbStock, ProductFeaturesLink, ParsingLine, ProductImage, \
-    ProductOrigin, ProductFeaturesGlobal, ProductType, ProductBrand, AttributeOriginValue, AttributeValue, AttributeKey
+    ProductOrigin, ProductFeaturesGlobal, ProductType, ProductBrand, AttributeOriginValue, AttributeValue, AttributeKey, \
+    RewardRange
 
 
 async def fetch_leaf_routes(session: AsyncSession, path_ids: list[int]) -> list[HubRoutes]:
@@ -316,8 +317,12 @@ async def load_unique_models_by_origins(origin_feature_map: dict[int, dict[str, 
             ParsingLine.input_price,
             ParsingLine.output_price,
             ParsingLine.vsl_id,
-            ParsingLine.profit_range_id.label("profit_range_id"),
             ParsingLine.warranty.label("warranty"),
+
+            RewardRange.id.label("reward_range_id"),
+            RewardRange.title.label("reward_range_title"),
+
+            VendorSearchLine.dt_parsed.label("dt_parsed"),
 
             ProductOrigin.title.label("origin_title"),
 
@@ -342,6 +347,10 @@ async def load_unique_models_by_origins(origin_feature_map: dict[int, dict[str, 
               ProductFeaturesGlobal.id == ProductFeaturesLink.feature_id)
         .join(ProductType, ProductType.id == ProductFeaturesGlobal.type_id)
         .join(ProductBrand, ProductBrand.id == ProductFeaturesGlobal.brand_id)
+
+        .join(RewardRange, RewardRange.id == ParsingLine.profit_range_id, isouter=True)
+        .join(VendorSearchLine, VendorSearchLine.id == ParsingLine.vsl_id, isouter=True)
+
         .where(ParsingLine.origin.in_(origins))
         .order_by(text("model_min_price NULLS LAST"))
     )).mappings().all())
@@ -373,8 +382,9 @@ async def load_unique_models_by_origins(origin_feature_map: dict[int, dict[str, 
             input_price=r["input_price"],
             output_price=r["output_price"],
             warranty=r["warranty"],
-            profit_range_id=r["profit_range_id"],
+            profit_range=RewardRangeBaseSchema(id=r["reward_range_id"], title=r["reward_range_title"]),
             vsl_id=r["vsl_id"],
+            dt_parsed=r["dt_parsed"],
             attrs=None,
             pics=None,
             analyze=None,

@@ -3,13 +3,14 @@ from api_service.schemas.hub_schemas import HubMenuLevelSchema, RenameRequest, H
     OriginHubLevelMap, PathRoute, HubMenuLevelSchema
 
 from api_service.schemas.hubstock_schemas import (HubLoadingData, StockHubItemResult, OriginsPayload,
-                                                  HubItemTitlePatch, HubItemsChangePriceRequest,
+                                                  HubItemTitlePatch, HubItemsChangePriceRequest, StockInHubItem,
                                                   HubItemsChangePriceResponse)
 
 from api_service.schemas.price_sync_schemas import PathIdRequest, PriceSyncPickedPath, ParsingLine, ParsingHubDiffOut, \
     HubToDiffData, RecomputedResult, RecomputedNewPriceLines, ParsingHubDiffItem, HubRoutes, RawOrigin, \
     SyncPathWOrigins, UpdateHubApproveItems, SyncPathWMarket, SyncPathWModels, ProductMarketSettingsSchema, \
-    UpdateMarketSettingsRequest
+    UpdateMarketSettingsRequest, HubStockUpdateSyncPathItem
+
 from api_service.schemas.parsing_schemas import ParsingRequest, ParsingLinesIn, ParsingToDiffData, SourceContext, \
     ParsingResultOut, AddAttributesValuesRequest, DependencyImageItem, DependencyOriginImplementation, ImageResponseItem
 
@@ -47,11 +48,15 @@ from api_service.schemas.analytics_schemas import ProductTypeWeightRuleSchema, P
 __all__ = list()
 
 __all__ += ["VendorSchema"]
+
 __all__ += ["VSLScheme", "VslId"]
+
 __all__ += ["ParsingRequest", "ParsingLinesIn", "ParsingToDiffData", "SourceContext", "ParsingResultOut",
             "AddAttributesValuesRequest", "DependencyImageItem", "DependencyOriginImplementation", "ImageResponseItem"]
+
 __all__ += ["RewardRangeLineSchema", "RewardRangeSchema", "RewardRangeResponseSchema", "RewardRangeBaseSchema",
             "AttributeKeyValueSchema", "AttributeKey", "AttrValueRequestByKeyAndExcludes"]
+
 __all__ += [
     "ProductOriginUpdate", "ProductDependencyUpdate", "ProductResponse", "RecalcPricesRequest", "RecalcPricesResponse",
     "ProductOriginCreate", "ProductDependencyBatchUpdate", "OriginsList", "OriginHubLevelMap", "BrandModel",
@@ -63,12 +68,12 @@ __all__ += ["HubMenuLevelSchema", "RenameRequest", "HubPositionPatchOut", "AddHu
 
 __all__ += [
     "HubLoadingData", "StockHubItemResult", "OriginsPayload", "HubItemTitlePatch", "HubItemsChangePriceRequest",
-    "HubItemsChangePriceResponse"]
+    "HubItemsChangePriceResponse", "StockInHubItem"]
 
 __all__ += ["PathIdRequest", "PriceSyncPickedPath", "ParsingLine", "ParsingHubDiffOut", "HubToDiffData",
             "RecomputedResult", "RecomputedNewPriceLines", "ParsingHubDiffItem", "RawOrigin", "SyncPathWOrigins",
             "HubRoutes", "UpdateHubApproveItems", "OriginAnalyzedItem", "ApproveAnalyzedResponse",
-            "ProductsAnalyzeScheme", "SyncPathWMarket", "SyncPathWModels"]
+            "ProductsAnalyzeScheme", "SyncPathWMarket", "SyncPathWModels", "HubStockUpdateSyncPathItem"]
 
 __all__ += ["ServiceImageResponse", "ServiceImageCreate", "ServiceImageUpdate"]
 

@@ -65,3 +65,14 @@ class HubItemsChangePriceResponse(BaseModel):
 class HubLoadingResponse(BaseModel):
     status: bool
     updated_origins: List[int]
+
+
+class StockHubPriceSyncUploadedItem(BaseModel):
+    origin: int
+    warranty: Optional[str]
+    input_price: float
+    output_price: float
+    updated_at: datetime
+    dt_parsed: Optional[datetime]
+    features_title: list
+    profit_range: Optional[RewardRangeBaseSchema]
