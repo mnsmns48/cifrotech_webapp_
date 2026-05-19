@@ -45,7 +45,7 @@ async def update_market_param(payload: UpdateMarketSettingsRequest,
     return await PriceSync.update_market_param(payload, session)
 
 
-@price_sync_router.post("/update_origins_in_hubstock", response_model=List[StockHubItemResult])
+@price_sync_router.post("/update_origins_in_hubstock")
 async def update_origins_in_hubstock(payload: List[HubStockUpdateSyncPathItem],
-                                     session: AsyncSession = Depends(db.scoped_session_dependency)):
+                                     session: AsyncSession = Depends(db.scoped_session_dependency)) -> bool:
     return await PriceSync.update_origins_in_hubstock(payload, session)

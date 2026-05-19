@@ -3,6 +3,7 @@ from typing import List
 
 from sqlalchemy import delete
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.modulars.analytics.crud import load_market_settings, update_market_setting
@@ -14,7 +15,7 @@ from api_service.modulars.price_sync.func import normalize_route, filter_unique_
 from api_service.s3_helper import load_images_for_origins
 from api_service.schemas import PathIdRequest, PriceSyncPickedPath, SyncPathWOrigins, ModelForApprove, \
     AttributeKeyValueSchema, ImageWithPreview, ProductMarketSettingsSchema, HubRoutes, SyncPathWMarket, SyncPathWModels, \
-    UpdateMarketSettingsRequest, HubStockUpdateSyncPathItem, StockHubItemResult
+    UpdateMarketSettingsRequest, HubStockUpdateSyncPathItem
 
 from models import HUbStock
 
@@ -161,30 +162,23 @@ class PriceSync:
 
     @staticmethod
     async def update_origins_in_hubstock(payload: List[HubStockUpdateSyncPathItem],
-                                         session: AsyncSession) -> list[StockHubItemResult]:
+                                         session: AsyncSession) -> bool:
         path_ids = [item.path_id for item in payload]
         await session.execute(delete(HUbStock).where(HUbStock.path_id.in_(path_ids)))
-        rows, result_items = list(), list()
+        rows = list()
         for line in payload:
-            item = line.hub_item
-            rows.append({"origin": item.origin,
+            rows.append({"origin": line.hub_item.origin,
                          "path_id": line.path_id,
-                         "vsl_id": item.vsl_id,
-                         "input_price": item.input_price,
-                         "output_price": item.output_price,
-                         "warranty": item.warranty,
-                         "profit_range_id": item.profit_range.id if item.profit_range else None,
+                         "vsl_id": line.hub_item.vsl_id,
+                         "input_price": line.hub_item.input_price,
+                         "output_price": line.hub_item.output_price,
+                         "warranty": line.hub_item.warranty,
+                         "profit_range_id": line.hub_item.profit_range.id if line.hub_item.profit_range else None,
                          "updated_at": datetime.now()})
-            result_items.append(StockHubItemResult(origin=item.origin,
-                                                   title=item.title,
-                                                   warranty=item.warranty,
-                                                   input_price=item.input_price,
-                                                   output_price=item.output_price,
-                                                   updated_at=datetime.now(),
-                                                   dt_parsed=item.dt_parsed,
-                                                   features_title=[item.model_title],
-                                                   profit_range=item.profit_range))
         if rows:
             await session.execute(insert(HUbStock), rows)
-        await session.commit()
-        return result_items
+        try:
+            await session.commit()
+            return True
+        except SQLAlchemyError:
+            return False
