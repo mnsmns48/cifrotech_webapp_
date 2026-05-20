@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional, List, Dict
 
 from pydantic import BaseModel
@@ -11,6 +12,10 @@ class HubMenuLevelSchema(BaseModel):
     parent_id: int
 
     model_config = {"from_attributes": True}
+
+
+class HubMenuLevelSchemaWUpdated(HubMenuLevelSchema):
+    updated_at: Optional[datetime]
 
 
 class HubLevelPath(BaseModel):

@@ -1,6 +1,6 @@
 from api_service.schemas.hub_schemas import HubMenuLevelSchema, RenameRequest, HubPositionPatchOut, AddHubLevelScheme, \
     AddHubLevelOutScheme, HubPositionPatch, HubLevelPath, UpdateDeleteImageScheme, UpdatedImageScheme, PathRoutes, \
-    OriginHubLevelMap, PathRoute, HubMenuLevelSchema
+    OriginHubLevelMap, PathRoute, HubMenuLevelSchema, HubMenuLevelSchemaWUpdated
 
 from api_service.schemas.hubstock_schemas import (HubLoadingData, StockHubItemResult, OriginsPayload,
                                                   HubItemTitlePatch, HubItemsChangePriceRequest, StockInHubItem,
@@ -64,7 +64,7 @@ __all__ += [
 
 __all__ += ["HubMenuLevelSchema", "RenameRequest", "HubPositionPatchOut", "AddHubLevelScheme", "AddHubLevelOutScheme",
             "HubPositionPatch", "HubLevelPath", "UpdateDeleteImageScheme", "UpdatedImageScheme", "PathRoute",
-            "HubMenuLevelSchema"]
+            "HubMenuLevelSchema", "HubMenuLevelSchemaWUpdated"]
 
 __all__ += [
     "HubLoadingData", "StockHubItemResult", "OriginsPayload", "HubItemTitlePatch", "HubItemsChangePriceRequest",

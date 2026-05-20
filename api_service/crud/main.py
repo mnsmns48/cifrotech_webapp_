@@ -24,7 +24,8 @@ from models import Vendor, VendorSearchLine, ProductOrigin, ParsingLine, RewardR
 from api_service.schemas import SourceContext, ParsingLinesIn, ParsingResultOut, ProductOriginCreate, \
     RewardRangeResponseSchema, RewardRangeLineSchema, RewardRangeBaseSchema, VSLScheme, ParsingToDiffData, \
     HubToDiffData, RecomputedResult, RecomputedNewPriceLines, ParsingResultAttributeResponse, AttributeValueSchema, \
-    AddAttributesValuesRequest, DependencyImageItem, DependencyOriginImplementation, ImageResponseItem
+    AddAttributesValuesRequest, DependencyImageItem, DependencyOriginImplementation, ImageResponseItem, \
+    HubMenuLevelSchemaWUpdated
 
 
 async def get_vendor_and_vsl(session: AsyncSession, vsl_id: int) -> Optional[SourceContext]:
@@ -576,6 +577,23 @@ async def fetch_all_hub_levels(session: AsyncSession) -> List[HUbMenuLevel]:
     execute = await session.execute(select(HUbMenuLevel))
     result = list(execute.scalars().all())
     return result
+
+
+async def hub_levels_with_updated(levels: List[HUbMenuLevel],
+                                  session: AsyncSession) -> List[HubMenuLevelSchemaWUpdated]:
+    level_ids = [level.id for level in levels]
+    updated_rows = await session.execute(
+        select(HUbStock.path_id,
+               func.max(HUbStock.updated_at).label("updated_at"))
+        .where(HUbStock.path_id.in_(level_ids))
+        .group_by(HUbStock.path_id))
+    updated_map = {row.path_id: row.updated_at for row in updated_rows.all()}
+    return [HubMenuLevelSchemaWUpdated(id=level.id,
+                                       sort_order=level.sort_order,
+                                       label=level.label,
+                                       icon=level.icon,
+                                       parent_id=level.parent_id,
+                                       updated_at=updated_map.get(level.id)) for level in levels]
 
 
 async def is_icon_used_elsewhere(icon_name: str, exclude_id: int, session: AsyncSession) -> bool:

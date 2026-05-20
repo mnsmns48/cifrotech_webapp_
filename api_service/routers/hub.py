@@ -6,11 +6,11 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.crud.main import fetch_all_hub_levels, fetch_ctech_pathnames, get_hub_item, \
-    get_home_item, upsert_home_dependency, get_home_menu_level, update_home_icon
+    get_home_item, upsert_home_dependency, get_home_menu_level, update_home_icon, hub_levels_with_updated
 from api_service.s3_helper import get_s3_client, get_http_client_session, generate_presigned_image_urls
 from api_service.func import process_image_upload, process_image_update
 from api_service.schemas import RenameRequest, HubMenuLevelSchema, HubPositionPatchOut, AddHubLevelScheme, \
-    AddHubLevelOutScheme, HubPositionPatch, UpdateDeleteImageScheme, UpdatedImageScheme
+    AddHubLevelOutScheme, HubPositionPatch, UpdateDeleteImageScheme, UpdatedImageScheme, HubMenuLevelSchemaWUpdated
 
 from config import settings
 from engine import db
@@ -19,9 +19,10 @@ from models import HUbMenuLevel
 hub_router = APIRouter(tags=['Hub'])
 
 
-@hub_router.get("/initial_hub_levels", response_model=List[HubMenuLevelSchema])
+@hub_router.get("/initial_hub_levels", response_model=List[HubMenuLevelSchemaWUpdated])
 async def get_hub_levels(session: AsyncSession = Depends(db.scoped_session_dependency)):
-    return await fetch_all_hub_levels(session)
+    levels: List[HUbMenuLevel] = await fetch_all_hub_levels(session)
+    return await hub_levels_with_updated(levels, session)
 
 
 @hub_router.get("/initial_hub_levels_with_preview", response_model=List[HubMenuLevelSchema])
