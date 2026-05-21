@@ -34,7 +34,8 @@ from api_service.schemas.attribute_schemas import CreateAttribute, UpdateAttribu
     AttributeOriginValueCheckResponse, AttributeKeyValueSchema, AttributeKey, AttrValueRequestByKeyAndExcludes
 
 from api_service.schemas.formula import FormulaBase, FormulaCreate, FormulaUpdate, FormulaResponse, \
-    FormulaPreviewResponse, FormulaPreviewRequest, FormulaValidateRequest, FormulaIdObj
+    FormulaPreviewResponse, FormulaPreviewRequest, FormulaValidateRequest, FormulaIdObj, FormulaEntityTypeScheme, \
+    CreateFormulaEntityType
 
 from api_service.schemas.features_schemas import FeaturesDataSet, SetFeaturesHubLevelRequest, SetLevelRoutesResponse, \
     FeaturesElement, FeatureResponseScheme, ProsConsItem, ProsConsItemUpdate, FeatureCategory, \
@@ -87,7 +88,8 @@ __all__ += ["CreateAttribute", "UpdateAttribute", "TypesDependenciesResponse", "
             "AttributeOriginValueCheckResponse"]
 
 __all__ += ["FormulaBase", "FormulaCreate", "FormulaUpdate", "FormulaResponse", "FormulaPreviewResponse",
-            "FormulaPreviewRequest", "FormulaValidateRequest", "FormulaIdObj"]
+            "FormulaPreviewRequest", "FormulaValidateRequest", "FormulaIdObj", "FormulaEntityTypeScheme",
+            "CreateFormulaEntityType"]
 
 __all__ += ["FeaturesDataSet", "PathRoutes", "SetFeaturesHubLevelRequest", "SetLevelRoutesResponse", "FeaturesElement",
             "FeatureResponseScheme", "ProsConsItem", "ProsConsItemUpdate", "FeatureCategory",

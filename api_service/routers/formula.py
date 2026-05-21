@@ -4,18 +4,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api_service.crud.attributes import fetch_all_attribute_keys
 from api_service.modulars.formula.environment import validate_formula, env
 from api_service.modulars.formula.filters import FILTER_DOCS
-from api_service.modulars.formula.service import FormulaService
+from api_service.modulars.formula.service import FormulaService, FormulaEntityTypeService
 from api_service.schemas import (
     FormulaResponse,
     FormulaCreate,
     FormulaUpdate,
     FormulaPreviewResponse,
     FormulaPreviewRequest,
-    FormulaValidateRequest,
+    FormulaValidateRequest, FormulaEntityTypeScheme, CreateFormulaEntityType,
 )
 from engine import db
 
 formula_router = APIRouter(prefix="/formula-expression", tags=["Formula Expression"])
+
+
+@formula_router.get("/fetch_entity_types")
+async def get_formula_entity_types_f(session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await FormulaEntityTypeService.get_formula_entity_types(session)
 
 
 @formula_router.get("/default", response_model=FormulaResponse)
@@ -114,3 +119,21 @@ async def get_filters():
 async def formula_is_default(formula_id: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
     await FormulaService.set_default(session, formula_id)
     return {"status": True}
+
+
+@formula_router.post("/add_entity_type")
+async def create_formula_entity_type_f(payload: CreateFormulaEntityType,
+                                       session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await FormulaEntityTypeService.create_formula_entity_type(session, payload)
+
+
+@formula_router.post("/update_entity_type")
+async def update_formula_entity_type_f(payload: FormulaEntityTypeScheme,
+                                       session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await FormulaEntityTypeService.update_formula_entity_type(session, payload)
+
+
+@formula_router.delete("/delete_entity_type/{id_}")
+async def delete_formula_entity_type_f(id_: int,
+                                       session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await FormulaEntityTypeService.delete_formula_entity_type(session, id_)
