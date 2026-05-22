@@ -34,8 +34,13 @@ async def get_progress(progress: str, redis=Depends(redis_session)):
             while True:
                 message = await pubsub_obj.get_message(ignore_subscribe_messages=True, timeout=10.0)
                 if message:
-                    data = message["data"]
+                    raw = message["data"]
+                    if isinstance(raw, bytes):
+                        data = raw.decode()
+                    else:
+                        data = raw
                     yield f"data: {data}\n\n"
+
                     if data == "END":
                         break
                 else:

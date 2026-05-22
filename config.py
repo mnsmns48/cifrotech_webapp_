@@ -98,7 +98,7 @@ settings = Settings()
 
 
 def redis_session():
-    return redis.from_url(settings.redis.redis_url, decode_responses=True)
+    return redis.from_url(settings.redis.redis_url, decode_responses=False)
 
 
 IGNORED_CACHE_KEYS = {"session", "db", "redis", "redis_session", "s3_client"}
