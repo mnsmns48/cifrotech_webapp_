@@ -39,7 +39,7 @@ async def approve_origins_for_update(payload: List[SyncPathWModels],
     return await PriceSync.approve_origins_for_update(payload, session, s3_client)
 
 
-@price_sync_router.post("/update_market_param", response_model=List[SyncPathWMarket])
+@price_sync_router.post("/update_market_param", response_model=SyncPathWMarket)
 async def update_market_param(payload: UpdateMarketSettingsRequest,
                               session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await PriceSync.update_market_param(payload, session)

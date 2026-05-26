@@ -148,17 +148,17 @@ class PriceSync:
         return result
 
     @staticmethod
-    async def update_market_param(payload: UpdateMarketSettingsRequest, session: AsyncSession) -> List[SyncPathWMarket]:
+    async def update_market_param(payload: UpdateMarketSettingsRequest, session: AsyncSession) -> SyncPathWMarket:
         updated_market = await update_market_setting(payload, session)
         market_settings_map = {payload.path_id: updated_market}
         analyzer = OriginAnalyzer(session, market_settings_map)
         await analyzer.load()
         for model in payload.models:
             analyzer.analyze_model(model, payload.path_id)
-        return [SyncPathWMarket(path_id=payload.path_id,
-                                route=payload.route,
-                                models=payload.models,
-                                market=updated_market)]
+        return SyncPathWMarket(path_id=payload.path_id,
+                               route=payload.route,
+                               models=payload.models,
+                               market=updated_market)
 
     @staticmethod
     async def update_origins_in_hubstock(payload: List[HubStockUpdateSyncPathItem],
