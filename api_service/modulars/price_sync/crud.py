@@ -350,8 +350,12 @@ async def load_unique_models_by_origins(origin_feature_map: dict[int, dict[str, 
 
         .join(RewardRange, RewardRange.id == ParsingLine.profit_range_id, isouter=True)
         .join(VendorSearchLine, VendorSearchLine.id == ParsingLine.vsl_id, isouter=True)
-
-        .where(ParsingLine.origin.in_(origins))
+        .where(
+            and_(
+                ParsingLine.origin.in_(origins),
+                ProductOrigin.is_deleted.is_(False)
+            )
+        )
         .order_by(text("model_min_price NULLS LAST"))
     )).mappings().all())
 
