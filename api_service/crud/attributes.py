@@ -400,15 +400,8 @@ async def attributes_origin_value_check_request_db(payload: AttributeOriginValue
     have_images = (await session.execute(stmt_have_images)).scalar()
 
     stmt_formula = (
-        select(
-            FormulaExpression.id,
-            FormulaExpression.name,
-            FormulaExpression.formula,
-            FormulaExpression.description,
-            FormulaExpression.entity_type,
-            FormulaExpression.is_active,
-            FormulaExpression.is_default,
-        )
+        select(FormulaExpression)
+        .options(selectinload(FormulaExpression.entity_type))
         .join(
             ProductFeaturesFormulaLink,
             ProductFeaturesFormulaLink.formula_id == FormulaExpression.id
@@ -416,17 +409,13 @@ async def attributes_origin_value_check_request_db(payload: AttributeOriginValue
         .where(ProductFeaturesFormulaLink.feature_id == payload.model_id)
     )
 
-    formula_row = (await session.execute(stmt_formula)).first()
+    formula_obj = (await session.execute(stmt_formula)).scalar_one_or_none()
 
-    formula = None
-    if formula_row:
-        formula = FormulaResponse(id=formula_row.id,
-                                  name=formula_row.name,
-                                  formula=formula_row.formula,
-                                  description=formula_row.description,
-                                  entity_type=formula_row.entity_type,
-                                  is_active=formula_row.is_active,
-                                  is_default=formula_row.is_default)
+    formula = (
+        FormulaResponse.model_validate(formula_obj)
+        if formula_obj else None
+    )
+
 
     return AttributeOriginValueCheckResponse(title=payload.title,
                                              have_images=bool(have_images),
