@@ -16,7 +16,8 @@ if TYPE_CHECKING:
                         ParsingLine,
                         AttributeBrandRule,
                         HUbMenuLevel,
-                        ProductTypeWeightRule)
+                        ProductTypeWeightRule,
+                        DescBuilder)
 
 
 class ProductType(Base):
@@ -29,6 +30,7 @@ class ProductType(Base):
     rule_overrides: Mapped[list["AttributeBrandRule"]] = relationship(back_populates="product_type",
                                                                       cascade="all, delete-orphan")
     weight_rules: Mapped[list["ProductTypeWeightRule"]] = relationship(back_populates="product_type")
+    desc_builders: Mapped[list["DescBuilder"]] = relationship(back_populates="type", cascade="all, delete-orphan")
 
 
 class ProductBrand(Base):
@@ -39,6 +41,7 @@ class ProductBrand(Base):
     features: Mapped[list["ProductFeaturesGlobal"]] = relationship(back_populates="brand")
     rule_overrides: Mapped[list["AttributeBrandRule"]] = relationship(
         back_populates="brand", cascade="all, delete-orphan")
+    desc_builders: Mapped[list["DescBuilder"]] = relationship(back_populates="brand", cascade="all, delete-orphan")
 
 
 class ProductFeaturesGlobal(Base):
