@@ -5,8 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.modulars.price_sync.service import PriceSync
 from api_service.s3_helper import get_s3_client
-from api_service.schemas import PriceSyncPickedPath, PathIdRequest, SyncPathWOrigins, UpdateMarketSettingsRequest, \
-    StockHubItemResult
+from api_service.schemas import PriceSyncPickedPath, PathIdRequest, SyncPathWOrigins, UpdateMarketSettingsRequest
 from api_service.schemas.price_sync_schemas import SyncPathWModels, SyncPathWMarket, HubStockUpdateSyncPathItem
 
 from engine import db
