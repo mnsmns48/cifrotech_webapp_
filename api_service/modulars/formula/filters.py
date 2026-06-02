@@ -54,6 +54,23 @@ def optional(value, key):
     return ""
 
 
+def get_param(info: dict, paths: list):
+    if not info or not paths:
+        return ""
+    for scheme in paths:
+        category = scheme.category
+        param = scheme.param
+        if category not in info:
+            continue
+        block = info[category]
+        if isinstance(block, dict) and param in block:
+            value = block[param]
+            if value not in (None, "", []):
+                return value
+
+    return ""
+
+
 def register_builtin_filters(env):
     env.filters["split"] = lambda s, sep=" ": s.split(sep)
     env.filters["join"] = lambda arr, sep=" ": sep.join(arr)
@@ -64,6 +81,7 @@ def register_builtin_filters(env):
     env.filters["filter_contains"] = filter_contains
     env.filters["filter_not_contains"] = filter_not_contains
     env.filters["optional"] = optional
+    env.filters["get_param"] = get_param
 
 
 FILTER_DOCS = {
@@ -121,6 +139,13 @@ FILTER_DOCS = {
         "args": ["key: string"],
         "description": "Безопасно извлекает поле из словаря. Если значение отсутствует — возвращает пустую строку.",
         "example": '{{ attributes.Watch_Display_Size | optional("alias") }}'
+    },
+    "get_param": {
+        "args": ["info (dict) — JSON-данные товара." "paths (list[SpecsParamScheme]) — список возможных путей."],
+        "description": "Универсальный фильтр для извлечения значения параметра из структуры info. "
+                       "Работает по списку схем SpecsParamScheme, каждая из которых содержит: "
+                       "- category: имя категории в JSON "
+                       "- param: имя параметра внутри категории",
+        "example": '{{ get_param(info, display_resolution_paths) }}'
     }
-
 }

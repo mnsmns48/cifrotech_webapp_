@@ -38,3 +38,6 @@ class DescBuilder:
     @staticmethod
     async def generate_description(payload: GenerateDescriptionPayload, session: AsyncSession):
         return await generate_description_db(payload, session)
+
+    # @staticmethod
+    # async def fetch_formulas_with_description(formula_id: int, session: AsyncSession):

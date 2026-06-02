@@ -22,3 +22,9 @@ async def update_formula_link(formula: FormulaIdObj, session: AsyncSession = Dep
 async def generate_description(payload: GenerateDescriptionPayload,
                                session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await DescBuilder.generate_description(payload, session)
+
+
+@desc_builder.get('/fetch_formulas_with_description/{formula_id}')
+async def fetch_formulas_with_description(formula_id: int,
+                                          session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await DescBuilder.fetch_formulas_with_description(formula_id, session)

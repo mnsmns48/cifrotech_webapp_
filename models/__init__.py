@@ -35,13 +35,13 @@ __all__ = (
     "ProductTypeWeightRule",
     "ProductTypeValueMap",
     "ProductMarketSettings",
-    "DescBuilder",
-    "DescBuilderFormulaLink"
-)
+    "DescBuilderFormulaLink",
+    "SpecPath",
+    "SpecsComposer")
 
 from .base import Base
 from .api_v1 import Activity, StockTable, Guests, Sellers, StockTableDependency
-from .desc_builder import DescBuilder, DescBuilderFormulaLink
+from .desc_builder import DescBuilderFormulaLink, SpecsComposer, SpecPath
 from .hub import HUbMenuLevel, HUbStock
 from .parsing import ParsingLine
 from .product_dependencies import (ProductFeaturesLink,

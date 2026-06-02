@@ -6,7 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from models import Base
 
 if TYPE_CHECKING:
-    from models import DescBuilder, DescBuilderFormulaLink
+    from models import DescBuilderFormulaLink, SpecPath
 
 
 class FormulaExpression(Base):
@@ -22,7 +22,7 @@ class FormulaExpression(Base):
     is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     entity_type: Mapped["FormulaEntityType"] = relationship(back_populates="formulas", passive_deletes=True)
-    desc_builders: Mapped[list["DescBuilder"]] = relationship(back_populates="formula", cascade="all, delete-orphan")
+    spec_paths: Mapped[list["SpecPath"]] = relationship(back_populates="formula", cascade="all, delete-orphan")
 
 
 class FormulaEntityType(Base):
