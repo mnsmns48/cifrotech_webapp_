@@ -1,8 +1,11 @@
+from typing import List
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.modulars.desc_builder.service import DescBuilder
-from api_service.schemas import FormulaIdObj, GenerateDescriptionPayload, FetchComposerResponse
+from api_service.schemas import FormulaIdObj, GenerateDescriptionPayload, FetchComposerResponse, SpecsPathRequest, \
+    SpecPathResponse
 from engine import db
 
 desc_builder = APIRouter(tags=['Desc Builder'], prefix='/desc-builder')
@@ -27,3 +30,8 @@ async def generate_description(payload: GenerateDescriptionPayload,
 @desc_builder.get('/fetch_composer/{formula_entity_type_id}', response_model=FetchComposerResponse)
 async def fetch_composer(formula_entity_type_id: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await DescBuilder.fetch_composer(formula_entity_type_id, session)
+
+
+@desc_builder.post('/fetch_spec_path', response_model=List[SpecPathResponse])
+async def fetch_spec_path(payload: SpecsPathRequest, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await DescBuilder.fetch_spec_path(payload, session)
