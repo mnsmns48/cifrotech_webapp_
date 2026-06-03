@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.modulars.desc_builder.service import DescBuilder
-from api_service.schemas import FormulaIdObj, GenerateDescriptionPayload
+from api_service.schemas import FormulaIdObj, GenerateDescriptionPayload, FetchComposerResponse
 from engine import db
 
 desc_builder = APIRouter(tags=['Desc Builder'], prefix='/desc-builder')
@@ -24,7 +24,6 @@ async def generate_description(payload: GenerateDescriptionPayload,
     return await DescBuilder.generate_description(payload, session)
 
 
-@desc_builder.get('/fetch_formulas_with_description/{formula_id}')
-async def fetch_formulas_with_description(formula_id: int,
-                                          session: AsyncSession = Depends(db.scoped_session_dependency)):
-    return await DescBuilder.fetch_formulas_with_description(formula_id, session)
+@desc_builder.get('/fetch_composer/{formula_entity_type_id}', response_model=FetchComposerResponse)
+async def fetch_composer(formula_entity_type_id: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await DescBuilder.fetch_composer(formula_entity_type_id, session)

@@ -46,7 +46,7 @@ from api_service.schemas.analytics_schemas import ProductTypeWeightRuleSchema, P
     ProductTypeWeightRuleDelete, ProductTypeWeightRuleUpdate, ProductTypeWeightRuleSwitch, ProductTypeValueMapScheme, \
     ProductTypeValueMapCreateSchema, ProductTypeValueMapUpdateSchema, ProductTypeValueMapDeleteSchema
 
-from api_service.schemas.desc_builder import GenerateDescriptionPayload, SpecsParamScheme
+from api_service.schemas.desc_builder import GenerateDescriptionPayload, SpecsParamScheme, FetchComposerResponse
 
 __all__ = list()
 
@@ -103,4 +103,4 @@ __all__ += ["ProductTypeWeightRuleSchema", "ProductTypeWeightRuleCreate", "Produ
             "ProductTypeValueMapCreateSchema", "ProductTypeValueMapUpdateSchema", "ProductTypeValueMapDeleteSchema",
             "ProductMarketSettingsSchema", "UpdateMarketSettingsRequest"]
 
-__all__ += ["GenerateDescriptionPayload", "SpecsParamScheme"]
+__all__ += ["GenerateDescriptionPayload", "SpecsParamScheme", "FetchComposerResponse"]

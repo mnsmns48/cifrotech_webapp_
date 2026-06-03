@@ -1,9 +1,12 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from api_service.modulars.desc_builder.crud import generate_description_db
-from api_service.schemas import FormulaIdObj, FormulaEntityTypeScheme, GenerateDescriptionPayload
-from models import DescBuilderFormulaLink
+from api_service.schemas import FormulaIdObj, FormulaEntityTypeScheme, GenerateDescriptionPayload, \
+    FetchComposerResponse, TypeModel, BrandModel, FormulaResponse
+from api_service.schemas.desc_builder import SpecsComposerExpandedScheme
+from models import DescBuilderFormulaLink, FormulaEntityType, SpecsComposer, FormulaExpression
 
 
 class DescBuilder:
@@ -39,5 +42,31 @@ class DescBuilder:
     async def generate_description(payload: GenerateDescriptionPayload, session: AsyncSession):
         return await generate_description_db(payload, session)
 
-    # @staticmethod
-    # async def fetch_formulas_with_description(formula_id: int, session: AsyncSession):
+    @staticmethod
+    async def fetch_composer(formula_entity_type_id: int, session: AsyncSession):
+        stmt_entity = (select(FormulaEntityType).where(FormulaEntityType.id == formula_entity_type_id))
+        entity_type = (await session.execute(stmt_entity)).scalar_one_or_none()
+
+        if not entity_type:
+            return FetchComposerResponse(entity_type=None, composers=[])
+
+        stmt_composers = (select(SpecsComposer).join(SpecsComposer.formula).options(
+            selectinload(SpecsComposer.formula).selectinload(FormulaExpression.entity_type),
+            selectinload(SpecsComposer.type),
+            selectinload(SpecsComposer.brand),
+        )
+                          .where(FormulaExpression.entity_type_id == formula_entity_type_id)
+                          )
+
+        composers = (await session.execute(stmt_composers)).scalars().all()
+
+        composer_items = []
+        for comp in composers:
+            composer_items.append(
+                SpecsComposerExpandedScheme(id=comp.id, type=TypeModel(id=comp.type.id, type=comp.type.type),
+                                            brand=(BrandModel(id=comp.brand.id,
+                                                              brand=comp.brand.brand) if comp.brand else None),
+                                            source=comp.source,
+                                            formula=FormulaResponse.model_validate(comp.formula)))
+        return FetchComposerResponse(entity_type_id=formula_entity_type_id,
+                                     composers=composer_items)
