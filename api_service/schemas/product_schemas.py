@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 from typing import Union, List, Dict, Any, Optional
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 from pydantic_core.core_schema import FieldValidationInfo
 
 from api_service.schemas.range_reward_schemas import RewardRangeBaseSchema
@@ -91,10 +91,14 @@ class BrandModel(BaseModel):
     id: int
     brand: str
 
+    model_config = ConfigDict(from_attributes=True)
+
 
 class TypeModel(BaseModel):
     id: int
     type: str
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ImageWithPreview(BaseModel):

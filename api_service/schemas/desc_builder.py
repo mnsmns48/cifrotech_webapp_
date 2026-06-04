@@ -1,8 +1,8 @@
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
-from api_service.schemas import BrandModel, TypeModel, FormulaResponse
+from api_service.schemas import TypeModel, FormulaResponse
 
 
 class GenerateDescriptionPayload(BaseModel):
@@ -17,7 +17,6 @@ class SpecsParamScheme(BaseModel):
 class SpecsComposerExpandedScheme(BaseModel):
     id: int
     type: TypeModel
-    brand: BrandModel | None
     source: str
     formula: FormulaResponse
 
@@ -36,3 +35,21 @@ class SpecPathResponse(BaseModel):
     title: str
     path: list[Any]
     icon: str | None = None
+
+
+class CreateSpecsComposer(BaseModel):
+    types: list[TypeModel]
+    sources: list[str]
+    formulas: list[FormulaResponse]
+
+
+class SaveSpecsComposer(BaseModel):
+    type_id: int
+    source: str
+    formula_id: int
+
+
+class SpecsComposerResponse(SaveSpecsComposer):
+    id: int
+
+    model_config = ConfigDict(from_attributes=True)

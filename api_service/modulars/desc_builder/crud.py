@@ -112,7 +112,7 @@ def build_paths_map(path_rows: list[SpecPath]):
 
 
 def render_formula_line(line: str, paths_map: dict, info: dict):
-    vars_in_line = re.findall(r"([A-Za-z0-9_]+)_paths", line)
+    vars_in_line = re.findall(r"([A-Za-z0-9_]+)", line)
 
     if not vars_in_line:
         return None
@@ -147,7 +147,7 @@ def render_formula_line(line: str, paths_map: dict, info: dict):
     rendered = line
     for var, value in block_values.items():
         rendered = rendered.replace(
-            f"{{{{ get_param(info, {var}_paths) }}}}",
+            f"{{{{ get_param(info, {var}) }}}}",
             value
         )
 

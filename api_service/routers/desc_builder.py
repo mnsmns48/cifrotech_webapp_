@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.modulars.desc_builder.service import DescBuilder
 from api_service.schemas import FormulaIdObj, GenerateDescriptionPayload, FetchComposerResponse, SpecsPathRequest, \
-    SpecPathResponse
+    SpecPathResponse, CreateSpecsComposer, SaveSpecsComposer, SpecsComposerResponse
 from engine import db
 
 desc_builder = APIRouter(tags=['Desc Builder'], prefix='/desc-builder')
@@ -35,3 +35,14 @@ async def fetch_composer(formula_entity_type_id: int, session: AsyncSession = De
 @desc_builder.post('/fetch_spec_path', response_model=List[SpecPathResponse])
 async def fetch_spec_path(payload: SpecsPathRequest, session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await DescBuilder.fetch_spec_path(payload, session)
+
+
+@desc_builder.get('/create_new_composer/{formula_entity_type_id}', response_model=CreateSpecsComposer)
+async def create_new_composer(formula_entity_type_id: int,
+                              session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await DescBuilder.create_new_composer(formula_entity_type_id, session)
+
+
+@desc_builder.post('/save_new_composer', response_model=SpecsComposerResponse)
+async def save_new_composer(payload: SaveSpecsComposer, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await DescBuilder.save_new_composer(payload, session)

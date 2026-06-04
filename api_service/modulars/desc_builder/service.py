@@ -6,9 +6,11 @@ from sqlalchemy.orm import selectinload
 
 from api_service.modulars.desc_builder.crud import generate_description_db
 from api_service.schemas import FormulaIdObj, FormulaEntityTypeScheme, GenerateDescriptionPayload, \
-    FetchComposerResponse, TypeModel, BrandModel, FormulaResponse
-from api_service.schemas.desc_builder import SpecsComposerExpandedScheme, SpecsPathRequest, SpecPathResponse
-from models import DescBuilderFormulaLink, SpecsComposer, FormulaExpression, SpecPath
+    FetchComposerResponse, TypeModel, FormulaResponse
+from api_service.schemas.desc_builder import SpecsComposerExpandedScheme, SpecsPathRequest, SpecPathResponse, \
+    CreateSpecsComposer, SaveSpecsComposer, SpecsComposerResponse
+from models import DescBuilderFormulaLink, SpecsComposer, FormulaExpression, SpecPath, ProductType, \
+    ProductFeaturesGlobal
 
 
 class DescBuilder:
@@ -50,15 +52,12 @@ class DescBuilder:
                           .options(
             selectinload(SpecsComposer.formula).selectinload(FormulaExpression.entity_type),
             selectinload(SpecsComposer.type),
-            selectinload(SpecsComposer.brand),
         ).where(FormulaExpression.entity_type_id == formula_entity_type_id))
         composers = (await session.execute(stmt_composers)).scalars().all()
         composer_items = list()
         for comp in composers:
             composer_items.append(
                 SpecsComposerExpandedScheme(id=comp.id, type=TypeModel(id=comp.type.id, type=comp.type.type),
-                                            brand=(BrandModel(id=comp.brand.id,
-                                                              brand=comp.brand.brand) if comp.brand else None),
                                             source=comp.source,
                                             formula=FormulaResponse.model_validate(comp.formula)))
         return FetchComposerResponse(entity_type_id=formula_entity_type_id,
@@ -70,3 +69,29 @@ class DescBuilder:
                                        (SpecPath.source == payload.source)))
         rows = (await session.execute(stmt)).scalars().all()
         return [SpecPathResponse(title=row.title, path=row.path, icon=row.icon) for row in rows]
+
+    @staticmethod
+    async def create_new_composer(formula_entity_type_id: int, session) -> CreateSpecsComposer:
+        types_query = await session.execute(select(ProductType))
+        types = types_query.scalars().all()
+        sources_query = await session.execute(
+            select(ProductFeaturesGlobal.source)
+            .where(ProductFeaturesGlobal.source.isnot(None))
+            .distinct())
+        sources = [row[0] for row in sources_query.all()]
+        formulas_query = await session.execute(
+            select(FormulaExpression)
+            .options(selectinload(FormulaExpression.entity_type))
+            .where(FormulaExpression.entity_type_id == formula_entity_type_id)
+            .order_by(FormulaExpression.name)
+        )
+        formulas = formulas_query.scalars().all()
+        return CreateSpecsComposer(types=types, sources=sources, formulas=formulas)
+
+    @staticmethod
+    async def save_new_composer(payload: SaveSpecsComposer, session: AsyncSession) -> SpecsComposerResponse:
+        new_obj = SpecsComposer(type_id=payload.type_id, source=payload.source, formula_id=payload.formula_id)
+        session.add(new_obj)
+        await session.commit()
+        await session.refresh(new_obj)
+        return SpecsComposerResponse.model_validate(new_obj)

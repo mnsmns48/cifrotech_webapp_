@@ -7,7 +7,7 @@ from sqlalchemy.orm import mapped_column, relationship, Mapped
 from models import Base
 
 if TYPE_CHECKING:
-    from models import FormulaExpression, FormulaEntityType, ProductType, ProductBrand
+    from models import FormulaExpression, FormulaEntityType, ProductType
 
 
 class DescBuilderFormulaLink(Base):
@@ -24,12 +24,10 @@ class SpecsComposer(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     type_id: Mapped[int] = mapped_column(ForeignKey("product_type.id"), nullable=False)
-    brand_id: Mapped[int | None] = mapped_column(ForeignKey("product_brand.id"), nullable=True)
     source: Mapped[str] = mapped_column(String(50), nullable=False)
     formula_id: Mapped[int] = mapped_column(ForeignKey("formula_expression.id"), nullable=False)
 
     type: Mapped["ProductType"] = relationship("ProductType")
-    brand: Mapped["ProductBrand"] = relationship("ProductBrand")
     formula: Mapped["FormulaExpression"] = relationship("FormulaExpression")
 
 

@@ -67,7 +67,6 @@ def get_param(info: dict, paths: list):
             value = block[param]
             if value not in (None, "", []):
                 return value
-
     return ""
 
 
