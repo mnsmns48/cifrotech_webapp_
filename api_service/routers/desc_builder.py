@@ -5,7 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.modulars.desc_builder.service import DescBuilder
 from api_service.schemas import FormulaIdObj, GenerateDescriptionPayload, FetchComposerResponse, SpecsPathRequest, \
-    SpecPathResponse, CreateSpecsComposer, SaveSpecsComposer, SpecsComposerResponse
+    SpecPathResponse, CreateSpecsComposer, SaveSpecsComposer, SpecsComposerResponse, UpdateComposer, CreateSpecPath, \
+    UpdateSpecPath, DeleteSpecPath
 from engine import db
 
 desc_builder = APIRouter(tags=['Desc Builder'], prefix='/desc-builder')
@@ -46,3 +47,28 @@ async def create_new_composer(formula_entity_type_id: int,
 @desc_builder.post('/save_new_composer', response_model=SpecsComposerResponse)
 async def save_new_composer(payload: SaveSpecsComposer, session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await DescBuilder.save_new_composer(payload, session)
+
+
+@desc_builder.post('/update_composer', response_model=SpecsComposerResponse)
+async def update_composer(payload: UpdateComposer, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await DescBuilder.update_composer(payload, session)
+
+
+@desc_builder.post('/delete_composer/{composer_id}')
+async def delete_composer(composer_id: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await DescBuilder.delete_composer(composer_id, session)
+
+
+@desc_builder.post("/create_spec_path")
+async def create_spec_path(payload: CreateSpecPath, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await DescBuilder.create_spec_path(payload, session)
+
+
+@desc_builder.post("/update_spec_path")
+async def update_spec_path(payload: UpdateSpecPath, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await DescBuilder.update_spec_path(payload, session)
+
+
+@desc_builder.post("/delete_spec_path")
+async def delete_spec_path(payload: DeleteSpecPath, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await DescBuilder.delete_spec_path(payload.id, session)

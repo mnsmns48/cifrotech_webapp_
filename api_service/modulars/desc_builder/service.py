@@ -1,5 +1,6 @@
 from typing import List
 
+from fastapi import HTTPException
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -8,7 +9,9 @@ from api_service.modulars.desc_builder.crud import generate_description_db
 from api_service.schemas import FormulaIdObj, FormulaEntityTypeScheme, GenerateDescriptionPayload, \
     FetchComposerResponse, TypeModel, FormulaResponse
 from api_service.schemas.desc_builder import SpecsComposerExpandedScheme, SpecsPathRequest, SpecPathResponse, \
-    CreateSpecsComposer, SaveSpecsComposer, SpecsComposerResponse
+    CreateSpecsComposer, SaveSpecsComposer, SpecsComposerResponse, UpdateComposer, CreateSpecPath, UpdateSpecPath
+from app_utils import get_url_from_s3
+from config import settings
 from models import DescBuilderFormulaLink, SpecsComposer, FormulaExpression, SpecPath, ProductType, \
     ProductFeaturesGlobal
 
@@ -68,7 +71,16 @@ class DescBuilder:
         stmt = (select(SpecPath).where(and_(SpecPath.formula_id == payload.formula_id),
                                        (SpecPath.source == payload.source)))
         rows = (await session.execute(stmt)).scalars().all()
-        return [SpecPathResponse(title=row.title, path=row.path, icon=row.icon) for row in rows]
+        return [
+            SpecPathResponse(
+                id=row.id,
+                title=row.title,
+                path=row.path,
+                icon=get_url_from_s3(filename=row.icon or "no_photo.png",
+                                     path=settings.s3.utils_path),
+            )
+            for row in rows
+        ]
 
     @staticmethod
     async def create_new_composer(formula_entity_type_id: int, session) -> CreateSpecsComposer:
@@ -95,3 +107,69 @@ class DescBuilder:
         await session.commit()
         await session.refresh(new_obj)
         return SpecsComposerResponse.model_validate(new_obj)
+
+    @staticmethod
+    async def update_composer(payload: UpdateComposer, session: AsyncSession) -> SpecsComposerResponse:
+        composer = await session.get(SpecsComposer, payload.id)
+        if not composer:
+            raise HTTPException(status_code=404, detail="Composer not found")
+        changed = False
+        for field in ("type_id", "source", "formula_id"):
+            new_value = getattr(payload, field)
+            if getattr(composer, field) != new_value:
+                setattr(composer, field, new_value)
+                changed = True
+        if changed:
+            await session.commit()
+            await session.refresh(composer)
+        return SpecsComposerResponse.model_validate(composer)
+
+    @staticmethod
+    async def delete_composer(composer_id: int, session: AsyncSession):
+        composer = await session.get(SpecsComposer, composer_id)
+        if not composer:
+            raise HTTPException(status_code=404, detail="Composer not found")
+        await session.delete(composer)
+        await session.commit()
+        return {"status": "deleted", "id": composer_id}
+
+    @staticmethod
+    async def create_spec_path(payload: CreateSpecPath, session: AsyncSession):
+        spec = SpecPath(
+            title=payload.title,
+            icon=None,
+            path=payload.path,
+            formula_id=payload.formula_id,
+            source=payload.source
+        )
+        session.add(spec)
+        await session.commit()
+        await session.refresh(spec)
+        return spec
+
+    @staticmethod
+    async def update_spec_path(payload: UpdateSpecPath, session: AsyncSession):
+        spec = await session.get(SpecPath, payload.id)
+        if not spec:
+            raise HTTPException(404, "SpecPath not found")
+        changed = False
+        if spec.title != payload.title:
+            spec.title = payload.title
+            changed = True
+        if spec.path != payload.path:
+            spec.path = payload.path
+            changed = True
+        if not changed:
+            return spec
+        await session.commit()
+        await session.refresh(spec)
+        return spec
+
+    @staticmethod
+    async def delete_spec_path(spec_path_id: int, session: AsyncSession):
+        spec = await session.get(SpecPath, spec_path_id)
+        if not spec:
+            raise HTTPException(404, "SpecPath not found")
+        await session.delete(spec)
+        await session.commit()
+        return {"status": "deleted", "id": spec_path_id}

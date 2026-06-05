@@ -1,6 +1,6 @@
-from typing import Any
+from typing import Any, Optional, Dict, List
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from api_service.schemas import TypeModel, FormulaResponse
 
@@ -32,6 +32,7 @@ class SpecsPathRequest(BaseModel):
 
 
 class SpecPathResponse(BaseModel):
+    id: int
     title: str
     path: list[Any]
     icon: str | None = None
@@ -53,3 +54,24 @@ class SpecsComposerResponse(SaveSpecsComposer):
     id: int
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class UpdateComposer(SpecsComposerResponse):
+    pass
+
+
+class CreateSpecPath(BaseModel):
+    title: str = Field(..., max_length=100)
+    path: List[Any]
+    formula_id: int
+    source: str
+
+
+class UpdateSpecPath(BaseModel):
+    id: int
+    title: str = Field(..., max_length=100)
+    path: List[Any]
+
+
+class DeleteSpecPath(BaseModel):
+    id: int
