@@ -1,11 +1,9 @@
 import hashlib
 import re
 from datetime import datetime
-from typing import Any, Optional, List, Set, Union
+from typing import Any, Optional, List, Set
 
 from bs4 import BeautifulSoup
-
-from config import settings
 
 MONTHS_RU = {
     1: "января", 2: "февраля", 3: "марта", 4: "апреля",
@@ -54,18 +52,3 @@ def compute_html_hash(html: str) -> str:
 
 def count_message(count: int) -> str:
     return f"data: COUNT={count + 20}"
-
-
-def get_url_from_s3(filename: Union[str, List[str]], path: str) -> Union[str, List[str]]:
-    s3 = settings.s3
-    base_url = s3.s3_url.removeprefix("https://").rstrip("/")
-
-    def build_url(name: str) -> str:
-        return f"https://{s3.bucket_name}.{base_url}/{s3.s3_hub_prefix}/{path}/{name}"
-
-    if isinstance(filename, str):
-        return build_url(filename)
-    elif isinstance(filename, list):
-        return [build_url(name) for name in filename]
-    else:
-        raise TypeError("Передавать аругментом filename нужно либо список, либо строку")

@@ -10,7 +10,7 @@ from api_service.schemas import FormulaIdObj, FormulaEntityTypeScheme, GenerateD
     FetchComposerResponse, TypeModel, FormulaResponse
 from api_service.schemas.desc_builder import SpecsComposerExpandedScheme, SpecsPathRequest, SpecPathResponse, \
     CreateSpecsComposer, SaveSpecsComposer, SpecsComposerResponse, UpdateComposer, CreateSpecPath, UpdateSpecPath
-from app_utils import get_url_from_s3
+from api_service.s3_helper import get_url_from_s3
 from config import settings
 from models import DescBuilderFormulaLink, SpecsComposer, FormulaExpression, SpecPath, ProductType, \
     ProductFeaturesGlobal
@@ -173,3 +173,5 @@ class DescBuilder:
         await session.delete(spec)
         await session.commit()
         return {"status": "deleted", "id": spec_path_id}
+
+

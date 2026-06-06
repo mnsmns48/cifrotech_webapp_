@@ -3,13 +3,13 @@ import aioboto3
 import os
 
 from asyncio import gather, create_task
-from typing import List, Dict, Any, AsyncGenerator
+from typing import List, Dict, Any, AsyncGenerator, Union
 from urllib.parse import urlparse
 from aiobotocore.client import AioBaseClient
 from aiohttp import ClientSession, ClientConnectionError, ClientResponseError, ClientTimeout, ClientError
 from botocore.config import Config
 from botocore.exceptions import ClientError, BotoCoreError
-from fastapi import HTTPException
+from fastapi import HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -343,3 +343,48 @@ async def load_images_for_origins(session: AsyncSession,
         origin_to_images.setdefault(origin, [])
 
     return origin_to_images
+
+
+async def upload_to_s3(file: UploadFile, s3_client, cl_session, path: str) -> str:
+    filename = file.filename
+    key = f"{path}/{filename}"
+    bucket = settings.s3.bucket_name
+    body = await file.read()
+    put_url = None
+    async for client in s3_client():
+        put_url = await client.generate_presigned_url(ClientMethod="put_object",
+                                                      Params={"Bucket": bucket, "Key": key},
+                                                      ExpiresIn=600)
+    if not put_url:
+        raise RuntimeError("Failed to generate presigned S3 upload URL")
+    async with cl_session.put(put_url, data=body) as resp:
+        if resp.status not in (200, 204):
+            raise RuntimeError(f"Upload failed with status {resp.status}")
+    return filename
+
+
+async def delete_from_s3(filename: str, path: str, s3_client):
+    key = f"{path}/{filename}"
+    async for client in s3_client():
+        try:
+            await client.delete_object(
+                Bucket=settings.s3.bucket,
+                Key=key
+            )
+        except ClientError as e:
+            raise RuntimeError(f"S3 delete error: {e}")
+
+
+def get_url_from_s3(filename: Union[str, List[str]], path: str) -> Union[str, List[str]]:
+    s3 = settings.s3
+    base_url = s3.s3_url.removeprefix("https://").rstrip("/")
+
+    def build_url(name: str) -> str:
+        return f"https://{s3.bucket_name}.{base_url}/{s3.s3_hub_prefix}/{path}/{name}"
+
+    if isinstance(filename, str):
+        return build_url(filename)
+    elif isinstance(filename, list):
+        return [build_url(name) for name in filename]
+    else:
+        raise TypeError("Передавать аругментом filename нужно либо список, либо строку")

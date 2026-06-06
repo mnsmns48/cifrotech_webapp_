@@ -8,7 +8,7 @@ from api_miniapp.crud import fetch_hub_levels, fetch_products_by_path, get_featu
 from api_miniapp.schemas import HubLevelScheme, HubProductScheme, HubProductResponse
 from api_miniapp.schemas.hub_prod_scheme import ProductFeaturesResponse
 from api_miniapp.utils import cache_with_duration
-from app_utils import get_url_from_s3
+from api_service.s3_helper import get_url_from_s3
 from engine import db
 
 hub_product = APIRouter()

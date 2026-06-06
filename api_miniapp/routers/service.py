@@ -3,7 +3,7 @@ from fastapi_cache.decorator import cache
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_miniapp.crud import fetch_no_img_pic
-from app_utils import get_url_from_s3
+from api_service.s3_helper import get_url_from_s3
 from config import settings
 from engine import db
 

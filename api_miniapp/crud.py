@@ -4,7 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from api_miniapp.schemas import ProductFeaturesSchema
-from app_utils import get_url_from_s3
+from api_service.s3_helper import get_url_from_s3
+
 from config import settings
 from models import HUbMenuLevel, HUbStock, ProductOrigin, ProductImage, ProductFeaturesGlobal, ProductFeaturesLink, \
     ServiceImage, ProductType, ProductBrand

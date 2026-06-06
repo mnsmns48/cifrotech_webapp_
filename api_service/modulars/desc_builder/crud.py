@@ -6,7 +6,7 @@ from sqlalchemy.orm import selectinload
 
 from api_service.modulars.formula.filters import get_param
 from api_service.schemas import GenerateDescriptionPayload, SpecsParamScheme
-from app_utils import get_url_from_s3
+from api_service.s3_helper import get_url_from_s3
 from config import settings
 from models import ProductFeaturesGlobal, SpecsComposer, SpecPath
 
