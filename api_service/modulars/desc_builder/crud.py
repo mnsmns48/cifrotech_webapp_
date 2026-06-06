@@ -95,7 +95,7 @@ async def load_group_resources(session: AsyncSession, type_id: int, source: str)
 
 
 def build_paths_map(path_rows: list[SpecPath]):
-    paths_map = {}
+    paths_map = dict()
 
     for row in path_rows:
         category, param = row.path
@@ -104,20 +104,17 @@ def build_paths_map(path_rows: list[SpecPath]):
                 "icon": row.icon,
                 "paths": [],
             }
-        paths_map[row.title]["paths"].append(
-            SpecsParamScheme(category=category, param=param)
-        )
+        paths_map[row.title]["paths"].append(SpecsParamScheme(category=category, param=param))
 
     return paths_map
 
 
 def render_formula_line(line: str, paths_map: dict, info: dict):
     vars_in_line = re.findall(r"([A-Za-z0-9_]+)", line)
-
     if not vars_in_line:
         return None
 
-    block_values = {}
+    block_values = dict()
     block_icon = None
     block_title = None
 
@@ -151,12 +148,7 @@ def render_formula_line(line: str, paths_map: dict, info: dict):
             value
         )
 
-    return {
-        "title": block_title,
-        "icon": block_icon,
-        "text": rendered,
-        "values": block_values,
-    }
+    return {"title": block_title, "icon": block_icon, "text": rendered, "values": block_values}
 
 
 def render_group(ids: list[int], pf_map: dict[int, dict], paths_map, lines):
@@ -174,7 +166,7 @@ def render_group(ids: list[int], pf_map: dict[int, dict], paths_map, lines):
 
 
 def assemble_result(group_results: list[dict[int, dict]]):
-    final = {}
+    final = dict()
     for group in group_results:
         final.update(group)
     return final

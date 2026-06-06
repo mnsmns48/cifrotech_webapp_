@@ -76,8 +76,7 @@ class DescBuilder:
                 id=row.id,
                 title=row.title,
                 path=row.path,
-                icon=get_url_from_s3(filename=row.icon or "no_photo.png",
-                                     path=settings.s3.utils_path),
+                icon=get_url_from_s3(filename=row.icon or "no_photo.png", path=settings.s3.utils_path),
             )
             for row in rows
         ]

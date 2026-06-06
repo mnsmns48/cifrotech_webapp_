@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.modulars.desc_builder.service import DescBuilder
-from api_service.s3_helper import get_url_from_s3, upload_to_s3, delete_from_s3, get_s3_client, get_http_client_session
+from api_service.s3_helper import get_url_from_s3, upload_to_s3, get_s3_client, get_http_client_session, delete_from_s3
 from api_service.schemas import FormulaIdObj, GenerateDescriptionPayload, FetchComposerResponse, SpecsPathRequest, \
     SpecPathResponse, CreateSpecsComposer, SaveSpecsComposer, SpecsComposerResponse, UpdateComposer, CreateSpecPath, \
     UpdateSpecPath, DeleteSpecPath
@@ -93,7 +93,8 @@ async def upload_spec_path_icon(spec_path_id: int, file: UploadFile = File(...),
 
 
 @desc_builder.delete("/spec_path/{spec_path_id}/icon")
-async def delete_spec_path_icon(spec_path_id: int, session: AsyncSession = Depends(db.scoped_session_dependency),
+async def delete_spec_path_icon(spec_path_id: int,
+                                session: AsyncSession = Depends(db.scoped_session_dependency),
                                 s3_client=Depends(get_s3_client)):
     row = await session.get(SpecPath, spec_path_id)
     if not row:
@@ -102,4 +103,4 @@ async def delete_spec_path_icon(spec_path_id: int, session: AsyncSession = Depen
         await delete_from_s3(filename=row.icon, path=settings.s3.utils_path, s3_client=s3_client)
     row.icon = None
     await session.commit()
-    return {"icon": get_url_from_s3("no_photo.png", settings.s3.utils_path)}
+    return {"icon": get_url_from_s3(filename="no_photo.png", path=settings.s3.utils_path)}
