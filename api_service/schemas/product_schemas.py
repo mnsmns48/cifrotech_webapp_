@@ -103,7 +103,7 @@ class TypeModel(BaseModel):
 
 class ImageWithPreview(BaseModel):
     url: str
-    filename: str
+    filename: Optional[str] = None
     is_preview: bool
 
 

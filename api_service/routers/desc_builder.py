@@ -8,7 +8,7 @@ from api_service.modulars.desc_builder.service import DescBuilder
 from api_service.s3_helper import get_url_from_s3, upload_to_s3, get_s3_client, get_http_client_session, delete_from_s3
 from api_service.schemas import FormulaIdObj, GenerateDescriptionPayload, FetchComposerResponse, SpecsPathRequest, \
     SpecPathResponse, CreateSpecsComposer, SaveSpecsComposer, SpecsComposerResponse, UpdateComposer, CreateSpecPath, \
-    UpdateSpecPath, DeleteSpecPath
+    UpdateSpecPath, DeleteSpecPath, DescriptionResponse
 from config import settings
 from engine import db
 from models import SpecPath
@@ -26,7 +26,7 @@ async def update_formula_link(formula: FormulaIdObj, session: AsyncSession = Dep
     return await DescBuilder.update_formula_link(formula, session)
 
 
-@desc_builder.post('/generate_description')
+@desc_builder.post('/generate_description', response_model=DescriptionResponse)
 async def generate_description(payload: GenerateDescriptionPayload,
                                session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await DescBuilder.generate_description(payload, session)

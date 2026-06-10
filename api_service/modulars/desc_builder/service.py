@@ -9,7 +9,8 @@ from api_service.modulars.desc_builder.crud import generate_description_db
 from api_service.schemas import FormulaIdObj, FormulaEntityTypeScheme, GenerateDescriptionPayload, \
     FetchComposerResponse, TypeModel, FormulaResponse
 from api_service.schemas.desc_builder import SpecsComposerExpandedScheme, SpecsPathRequest, SpecPathResponse, \
-    CreateSpecsComposer, SaveSpecsComposer, SpecsComposerResponse, UpdateComposer, CreateSpecPath, UpdateSpecPath
+    CreateSpecsComposer, SaveSpecsComposer, SpecsComposerResponse, UpdateComposer, CreateSpecPath, UpdateSpecPath, \
+    DescriptionResponse
 from api_service.s3_helper import get_url_from_s3
 from config import settings
 from models import DescBuilderFormulaLink, SpecsComposer, FormulaExpression, SpecPath, ProductType, \
@@ -46,7 +47,7 @@ class DescBuilder:
         return link
 
     @staticmethod
-    async def generate_description(payload: GenerateDescriptionPayload, session: AsyncSession) -> FetchComposerResponse:
+    async def generate_description(payload: GenerateDescriptionPayload, session: AsyncSession) -> DescriptionResponse:
         return await generate_description_db(payload, session)
 
     @staticmethod
@@ -172,5 +173,3 @@ class DescBuilder:
         await session.delete(spec)
         await session.commit()
         return {"status": "deleted", "id": spec_path_id}
-
-

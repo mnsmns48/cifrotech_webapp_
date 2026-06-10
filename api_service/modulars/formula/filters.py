@@ -70,12 +70,35 @@ def get_param(info: dict, paths: list):
     return ""
 
 
+def cut_left(value: str, substring: str):
+    if not isinstance(value, str):
+        return ""
+    idx = value.find(substring)
+    if idx == -1:
+        return value
+    return value[:idx].rstrip()
+
+
+def cut_after(value: str, substring: str):
+    if not isinstance(value, str):
+        return ""
+
+    idx = value.find(substring)
+    if idx == -1:
+        return value
+
+    end = idx + len(substring)
+    return value[:end].rstrip()
+
+
 def register_builtin_filters(env):
     env.filters["split"] = lambda s, sep=" ": s.split(sep)
     env.filters["join"] = lambda arr, sep=" ": sep.join(arr)
     env.filters["slice"] = lambda arr, start=0, end=None: arr[start:end]
     env.filters["upper"] = lambda s: s.upper()
     env.filters["lower"] = lambda s: s.lower()
+    env.filters["cut_left"] = cut_left
+    env.filters["cut_after"] = cut_after
     env.filters["replace"] = lambda s, old, new: s.replace(old, new)
     env.filters["filter_contains"] = filter_contains
     env.filters["filter_not_contains"] = filter_not_contains
@@ -138,6 +161,16 @@ FILTER_DOCS = {
         "args": ["key: string"],
         "description": "Безопасно извлекает поле из словаря. Если значение отсутствует — возвращает пустую строку.",
         "example": '{{ attributes.Watch_Display_Size | optional("alias") }}'
+    },
+    "cut_left": {
+        "args": ["substring: string"],
+        "description": "Извлекает первое число слева от указанной подстроки, обрезая строку.",
+        "example": '{{ display | cut_left("inches") }}'
+    },
+    "cut_after": {
+        "args": ["substring: string"],
+        "description": "Оставляет подстроку, но удаляет всё, что справа от неё.",
+        "example": '{{ display | cut_after("inches") }}'
     },
     "get_param": {
         "args": ["info (dict) — JSON-данные товара." "paths (list[SpecsParamScheme]) — список возможных путей."],

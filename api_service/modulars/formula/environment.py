@@ -34,41 +34,6 @@ def render_formula(formula: str, context: dict) -> str:
     return template.render(context)
 
 
-# def render_formula_dict(formula: str, context: dict) -> dict:
-#     ast = env.parse(formula)
-#     referenced_vars = meta.find_undeclared_variables(ast)
-#     missing = []
-#     for var in referenced_vars:
-#         if var not in context:
-#             missing.append(var)
-#
-#     attr_usages = re.findall(r"attributes\.([A-Za-z0-9_]+)", formula)
-#
-#     for key in attr_usages:
-#         pattern = rf"attributes\.{key}\s*\|\s*optional"
-#         if re.search(pattern, formula):
-#             continue
-#
-#         if "attributes" not in context or key not in context["attributes"]:
-#             missing.append(f"attributes.{key}")
-#
-#     if missing:
-#         return {
-#             "ok": False,
-#             "missing": missing,
-#             "rendered": None
-#         }
-#
-#     template = env.from_string(formula)
-#     rendered = template.render(context)
-#
-#     return {
-#         "ok": True,
-#         "missing": [],
-#         "rendered": rendered
-#     }
-
-
 def validate_formula(formula: str) -> list[str]:
     errors = list()
 

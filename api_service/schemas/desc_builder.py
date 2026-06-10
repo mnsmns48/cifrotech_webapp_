@@ -1,12 +1,13 @@
 from typing import Any, Optional, Dict, List
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from api_service.schemas import TypeModel, FormulaResponse
 
 
 class GenerateDescriptionPayload(BaseModel):
-    product_features_map: dict[int, dict | None]
+    product_features_map: dict[int, dict | None] | None = None
+    origins: list[int] | None = None
 
 
 class SpecsParamScheme(BaseModel):
@@ -75,3 +76,28 @@ class UpdateSpecPath(BaseModel):
 
 class DeleteSpecPath(BaseModel):
     id: int
+
+
+class BlockResponse(BaseModel):
+    title: Optional[str] = None
+    icon: Optional[str] = None
+    text: str
+    values: Dict[str, str]
+
+
+class ProductDescription(BaseModel):
+    blocks: List[BlockResponse] = Field(default_factory=list)
+
+
+class DescriptionSuccess(BaseModel):
+    products: Dict[int, ProductDescription]
+
+
+class DescriptionError(BaseModel):
+    error: str
+    details: Optional[str] = None
+
+
+class DescriptionResponse(BaseModel):
+    success: Optional[DescriptionSuccess] = None
+    error: Optional[DescriptionError] = None
