@@ -298,7 +298,7 @@ async def safe_presign(s3_client, bucket, key, retries=3):
 
 async def upload_to_s3(file, s3_client, cl_session, path):
     filename = file.filename
-    key = f"/{settings.s3.utils_path}/{path}/{filename}"
+    key = f"{settings.s3.s3_hub_prefix}/{path}/{filename}"
     bucket = settings.s3.bucket_name
     body = await file.read()
     put_url = await s3_client.generate_presigned_url(
@@ -313,7 +313,7 @@ async def upload_to_s3(file, s3_client, cl_session, path):
 
 
 async def delete_from_s3(filename: str, path: str, s3_client):
-    await s3_client.delete_object(Bucket=settings.s3.bucket_name, Key=f"/{settings.s3.utils_path}/{path}/{filename}")
+    await s3_client.delete_object(Bucket=settings.s3.bucket_name, Key=f"{settings.s3.s3_hub_prefix}/{path}/{filename}")
 
 
 def get_url_from_s3(filename: Union[str, List[str]], path: str) -> Union[str, List[str]]:

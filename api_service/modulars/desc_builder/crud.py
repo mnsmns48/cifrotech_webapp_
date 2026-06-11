@@ -154,6 +154,9 @@ def render_formula_description(line: str, paths_map: dict, info: dict):
 
     template = env.from_string(line)
     rendered = template.render(**values).strip()
+    rendered = re.sub(r"^,+", "", rendered)
+    rendered = re.sub(r",+$", "", rendered)
+    rendered = re.sub(r"\s{2,}", " ", rendered).strip()
 
     return {"title": first_title, "icon": first_icon, "text": rendered, "values": values}
 

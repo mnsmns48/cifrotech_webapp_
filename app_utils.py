@@ -11,6 +11,10 @@ MONTHS_RU = {
     9: "сентября", 10: "октября", 11: "ноября", 12: "декабря"
 }
 
+MONTHS_TO_CYRILLIC = {"January": "Январь", "February": "Февраль", "March": "Март", "April": "Апрель",
+                      "May": "Май", "June": "Июнь", "July": "Июль", "August": "Август",
+                      "September": "Сентябрь", "October": "Октябрь", "November": "Ноябрь", "December": "Декабрь"}
+
 
 def responses(response: str, is_ok: bool, message: str = '') -> dict:
     return {'response': response,
