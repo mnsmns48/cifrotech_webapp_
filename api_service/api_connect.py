@@ -1,6 +1,20 @@
+from datetime import datetime, timedelta
+
+import jwt
 from aiohttp import ClientSession
 
 from config import settings
+
+
+def create_service_token() -> str:
+    now = datetime.utcnow()
+    payload = {"service": settings.api.service_name,
+               "iss": settings.api.service_name,
+               "sub": f"{settings.api.service_name}->digitaltube",
+               "iat": now,
+               "exp": now + timedelta(minutes=5)}
+
+    return jwt.encode(payload, settings.api.service_shared_secret, algorithm="HS256")
 
 
 async def get_one_by_dtube(session: ClientSession, title: str):
