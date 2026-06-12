@@ -23,6 +23,7 @@ async def product_features_depps_db(session: AsyncSession) -> FeaturesDataSet:
         select(
             ProductFeaturesGlobal.id.label("feature_id"),
             ProductFeaturesGlobal.title.label("feature_title"),
+            ProductFeaturesGlobal.source.label("source"),
 
             ProductBrand.id.label("brand_id"),
             ProductBrand.brand.label("brand_name"),
@@ -77,6 +78,7 @@ async def product_features_depps_db(session: AsyncSession) -> FeaturesDataSet:
                             brand=BrandModel(id=row["brand_id"], brand=row["brand_name"]),
                             type=TypeModel(id=row["type_id"], type=row["type_name"]),
                             hub_level=hub_level,
+                            source=row["source"],
                             formula=formula)
         )
 
@@ -582,4 +584,3 @@ async def fetch_product_information_db(payload: FetchProductInfoRequest, session
 
     finally:
         await session.close()
-

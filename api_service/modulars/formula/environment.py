@@ -3,7 +3,7 @@ import re
 from jinja2 import Environment, StrictUndefined, meta, TemplateSyntaxError
 from api_service.modulars.formula.filters import register_builtin_filters
 
-env = Environment(autoescape=False, undefined=StrictUndefined, trim_blocks=True,  lstrip_blocks=True)
+env = Environment(autoescape=False, undefined=StrictUndefined, trim_blocks=True, lstrip_blocks=True)
 
 register_builtin_filters(env)
 

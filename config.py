@@ -49,6 +49,8 @@ class APISettings(CustomConfigSettings):
     digitaltube_url: str
     docs_url: str
     cors: Union[str, List[str]] = Field(...)
+    api_service_shared_secret: str
+    api_service_name: str
 
     @field_validator("cors", mode="before")
     def parse_cors_line(cls, value: str) -> list[str] | str:

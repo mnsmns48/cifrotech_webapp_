@@ -16,7 +16,8 @@ from api_service.schemas.parsing_schemas import ParsingRequest, ParsingLinesIn, 
 
 from api_service.schemas.product_schemas import ProductOriginUpdate, ProductDependencyUpdate, ProductResponse, \
     RecalcPricesRequest, RecalcPricesResponse, ProductOriginCreate, ProductDependencyBatchUpdate, OriginsList, \
-    TypeModel, BrandModel, ModelForApprove, FetchProductInfoRequest, ImageWithPreview, AnalyzeItem
+    TypeModel, BrandModel, ModelForApprove, FetchProductInfoRequest, ImageWithPreview, AnalyzeItem, \
+    UpdateProductFromDTPayload
 
 from api_service.schemas.range_reward_schemas import RewardRangeLineSchema, RewardRangeSchema, \
     RewardRangeResponseSchema, RewardRangeBaseSchema
@@ -46,6 +47,12 @@ from api_service.schemas.analytics_schemas import ProductTypeWeightRuleSchema, P
     ProductTypeWeightRuleDelete, ProductTypeWeightRuleUpdate, ProductTypeWeightRuleSwitch, ProductTypeValueMapScheme, \
     ProductTypeValueMapCreateSchema, ProductTypeValueMapUpdateSchema, ProductTypeValueMapDeleteSchema
 
+from api_service.schemas.desc_builder import (GenerateDescriptionPayload, SpecsParamScheme, FetchComposerResponse, \
+                                              SpecsPathRequest, SpecPathResponse, CreateSpecsComposer,
+                                              SaveSpecsComposer, SpecsComposerResponse, UpdateComposer,
+                                              CreateSpecPath, UpdateSpecPath, DeleteSpecPath, DescriptionResponse,
+                                              DescriptionSuccess, DescriptionError)
+
 __all__ = list()
 
 __all__ += ["VendorSchema"]
@@ -61,7 +68,8 @@ __all__ += ["RewardRangeLineSchema", "RewardRangeSchema", "RewardRangeResponseSc
 __all__ += [
     "ProductOriginUpdate", "ProductDependencyUpdate", "ProductResponse", "RecalcPricesRequest", "RecalcPricesResponse",
     "ProductOriginCreate", "ProductDependencyBatchUpdate", "OriginsList", "OriginHubLevelMap", "BrandModel",
-    "TypeModel", "ModelForApprove", "FetchProductInfoRequest", "ImageWithPreview", "AnalyzeItem"]
+    "TypeModel", "ModelForApprove", "FetchProductInfoRequest", "ImageWithPreview", "AnalyzeItem",
+    "UpdateProductFromDTPayload"]
 
 __all__ += ["HubMenuLevelSchema", "RenameRequest", "HubPositionPatchOut", "AddHubLevelScheme", "AddHubLevelOutScheme",
             "HubPositionPatch", "HubLevelPath", "UpdateDeleteImageScheme", "UpdatedImageScheme", "PathRoute",
@@ -100,3 +108,8 @@ __all__ += ["ProductTypeWeightRuleSchema", "ProductTypeWeightRuleCreate", "Produ
             "ProductTypeWeightRuleUpdate", "ProductTypeWeightRuleSwitch", "ProductTypeValueMapScheme",
             "ProductTypeValueMapCreateSchema", "ProductTypeValueMapUpdateSchema", "ProductTypeValueMapDeleteSchema",
             "ProductMarketSettingsSchema", "UpdateMarketSettingsRequest"]
+
+__all__ += ["GenerateDescriptionPayload", "SpecsParamScheme", "FetchComposerResponse", "SpecsPathRequest",
+            "SpecPathResponse", "CreateSpecsComposer", "SaveSpecsComposer", "SpecsComposerResponse", "UpdateComposer",
+            "CreateSpecPath", "UpdateSpecPath", "DeleteSpecPath", "DescriptionResponse", "DescriptionSuccess",
+            "DescriptionError"]

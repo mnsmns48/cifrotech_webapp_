@@ -9,7 +9,7 @@ from api_service.schemas import HubRoutes, HubMenuLevelSchema, PriceSyncPickedPa
     VSLScheme, SyncPathWOrigins, AttributeKeyValueSchema, RewardRangeBaseSchema
 
 from api_service.schemas.product_schemas import OriginWithAttrsPicsAnalyze, ModelForApprove
-from app_utils import get_url_from_s3
+from api_service.s3_helper import get_url_from_s3
 from config import settings
 from models import HUbMenuLevel, VendorSearchLine, HUbStock, ProductFeaturesLink, ParsingLine, ProductImage, \
     ProductOrigin, ProductFeaturesGlobal, ProductType, ProductBrand, AttributeOriginValue, AttributeValue, AttributeKey, \

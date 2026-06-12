@@ -29,15 +29,19 @@ __all__ = (
     "AttributeKey",
     "AttributeValue",
     "FormulaExpression",
+    "FormulaEntityType",
     "ProductFeaturesFormulaLink",
     "ProductFeaturesHubMenuLevelLink",
     "ProductTypeWeightRule",
     "ProductTypeValueMap",
-    "ProductMarketSettings"
-)
+    "ProductMarketSettings",
+    "DescBuilderFormulaLink",
+    "SpecPath",
+    "SpecsComposer")
 
 from .base import Base
 from .api_v1 import Activity, StockTable, Guests, Sellers, StockTableDependency
+from .desc_builder import DescBuilderFormulaLink, SpecsComposer, SpecPath
 from .hub import HUbMenuLevel, HUbStock
 from .parsing import ParsingLine
 from .product_dependencies import (ProductFeaturesLink,
@@ -55,5 +59,5 @@ from .service_image import ServiceImage
 from .attributes import AttributeLink, AttributeOriginValue, AttributeModelOption, AttributeBrandRule, AttributeValue, \
     AttributeKey
 
-from .formula import FormulaExpression
+from .formula import FormulaExpression, FormulaEntityType
 from .analytics import ProductTypeWeightRule, ProductTypeValueMap, ProductMarketSettings

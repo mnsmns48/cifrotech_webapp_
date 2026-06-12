@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 from typing import Union, List, Dict, Any, Optional
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 from pydantic_core.core_schema import FieldValidationInfo
 
 from api_service.schemas.range_reward_schemas import RewardRangeBaseSchema
@@ -91,15 +91,19 @@ class BrandModel(BaseModel):
     id: int
     brand: str
 
+    model_config = ConfigDict(from_attributes=True)
+
 
 class TypeModel(BaseModel):
     id: int
     type: str
 
+    model_config = ConfigDict(from_attributes=True)
+
 
 class ImageWithPreview(BaseModel):
     url: str
-    filename: str
+    filename: Optional[str] = None
     is_preview: bool
 
 
@@ -158,3 +162,9 @@ class FetchProductInfoRequest(BaseModel):
             raise ValueError("Нужно передать ровно одно из полей: origin, features_id или features_title")
 
         return values
+
+
+class UpdateProductFromDTPayload(BaseModel):
+    brand: str
+    type: str
+    title: str

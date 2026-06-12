@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.schemas import ServiceImageResponse, ServiceImageCreate, ServiceImageUpdate
-from app_utils import get_url_from_s3
+from api_service.s3_helper import get_url_from_s3
 from api_service.crud.main import fetch_utils_images, check_service_image
 from config import settings
 from engine import db

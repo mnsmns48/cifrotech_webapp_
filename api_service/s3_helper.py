@@ -3,13 +3,13 @@ import aioboto3
 import os
 
 from asyncio import gather, create_task
-from typing import List, Dict, Any, AsyncGenerator
+from typing import List, Dict, Any, AsyncGenerator, Union
 from urllib.parse import urlparse
 from aiobotocore.client import AioBaseClient
 from aiohttp import ClientSession, ClientConnectionError, ClientResponseError, ClientTimeout, ClientError
 from botocore.config import Config
-from botocore.exceptions import ClientError, BotoCoreError
-from fastapi import HTTPException
+from botocore.exceptions import ClientError, BotoCoreError, ParamValidationError
+from fastapi import HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,56 +38,58 @@ async def get_http_client_session():
         yield session
 
 
-async def build_with_preview(
-        session: AsyncSession, data_lines: list[ParsingLinesIn], s3_client: AioBaseClient) -> list[ParsingLinesIn]:
+async def fetch_images_grouped(session: AsyncSession,
+                               s3_client,
+                               origin_ids: set[int] | list[int]) -> dict[int, list[tuple[str, bool]]]:
+    if not origin_ids:
+        return {}
+
+    stmt = (select(ProductImage).where(ProductImage.origin_id.in_(origin_ids)).order_by(ProductImage.origin_id.asc(),
+                                                                                        ProductImage.is_preview.desc(),
+                                                                                        ProductImage.uploaded_at.asc()))
+    result = await session.execute(stmt)
+    images = result.scalars().all()
+    origin_to_images: dict[int, list[tuple[str, bool]]] = dict()
+    for img in images:
+        full_key = f"{settings.s3.s3_hub_prefix}/{img.origin_id}/{img.key}"
+        try:
+            url = await s3_client.generate_presigned_url(ClientMethod="get_object",
+                                                         Params={"Bucket": settings.s3.bucket_name, "Key": full_key},
+                                                         ExpiresIn=600)
+        except (ClientError, ParamValidationError, BotoCoreError):
+            continue
+        origin_to_images.setdefault(img.origin_id, []).append((url, img.is_preview))
+
+    for origin in origin_ids:
+        origin_to_images.setdefault(origin, [])
+
+    return origin_to_images
+
+
+async def load_images_for_origins(session: AsyncSession,
+                                  s3_client,
+                                  origin_ids: list[int] | set[int]) -> dict[int, list[ImageWithPreview]]:
+    grouped = await fetch_images_grouped(session, s3_client, origin_ids)
+    result: dict[int, list[ImageWithPreview]] = dict()
+    for origin, items in grouped.items():
+        result[origin] = [ImageWithPreview(url=url, filename=None, is_preview=is_preview) for url, is_preview in items]
+    return result
+
+
+async def build_with_preview(session: AsyncSession,
+                             data_lines: list[ParsingLinesIn],
+                             s3_client) -> list[ParsingLinesIn]:
     origins = {item.origin for item in data_lines if item.origin}
 
     if not origins:
         return data_lines
 
-    stmt = (select(ProductImage)
-            .where(ProductImage.origin_id.in_(origins)).order_by(ProductImage.origin_id.asc(),
-                                                                 ProductImage.is_preview.desc(),
-                                                                 ProductImage.uploaded_at.asc())
-            )
-    result = await session.execute(stmt)
-    images = result.scalars().all()
-
-    origin_to_images: dict[int, list[ProductImage]] = dict()
-
-    for img in images:
-        origin_to_images.setdefault(img.origin_id, []).append(img)
-
-    origin_to_preview_url: dict[int, str | None] = dict()
-
-    for origin in origins:
-        imgs = origin_to_images.get(origin)
-
-        if imgs:
-            chosen = imgs[0]
-            key = chosen.key
-
-            full_key = f"{settings.s3.s3_hub_prefix}/{origin}/{key}"
-
-            try:
-                preview_url = await s3_client.generate_presigned_url(
-                    ClientMethod="get_object",
-                    Params={"Bucket": settings.s3.bucket_name, "Key": full_key},
-                    ExpiresIn=600
-                )
-            except (ClientError, BotoCoreError):
-                preview_url = None
-
-            origin_to_preview_url[origin] = preview_url
-        else:
-            origin_to_preview_url[origin] = None
+    grouped = await fetch_images_grouped(session, s3_client, origins)
+    origin_to_preview = {origin: (items[0][0] if items else None) for origin, items in grouped.items()}
 
     for item in data_lines:
-        origin = item.origin
-        if origin in origin_to_preview_url:
-            url = origin_to_preview_url[origin]
-            if url:
-                item.preview = url
+        if item.origin in origin_to_preview:
+            item.preview = origin_to_preview[item.origin]
 
     return data_lines
 
@@ -118,11 +120,9 @@ async def scan_s3_images(s3_client, bucket: str, prefix: str) -> set[str]:
 
 
 async def generate_presigned_for_file(s3_client, bucket: str, key: str, filename: str) -> Dict[str, str]:
-    url = await s3_client.generate_presigned_url(
-        "get_object",
-        Params={"Bucket": bucket, "Key": key},
-        ExpiresIn=300
-    )
+    url = await s3_client.generate_presigned_url("get_object",
+                                                 Params={"Bucket": bucket, "Key": key},
+                                                 ExpiresIn=300)
     return {"filename": filename, "url": url}
 
 
@@ -296,50 +296,36 @@ async def safe_presign(s3_client, bucket, key, retries=3):
                 return None
 
 
-async def load_images_for_origins(session: AsyncSession,
-                                  s3_client,
-                                  origin_ids: list[int] | set[int]) -> dict[int, list[ImageWithPreview]]:
-    if not origin_ids:
-        return {}
-
-    stmt = (
-        select(ProductImage)
-        .where(ProductImage.origin_id.in_(origin_ids))
-        .order_by(
-            ProductImage.origin_id.asc(),
-            ProductImage.is_preview.desc(),
-            ProductImage.uploaded_at.asc()
-        )
+async def upload_to_s3(file, s3_client, cl_session, path):
+    filename = file.filename
+    key = f"{settings.s3.s3_hub_prefix}/{path}/{filename}"
+    bucket = settings.s3.bucket_name
+    body = await file.read()
+    put_url = await s3_client.generate_presigned_url(
+        ClientMethod="put_object",
+        Params={"Bucket": bucket, "Key": key},
+        ExpiresIn=600,
     )
+    async with cl_session.put(put_url, data=body) as resp:
+        if resp.status not in (200, 204):
+            raise RuntimeError(f"Upload failed with status {resp.status}")
+    return filename
 
-    result = await session.execute(stmt)
-    images = result.scalars().all()
 
-    origin_to_images: dict[int, list[ImageWithPreview]] = dict()
+async def delete_from_s3(filename: str, path: str, s3_client):
+    await s3_client.delete_object(Bucket=settings.s3.bucket_name, Key=f"{settings.s3.s3_hub_prefix}/{path}/{filename}")
 
-    for img in images:
-        origin_to_images.setdefault(img.origin_id, [])
 
-        full_key = f"{settings.s3.s3_hub_prefix}/{img.origin_id}/{img.key}"
+def get_url_from_s3(filename: Union[str, List[str]], path: str) -> Union[str, List[str]]:
+    s3 = settings.s3
+    base_url = s3.s3_url.removeprefix("https://").rstrip("/")
 
-        url = await safe_presign(
-            s3_client,
-            settings.s3.bucket_name,
-            full_key
-        )
+    def build_url(name: str) -> str:
+        return f"https://{s3.bucket_name}.{base_url}/{s3.s3_hub_prefix}/{path}/{name}"
 
-        if not url:
-            continue
-
-        origin_to_images[img.origin_id].append(
-            ImageWithPreview(
-                url=url,
-                filename=img.key,
-                is_preview=img.is_preview
-            )
-        )
-
-    for origin in origin_ids:
-        origin_to_images.setdefault(origin, [])
-
-    return origin_to_images
+    if isinstance(filename, str):
+        return build_url(filename)
+    elif isinstance(filename, list):
+        return [build_url(name) for name in filename]
+    else:
+        raise TypeError("Передавать аругментом filename нужно либо список, либо строку")

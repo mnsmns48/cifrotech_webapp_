@@ -9,6 +9,7 @@ class FeaturesElement(BaseModel):
     id: int
     brand: BrandModel
     type: TypeModel
+    source: str
     title: str
     hub_level: Optional[HubLevelPath]
     formula: Optional[FormulaIdObj]
