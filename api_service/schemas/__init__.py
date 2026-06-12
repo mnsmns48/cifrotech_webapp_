@@ -16,7 +16,8 @@ from api_service.schemas.parsing_schemas import ParsingRequest, ParsingLinesIn, 
 
 from api_service.schemas.product_schemas import ProductOriginUpdate, ProductDependencyUpdate, ProductResponse, \
     RecalcPricesRequest, RecalcPricesResponse, ProductOriginCreate, ProductDependencyBatchUpdate, OriginsList, \
-    TypeModel, BrandModel, ModelForApprove, FetchProductInfoRequest, ImageWithPreview, AnalyzeItem
+    TypeModel, BrandModel, ModelForApprove, FetchProductInfoRequest, ImageWithPreview, AnalyzeItem, \
+    UpdateProductFromDTPayload
 
 from api_service.schemas.range_reward_schemas import RewardRangeLineSchema, RewardRangeSchema, \
     RewardRangeResponseSchema, RewardRangeBaseSchema
@@ -67,7 +68,8 @@ __all__ += ["RewardRangeLineSchema", "RewardRangeSchema", "RewardRangeResponseSc
 __all__ += [
     "ProductOriginUpdate", "ProductDependencyUpdate", "ProductResponse", "RecalcPricesRequest", "RecalcPricesResponse",
     "ProductOriginCreate", "ProductDependencyBatchUpdate", "OriginsList", "OriginHubLevelMap", "BrandModel",
-    "TypeModel", "ModelForApprove", "FetchProductInfoRequest", "ImageWithPreview", "AnalyzeItem"]
+    "TypeModel", "ModelForApprove", "FetchProductInfoRequest", "ImageWithPreview", "AnalyzeItem",
+    "UpdateProductFromDTPayload"]
 
 __all__ += ["HubMenuLevelSchema", "RenameRequest", "HubPositionPatchOut", "AddHubLevelScheme", "AddHubLevelOutScheme",
             "HubPositionPatch", "HubLevelPath", "UpdateDeleteImageScheme", "UpdatedImageScheme", "PathRoute",

@@ -133,7 +133,7 @@ async def get_parsing_items_dependency_list(origin: int, session: AsyncSession =
         data = await get_items_by_params(client_session, item)
 
     if data is None:
-        raise HTTPException(status_code=502, detail="Нет данных")
+        raise HTTPException(status_code=502, detail="Ошибка 502")
 
     return {"items": data}
 

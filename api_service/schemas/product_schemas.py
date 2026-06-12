@@ -162,3 +162,9 @@ class FetchProductInfoRequest(BaseModel):
             raise ValueError("Нужно передать ровно одно из полей: origin, features_id или features_title")
 
         return values
+
+
+class UpdateProductFromDTPayload(BaseModel):
+    brand: str
+    type: str
+    title: str
