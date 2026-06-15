@@ -37,7 +37,8 @@ __all__ = (
     "ProductMarketSettings",
     "DescBuilderFormulaLink",
     "SpecPath",
-    "SpecsComposer")
+    "SpecsComposer",
+    "VendorApiToken")
 
 from .base import Base
 from .api_v1 import Activity, StockTable, Guests, Sellers, StockTableDependency
@@ -51,7 +52,8 @@ from .product_dependencies import (ProductFeaturesLink,
                                    ProductType, ProductImage, ProductFeaturesFormulaLink,
                                    ProductFeaturesHubMenuLevelLink)
 from .telegram_bot import TgBotOptions
-from .vendor import RewardRange, RewardRangeLine, VendorSearchLine, Vendor, VendorSearchLine, RewardRangeLine
+from .vendor import RewardRange, RewardRangeLine, VendorSearchLine, Vendor, VendorSearchLine, RewardRangeLine, \
+    VendorApiToken
 
 from .user import User
 from .access_token import AccessToken

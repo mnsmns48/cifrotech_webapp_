@@ -5,7 +5,6 @@ from app_utils import responses
 from config import settings, BROWSER_HEADERS
 
 
-
 async def create_browser(playwright: Playwright) -> Browser:
     browser = await playwright.chromium.launch(headless=settings.parsing.browser_headless)
     return browser

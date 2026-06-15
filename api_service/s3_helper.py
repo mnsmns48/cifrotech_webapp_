@@ -9,7 +9,7 @@ from aiobotocore.client import AioBaseClient
 from aiohttp import ClientSession, ClientConnectionError, ClientResponseError, ClientTimeout, ClientError
 from botocore.config import Config
 from botocore.exceptions import ClientError, BotoCoreError, ParamValidationError
-from fastapi import HTTPException, UploadFile
+from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession

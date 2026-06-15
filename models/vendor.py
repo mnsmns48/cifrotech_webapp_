@@ -21,8 +21,28 @@ class Vendor(Base):
     login: Mapped[str] = mapped_column(nullable=True)
     password: Mapped[str] = mapped_column(nullable=True)
     function: Mapped[str] = mapped_column(nullable=True)
+    token_id: Mapped[int | None] = mapped_column(ForeignKey("vendor_api_token.id"), nullable=True)
     search_lines: Mapped[list["VendorSearchLine"]] = relationship("VendorSearchLine", back_populates="vendor",
                                                                   cascade="all, delete")
+    api_token: Mapped["VendorApiToken"] = relationship("VendorApiToken", back_populates="vendor", uselist=False)
+
+
+class VendorApiToken(Base):
+    __tablename__ = "vendor_api_token"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    access_token: Mapped[str | None] = mapped_column(nullable=True)
+    refresh_token: Mapped[str | None] = mapped_column(nullable=True)
+    token_type: Mapped[str] = mapped_column(nullable=False, default="Bearer")
+
+    access_expires_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    refresh_expires_at: Mapped[datetime | None] = mapped_column(nullable=True)
+
+    last_auth_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    is_active: Mapped[bool] = mapped_column(nullable=False, default=True)
+
+    vendor: Mapped["Vendor"] = relationship("Vendor", back_populates="api_token")
 
 
 class VendorSearchLine(Base):
