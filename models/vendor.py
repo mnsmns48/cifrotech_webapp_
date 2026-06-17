@@ -24,7 +24,7 @@ class Vendor(Base):
     token_id: Mapped[int | None] = mapped_column(ForeignKey("vendor_api_token.id"), nullable=True)
     search_lines: Mapped[list["VendorSearchLine"]] = relationship("VendorSearchLine", back_populates="vendor",
                                                                   cascade="all, delete")
-    api_token: Mapped["VendorApiToken"] = relationship("VendorApiToken", back_populates="vendor", uselist=False)
+    api_token: Mapped["VendorApiToken"] = relationship("VendorApiToken", back_populates="vendor", lazy="selectin")
 
 
 class VendorApiToken(Base):
@@ -36,10 +36,10 @@ class VendorApiToken(Base):
     refresh_token: Mapped[str | None] = mapped_column(nullable=True)
     token_type: Mapped[str] = mapped_column(nullable=False, default="Bearer")
 
-    access_expires_at: Mapped[datetime | None] = mapped_column(nullable=True)
-    refresh_expires_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    access_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    refresh_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_auth_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    last_auth_at: Mapped[datetime | None] = mapped_column(nullable=True)
     is_active: Mapped[bool] = mapped_column(nullable=False, default=True)
 
     vendor: Mapped["Vendor"] = relationship("Vendor", back_populates="api_token")

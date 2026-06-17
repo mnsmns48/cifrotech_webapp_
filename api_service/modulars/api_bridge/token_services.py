@@ -5,7 +5,7 @@ from enum import Enum
 from aiohttp import ClientSession, ClientConnectionError, ClientResponseError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import VendorApiToken
+from models import VendorApiToken, Vendor
 
 
 class TokenState(Enum):
@@ -41,13 +41,14 @@ class TokenStateService:
 
 
 class LoginService:
+
     def __init__(self, http_client: ClientSession):
         self.http = http_client
 
     async def login(self, vendor, session: AsyncSession) -> AuthResult:
         try:
-            response = await self.http.post("/api/v1/auth/token",
-                                            json={"login": vendor.login, "password": vendor.password}, timeout=10)
+            url = f"{vendor.source}/api/v1/auth/token"
+            response = await self.http.post(url, json={"login": vendor.login, "password": vendor.password}, timeout=10)
         except (ClientConnectionError, ClientResponseError, asyncio.TimeoutError):
             return AuthResult.NETWORK_ERROR
 
@@ -76,35 +77,28 @@ class RefreshService:
     def __init__(self, http_client: ClientSession):
         self.http = http_client
 
-    async def refresh(self, vendor, session: AsyncSession) -> AuthResult:
+    async def refresh(self, vendor: Vendor, session: AsyncSession):
         token = vendor.api_token
-
+        url = f"{vendor.source}/api/v1/auth/refresh"
         try:
-            response = await self.http.post(
-                "/api/v1/auth/refresh",
-                json={"refreshToken": token.refresh_token},
-                timeout=10
-            )
+            response = await self.http.post(url, json={"refreshToken": token.refresh_token}, timeout=5)
+            if response.status != 200:
+                return AuthResult.INVALID_CREDENTIALS
+            data = await response.json()
+            if "accessToken" not in data or "refreshToken" not in data:
+                return AuthResult.NETWORK_ERROR
+
+            now = datetime.now(timezone.utc)
+            token.access_token = data["accessToken"]
+            token.refresh_token = data["refreshToken"]
+            token.access_expires_at = now + timedelta(seconds=data["expiresIn"])
+            token.refresh_expires_at = now + timedelta(seconds=data["refreshExpiresIn"])
+            token.last_auth_at = now
+            await session.commit()
+            return AuthResult.OK
+
         except (ClientConnectionError, ClientResponseError, asyncio.TimeoutError):
             return AuthResult.NETWORK_ERROR
-
-        if response.status == 401:
-            token.access_token = None
-            token.refresh_token = None
-            await session.commit()
-            return AuthResult.NEED_LOGIN
-
-        data = await response.json()
-        now = datetime.now(timezone.utc)
-
-        token.access_token = data["accessToken"]
-        token.refresh_token = data["refreshToken"]
-        token.access_expires_at = now + timedelta(minutes=15)
-        token.refresh_expires_at = now + timedelta(days=14)
-        token.last_auth_at = now
-
-        await session.commit()
-        return AuthResult.REFRESHED
 
 
 class AuthService:
