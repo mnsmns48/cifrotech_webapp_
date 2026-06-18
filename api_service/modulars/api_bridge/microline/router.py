@@ -1,18 +1,35 @@
 import asyncio
+import json
 import time
+
 from aiohttp import ClientConnectorError, ClientConnectionError, ClientResponseError
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import result_tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.modulars.api_bridge.microline.dependencies import get_microline_service
 from api_service.modulars.api_bridge.microline.scheme import LoginRequest
 from api_service.modulars.api_bridge.microline.service import MicrolineService
 from api_service.modulars.api_bridge.token_services import AuthService, AuthResult
+from config import redis_session
 from engine import db
 from models import Vendor
 
 microline_router = APIRouter(tags=['API Integration'], prefix='/microline')
+
+
+async def ensure_vendor_ready(vendor_id: int, session: AsyncSession, service: MicrolineService):
+    vendor = await session.get(Vendor, vendor_id)
+    if vendor is None:
+        return None, {"status": "vendor_not_found"}
+
+    try:
+        result = await service.auth.ensure_valid_tokens(vendor, session)
+        if result != AuthResult.OK:
+            return None, {"status": "auth_error"}
+    except (ClientConnectorError, ClientConnectionError, asyncio.TimeoutError):
+        return None, {"status": "auth_error"}
+
+    return vendor, None
 
 
 @microline_router.get("/vendors/{vendor_id}/integration-status")
@@ -93,89 +110,132 @@ async def get_categories(vendor_id: int,
                          parentId: int | None = None,
                          session: AsyncSession = Depends(db.session_dependency),
                          service: MicrolineService = Depends(get_microline_service)):
-    vendor = await session.get(Vendor, vendor_id)
-    if vendor is None:
-        return {"status": "vendor_not_found"}
-
-    try:
-        result = await service.auth.ensure_valid_tokens(vendor, session)
-        if result != AuthResult.OK:
-            return {"status": "auth_error"}
-
-    except (ClientConnectorError, ClientConnectionError, asyncio.TimeoutError):
-        return {"status": "auth_error"}
+    vendor, error = await ensure_vendor_ready(vendor_id, session, service)
+    if error:
+        return error
 
     categories = await service.client.get_categories(vendor, parentId)
     return {"status": "ok", "categories": categories}
 
 
+async def send_progress(redis, progress_id: str, message: dict):
+    print(">>> send_progress CALLED:", progress_id, message)
+    if not progress_id:
+        print(">>> send_progress ABORT: no progress_id")
+        return
+    await redis.publish(progress_id, json.dumps(message))
+    print(">>> send_progress PUBLISHED to redis:", progress_id)
+
+
+
 @microline_router.get("/vendors/{vendor_id}/products")
-async def get_products(vendor_id: int, categoryId: int, contractorId: int, deliveryLocationId: int,
-                       page: int = 1, limit: int = 200, auto: bool = False,
-                       session: AsyncSession = Depends(db.session_dependency),
-                       service: MicrolineService = Depends(get_microline_service)):
-    vendor = await session.get(Vendor, vendor_id)
-    await service._ensure_auth(vendor, session)
-    if auto:
-        all_items = list()
-        current_page = 1
-        while True:
-            try:
-                data = await service.client.get_products(
-                    vendor, contractor_id=contractorId, delivery_location_id=deliveryLocationId,
-                    category_id=categoryId, page=current_page, limit=limit)
-            except asyncio.TimeoutError:
-                return {"status": "timeout", "message": "Vendor API too slow"}
-
-            items = data.get("items", [])
-            all_items.extend(items)
-            if len(items) < limit:
-                break
-            current_page += 1
-
-        return {"status": "ok", "total": len(all_items), "products": all_items}
-
-    try:
-        data = await service.client.get_products(vendor,
-                                                 contractor_id=contractorId,
-                                                 delivery_location_id=deliveryLocationId,
-                                                 category_id=categoryId,
-                                                 page=page,
-                                                 limit=limit)
-    except asyncio.TimeoutError:
-        return {"status": "timeout", "message": "Vendor API too slow"}
-
-    return {"status": "ok", "products": data}
-
-
-@microline_router.get("/vendors/{vendor_id}/access-check")
-async def check_access(
+async def get_products(
         vendor_id: int,
+        categoryId: int,
+        contractorId: int,
+        deliveryLocationId: int,
+        progress: str | None = None,
+        limit: int = 300,
+        redis=Depends(redis_session),
         session: AsyncSession = Depends(db.session_dependency),
         service: MicrolineService = Depends(get_microline_service)
 ):
+    # --- AUTH ---
     vendor = await session.get(Vendor, vendor_id)
     if vendor is None:
         return {"status": "vendor_not_found"}
 
-    try:
-        result = await service.auth.ensure_valid_tokens(vendor, session)
-        if result != AuthResult.OK:
-            return {"status": "auth_error"}
-    except (ClientConnectorError, ClientConnectionError, asyncio.TimeoutError):
+    result = await service.auth.ensure_valid_tokens(vendor, session)
+    if result != AuthResult.OK:
         return {"status": "auth_error"}
+
+    # --- START ---
+    start_time = time.perf_counter()
+
+    # 1. Загружаем первую страницу
+    first_page = await service.client.get_products(
+        vendor,
+        contractor_id=contractorId,
+        delivery_location_id=deliveryLocationId,
+        category_id=categoryId,
+        page=1,
+        limit=limit
+    )
+
+    items = first_page.get("items", [])
+    total = first_page.get("total", None)
+
+    if not total:
+        total = len(items)
+
+    pages = (total + limit - 1) // limit
+
+    # отправляем прогресс первой страницы
+    await send_progress(redis, progress, {
+        "page": 1,
+        "pages": pages,
+        "received": len(items),
+        "total_items": len(items),
+        "percent": round((len(items) / total) * 100, 2),
+        "eta": None,
+    })
+
+    all_items = list(items)
+
+    # 2. Загружаем остальные страницы
+    for page in range(2, pages + 1):
+        page_start = time.perf_counter()
+
+        data = await service.client.get_products(
+            vendor,
+            contractor_id=contractorId,
+            delivery_location_id=deliveryLocationId,
+            category_id=categoryId,
+            page=page,
+            limit=limit
+        )
+
+        page_items = data.get("items", [])
+        all_items.extend(page_items)
+
+        elapsed = time.perf_counter() - start_time
+        avg_page_time = elapsed / page
+        eta = avg_page_time * (pages - page)
+
+        await send_progress(redis, progress, {
+            "page": page,
+            "pages": pages,
+            "received": len(page_items),
+            "total_items": len(all_items),
+            "percent": round((len(all_items) / total) * 100, 2),
+            "eta": round(eta, 1),
+        })
+
+    # END
+    await send_progress(redis, progress, {"status": "END"})
+
+    return {
+        "status": "ok",
+        "total": len(all_items),
+        "products": all_items
+    }
+
+
+@microline_router.get("/vendors/{vendor_id}/access-check")
+async def check_access(vendor_id: int,
+                       session: AsyncSession = Depends(db.session_dependency),
+                       service: MicrolineService = Depends(get_microline_service)):
+    vendor, error = await ensure_vendor_ready(vendor_id, session, service)
+    if error:
+        return error
 
     contractors = await service.client.get_contractors(vendor)
     result = dict()
 
     for line in contractors:
         if line.get("contractorId"):
-            result.update(
-                {"contractorId": line.get("contractorId"), "status": "ok"}
-            )
+            result.update({"contractorId": line.get("contractorId"), "status": "ok"})
             for delivery_line in line.get("deliveryLocations", []):
-                result.update(
-                    {"deliveryLocationId": delivery_line.get("deliveryLocationId")}
-                )
+                result.update({"deliveryLocationId": delivery_line.get("deliveryLocationId")})
 
     return result

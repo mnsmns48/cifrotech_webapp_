@@ -57,4 +57,3 @@ async def get_parsing_functions():
     directory = pathlib.Path(f"{BASE_DIR}/parsing/sources/")
     files = [file.stem for file in directory.glob("*.py") if file.name != "__init__.py"]
     return {'functions': files} if files else {'functions': []}
-

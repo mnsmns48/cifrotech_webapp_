@@ -27,7 +27,7 @@ class MicrolineClient:
         params = {"parentId": parent_id} if parent_id is not None else None
         return await self._request(vendor, "GET", "/categories", params=params)
 
-    async def get_products(self, vendor, contractor_id, delivery_location_id, category_id, page=1, limit=200):
+    async def get_products(self, vendor, contractor_id, delivery_location_id, category_id, page, limit):
         params = {"contractorId": contractor_id,
                   "deliveryLocationId": delivery_location_id,
                   "categoryId": category_id,
