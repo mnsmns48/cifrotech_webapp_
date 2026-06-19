@@ -12,6 +12,8 @@ class MicrolineClient:
                 "Content-Type": "application/json"}
 
     async def _request(self, vendor, method: str, path: str, **kwargs):
+
+
         url = f"{vendor.source}/api/v1{path}"
         headers = await self._auth_headers(vendor)
 

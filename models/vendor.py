@@ -3,7 +3,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, DateTime
+from sqlalchemy import ForeignKey, DateTime, func
+from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.base import Base
@@ -47,6 +48,7 @@ class VendorApiToken(Base):
 
 class VendorSearchLine(Base):
     __tablename__ = "vendor_search_line"
+
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
     vendor_id: Mapped[int] = mapped_column(ForeignKey("vendor.id"), nullable=False)
     title: Mapped[str] = mapped_column(nullable=False)
@@ -56,16 +58,43 @@ class VendorSearchLine(Base):
     parsing_lines: Mapped["ParsingLine"] = relationship("ParsingLine", back_populates="vendor_search_line")
     vendor: Mapped["Vendor"] = relationship("Vendor", back_populates="search_lines")
     stocks: Mapped["HUbStock"] = relationship("HUbStock", back_populates="search_lines")
+    api_searches: Mapped[list["VendorApiSearch"]] = relationship("VendorApiSearch",
+                                                                 secondary="vendor_api_search_line",
+                                                                 back_populates="search_lines")
+
+
+class VendorApiSearch(Base):
+    __tablename__ = "vendor_api_search"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    vendor_id: Mapped[int] = mapped_column(ForeignKey("vendor.id"), nullable=False)
+    category_id: Mapped[int] = mapped_column(nullable=False)
+    id_path: Mapped[str] = mapped_column(nullable=True)
+    search_params: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    search_lines: Mapped[list["VendorSearchLine"]] = relationship("VendorSearchLine",
+                                                                  secondary="vendor_api_search_line",
+                                                                  back_populates="api_searches")
+
+
+class VendorApiSearchLine(Base):
+    __tablename__ = "vendor_api_search_line"
+
+    api_search_id: Mapped[int] = mapped_column(ForeignKey("vendor_api_search.id", ondelete="CASCADE"),
+                                               primary_key=True)
+    vsl_id: Mapped[int] = mapped_column(ForeignKey("vendor_search_line.id", ondelete="CASCADE"),
+                                        primary_key=True)
 
 
 class RewardRange(Base):
     __tablename__ = "rewardrange"
+
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, )
     title: Mapped[str] = mapped_column(nullable=False)
     is_default: Mapped[bool] = mapped_column(nullable=False)
+
     lines: Mapped[list["RewardRangeLine"]] = relationship("RewardRangeLine",
                                                           back_populates="range", cascade="all, delete")
-
     parsing_lines: Mapped[list["ParsingLine"]] = relationship("ParsingLine", back_populates="reward_range")
     stocks: Mapped[list["HUbStock"]] = relationship("HUbStock", back_populates="reward_range")
 

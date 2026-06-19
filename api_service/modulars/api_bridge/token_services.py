@@ -108,6 +108,21 @@ class AuthService:
         self.refresh_service = refresh_service
 
     async def ensure_valid_tokens(self, vendor, session: AsyncSession) -> AuthResult:
+        token = vendor.api_token
+
+        if token is None or not token.is_active:
+            return await self.login_service.login(vendor, session)
+
+        now = datetime.now(timezone.utc)
+        remaining = (token.access_expires_at - now).total_seconds()
+        if remaining < 600:
+            refreshed = await self.refresh_service.refresh(vendor, session)
+            if refreshed == AuthResult.OK:
+                return AuthResult.OK
+
+            logged = await self.login_service.login(vendor, session)
+            return logged
+
         state = self.state.check_state(vendor)
 
         if state == TokenState.INACTIVE:
@@ -120,7 +135,7 @@ class AuthService:
             return await self.refresh_service.refresh(vendor, session)
 
         if state == TokenState.NEED_LOGIN:
-            await self.login_service.login(vendor, session)
+            return await self.login_service.login(vendor, session)
 
         return AuthResult.NETWORK_ERROR
 
