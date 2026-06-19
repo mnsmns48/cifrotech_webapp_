@@ -120,7 +120,7 @@ class AuthService:
             return await self.refresh_service.refresh(vendor, session)
 
         if state == TokenState.NEED_LOGIN:
-            return AuthResult.NEED_LOGIN
+            await self.login_service.login(vendor, session)
 
         return AuthResult.NETWORK_ERROR
 

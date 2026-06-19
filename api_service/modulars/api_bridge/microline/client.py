@@ -33,7 +33,6 @@ class MicrolineClient:
                   "categoryId": category_id,
                   "page": page,
                   "limit": limit}
-
         return await self._request(vendor, "GET", "/products", params=params)
 
     async def get_links(self, vendor):

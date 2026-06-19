@@ -119,28 +119,21 @@ async def get_categories(vendor_id: int,
 
 
 async def send_progress(redis, progress_id: str, message: dict):
-    print(">>> send_progress CALLED:", progress_id, message)
     if not progress_id:
-        print(">>> send_progress ABORT: no progress_id")
         return
     await redis.publish(progress_id, json.dumps(message))
-    print(">>> send_progress PUBLISHED to redis:", progress_id)
-
 
 
 @microline_router.get("/vendors/{vendor_id}/products")
-async def get_products(
-        vendor_id: int,
-        categoryId: int,
-        contractorId: int,
-        deliveryLocationId: int,
-        progress: str | None = None,
-        limit: int = 300,
-        redis=Depends(redis_session),
-        session: AsyncSession = Depends(db.session_dependency),
-        service: MicrolineService = Depends(get_microline_service)
-):
-    # --- AUTH ---
+async def get_products(vendor_id: int,
+                       categoryId: int,
+                       contractorId: int,
+                       deliveryLocationId: int,
+                       progress: str | None = None,
+                       limit: int = 120,
+                       redis=Depends(redis_session),
+                       session: AsyncSession = Depends(db.session_dependency),
+                       service: MicrolineService = Depends(get_microline_service)):
     vendor = await session.get(Vendor, vendor_id)
     if vendor is None:
         return {"status": "vendor_not_found"}
@@ -149,76 +142,47 @@ async def get_products(
     if result != AuthResult.OK:
         return {"status": "auth_error"}
 
-    # --- START ---
     start_time = time.perf_counter()
-
-    # 1. Загружаем первую страницу
-    first_page = await service.client.get_products(
-        vendor,
-        contractor_id=contractorId,
-        delivery_location_id=deliveryLocationId,
-        category_id=categoryId,
-        page=1,
-        limit=limit
-    )
+    first_page = await service.client.get_products(vendor, contractor_id=contractorId,
+                                                   delivery_location_id=deliveryLocationId,
+                                                   category_id=categoryId,
+                                                   page=1,
+                                                   limit=limit)
 
     items = first_page.get("items", [])
     total = first_page.get("total", None)
 
     if not total:
         total = len(items)
-
     pages = (total + limit - 1) // limit
-
-    # отправляем прогресс первой страницы
-    await send_progress(redis, progress, {
-        "page": 1,
-        "pages": pages,
-        "received": len(items),
-        "total_items": len(items),
-        "percent": round((len(items) / total) * 100, 2),
-        "eta": None,
-    })
+    await send_progress(redis, progress, {"page": 1,
+                                          "pages": pages,
+                                          "received": len(items),
+                                          "total_items": len(items),
+                                          "percent": round((len(items) / total) * 100, 2),
+                                          "eta": None})
 
     all_items = list(items)
-
-    # 2. Загружаем остальные страницы
     for page in range(2, pages + 1):
-        page_start = time.perf_counter()
-
-        data = await service.client.get_products(
-            vendor,
-            contractor_id=contractorId,
-            delivery_location_id=deliveryLocationId,
-            category_id=categoryId,
-            page=page,
-            limit=limit
-        )
-
+        data = await service.client.get_products(vendor, contractor_id=contractorId,
+                                                 delivery_location_id=deliveryLocationId,
+                                                 category_id=categoryId,
+                                                 page=page,
+                                                 limit=limit)
         page_items = data.get("items", [])
         all_items.extend(page_items)
-
         elapsed = time.perf_counter() - start_time
         avg_page_time = elapsed / page
         eta = avg_page_time * (pages - page)
-
-        await send_progress(redis, progress, {
-            "page": page,
-            "pages": pages,
-            "received": len(page_items),
-            "total_items": len(all_items),
-            "percent": round((len(all_items) / total) * 100, 2),
-            "eta": round(eta, 1),
-        })
-
-    # END
+        await send_progress(redis, progress, {"page": page, "pages": pages, "received": len(page_items),
+                                              "total_items": len(all_items),
+                                              "percent": round((len(all_items) / total) * 100, 2),
+                                              "eta": round(eta, 1)})
     await send_progress(redis, progress, {"status": "END"})
+    all_items.sort(key=lambda x: float(x.get("price", 0)))
+    elapsed = time.perf_counter() - start_time
 
-    return {
-        "status": "ok",
-        "total": len(all_items),
-        "products": all_items
-    }
+    return {"status": "ok", "total": len(all_items), "exec_time": round(elapsed, 1), "products": all_items}
 
 
 @microline_router.get("/vendors/{vendor_id}/access-check")
