@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 
-from api_service.modulars.api_bridge.microline.router import microline_router
+from api_service.modulars.api_bridge.microline.api_bridge_router import api_bridge_router
+from api_service.modulars.api_bridge.microline.microline_router import microline_router
 from api_service.routers.analytics import analytics_router
 from api_service.routers.desc_builder import desc_builder
 from api_service.routers.price_sync import price_sync_router
@@ -39,3 +40,4 @@ service_router.include_router(product_router)
 service_router.include_router(desc_builder)
 
 service_router.include_router(microline_router)
+service_router.include_router(api_bridge_router)

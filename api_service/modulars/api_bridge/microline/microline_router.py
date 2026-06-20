@@ -4,15 +4,16 @@ import time
 
 from aiohttp import ClientConnectorError, ClientConnectionError, ClientResponseError
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.modulars.api_bridge.microline.dependencies import get_microline_service
-from api_service.modulars.api_bridge.microline.scheme import LoginRequest
+from api_service.modulars.api_bridge.microline.scheme import LoginRequest, ProductsFromApiResponse
 from api_service.modulars.api_bridge.microline.service import MicrolineService
 from api_service.modulars.api_bridge.token_services import AuthService, AuthResult
 from config import redis_session
 from engine import db
-from models import Vendor
+from models import Vendor, VendorApiSearch
 
 microline_router = APIRouter(tags=['API Integration'], prefix='/microline')
 
@@ -124,7 +125,7 @@ async def send_progress(redis, progress_id: str, message: dict):
     await redis.publish(progress_id, json.dumps(message))
 
 
-@microline_router.get("/vendors/{vendor_id}/products")
+@microline_router.get("/vendors/{vendor_id}/products", response_model=ProductsFromApiResponse)
 async def get_products(vendor_id: int,
                        categoryId: int,
                        contractorId: int,
@@ -155,11 +156,12 @@ async def get_products(vendor_id: int,
     if not total:
         total = len(items)
     pages = (total + limit - 1) // limit
+    percent = 0 if total == 0 else round((len(items) / total) * 100, 2)
     await send_progress(redis, progress, {"page": 1,
                                           "pages": pages,
                                           "received": len(items),
                                           "total_items": len(items),
-                                          "percent": round((len(items) / total) * 100, 2),
+                                          "percent": percent,
                                           "eta": None})
 
     all_items = list(items)
@@ -174,15 +176,24 @@ async def get_products(vendor_id: int,
         elapsed = time.perf_counter() - start_time
         avg_page_time = elapsed / page
         eta = avg_page_time * (pages - page)
+        percent = 0 if total == 0 else round((len(all_items) / total) * 100, 2)
         await send_progress(redis, progress, {"page": page, "pages": pages, "received": len(page_items),
                                               "total_items": len(all_items),
-                                              "percent": round((len(all_items) / total) * 100, 2),
+                                              "percent": percent,
                                               "eta": round(eta, 1)})
     await send_progress(redis, progress, {"status": "END"})
     all_items.sort(key=lambda x: float(x.get("price", 0)))
     elapsed = time.perf_counter() - start_time
 
-    return {"status": "ok", "total": len(all_items), "exec_time": round(elapsed, 1), "products": all_items}
+    exists = await session.scalar(
+        select(VendorApiSearch.id)
+        .where(VendorApiSearch.vendor_id == vendor_id)
+        .where(VendorApiSearch.category_id == categoryId)
+    )
+
+    already_exists = exists is not None
+    return ProductsFromApiResponse(status="ok", total=len(all_items),
+                                   exec_time=round(elapsed, 1), already_exists=already_exists, products=all_items)
 
 
 @microline_router.get("/vendors/{vendor_id}/access-check")

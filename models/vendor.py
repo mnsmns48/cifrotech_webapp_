@@ -59,7 +59,7 @@ class VendorSearchLine(Base):
     vendor: Mapped["Vendor"] = relationship("Vendor", back_populates="search_lines")
     stocks: Mapped["HUbStock"] = relationship("HUbStock", back_populates="search_lines")
     api_searches: Mapped[list["VendorApiSearch"]] = relationship("VendorApiSearch",
-                                                                 secondary="vendor_api_search_line",
+                                                                 secondary="vendor_api_search_line_link",
                                                                  back_populates="search_lines")
 
 
@@ -69,21 +69,28 @@ class VendorApiSearch(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     vendor_id: Mapped[int] = mapped_column(ForeignKey("vendor.id"), nullable=False)
     category_id: Mapped[int] = mapped_column(nullable=False)
+    title: Mapped[str] = mapped_column(nullable=False)
     id_path: Mapped[str] = mapped_column(nullable=True)
     search_params: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     search_lines: Mapped[list["VendorSearchLine"]] = relationship("VendorSearchLine",
-                                                                  secondary="vendor_api_search_line",
+                                                                  secondary="vendor_api_search_line_link",
                                                                   back_populates="api_searches")
 
 
-class VendorApiSearchLine(Base):
-    __tablename__ = "vendor_api_search_line"
+class VendorApiSearchLineLink(Base):
+    __tablename__ = "vendor_api_search_line_link"
 
     api_search_id: Mapped[int] = mapped_column(ForeignKey("vendor_api_search.id", ondelete="CASCADE"),
                                                primary_key=True)
     vsl_id: Mapped[int] = mapped_column(ForeignKey("vendor_search_line.id", ondelete="CASCADE"),
                                         primary_key=True)
+
+
+class VendorSearchLineBrandLink(Base):
+    __tablename__ = "vendor_search_line_brand_link"
+
+    vsl_id: Mapped[int] = mapped_column(ForeignKey("vendor_search_line.id", ondelete="CASCADE"), primary_key=True)
+    brand_id: Mapped[int] = mapped_column(ForeignKey("product_brand.id", ondelete="CASCADE"), primary_key=True)
 
 
 class RewardRange(Base):
