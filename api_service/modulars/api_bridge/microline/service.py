@@ -1,12 +1,16 @@
+from datetime import datetime
+
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.modulars.api_bridge.microline.client import MicrolineClient
-from api_service.modulars.api_bridge.microline.scheme import AddVendorApiSearch, VendorApiSearchResponse, \
-    DeleteVendorApiSearch, VendorApiSearchDeleteResponse
+from api_service.modulars.api_bridge.microline.schemas import AddVendorApiSearch, VendorApiSearchResponse, \
+    DeleteVendorApiSearch, VendorApiSearchDeleteResponse, ApiSearchVSLResponse
 from api_service.modulars.api_bridge.token_services import AuthResult
-from models import Vendor, VendorApiSearch
+from api_service.schemas import BrandModel, VSLScheme, VSLSchemeWithBrands
+from models import Vendor, VendorApiSearch, VendorSearchLine, VendorApiSearchLineLink, ProductBrand
+from models.vendor import VendorSearchLineBrandLink
 
 
 class MicrolineService:
@@ -80,3 +84,57 @@ class ApiBridgeService:
         await session.commit()
 
         return VendorApiSearchDeleteResponse(status="ok", deleted_id=obj.id, **payload.model_dump())
+
+    @staticmethod
+    async def get_vendor_api_search_line_link(api_search_id: int, session: AsyncSession) -> ApiSearchVSLResponse:
+        api_search = await session.get(VendorApiSearch, api_search_id)
+        if api_search is None:
+            return ApiSearchVSLResponse(status=False, all_VSL=[], linked_VSL=[])
+        vendor_id = api_search.vendor_id
+        stmt_all = select(VendorSearchLine).where(VendorSearchLine.vendor_id == vendor_id)
+        rows_all = await session.execute(stmt_all)
+        all_vsl = rows_all.scalars().all()
+        stmt_linked = ((select(VendorSearchLine).join(VendorApiSearchLineLink,
+                                                      VendorApiSearchLineLink.vsl_id == VendorSearchLine.id)
+                        .where(VendorApiSearchLineLink.api_search_id == api_search_id))
+                       .order_by(VendorSearchLine.dt_parsed.desc()))
+        rows_linked = await session.execute(stmt_linked)
+        linked_vsl = rows_linked.scalars().all()
+
+        vsl_ids = list()
+        for v in all_vsl:
+            vsl_ids.append(v.id)
+
+        stmt_brands = (select(VendorSearchLineBrandLink, ProductBrand).join(ProductBrand,
+                                                                            ProductBrand.id == VendorSearchLineBrandLink.brand_id)
+                       .where(VendorSearchLineBrandLink.vsl_id.in_(vsl_ids)))
+        rows_brands = await session.execute(stmt_brands)
+        brand_pairs = rows_brands.all()
+
+        brand_map = dict()
+        for link, brand in brand_pairs:
+            vsl_id = link.vsl_id
+            if vsl_id not in brand_map:
+                brand_map[vsl_id] = list()
+            brand_map[vsl_id].append(BrandModel.model_validate(brand))
+
+        all_vsl_schemes = list()
+        for v in all_vsl:
+            base = VSLScheme.cls_validate(v)
+            vsl_id = v.id
+            brands = brand_map[vsl_id] if vsl_id in brand_map else None
+            all_vsl_schemes.append(VSLSchemeWithBrands(**base, brands=brands))
+        all_vsl_schemes.sort(key=lambda x: x.dt_parsed or datetime.min, reverse=True)
+
+        linked_vsl_schemes = list()
+        for v in linked_vsl:
+            base = VSLScheme.cls_validate(v)
+            vsl_id = v.id
+            brands = brand_map[vsl_id] if vsl_id in brand_map else None
+            linked_vsl_schemes.append(VSLSchemeWithBrands(**base, brands=brands))
+
+        status = False
+        if len(linked_vsl_schemes) > 0:
+            status = True
+
+        return ApiSearchVSLResponse(status=status, all_VSL=all_vsl_schemes, linked_VSL=linked_vsl_schemes)

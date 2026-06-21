@@ -22,7 +22,7 @@ from api_service.schemas.product_schemas import ProductOriginUpdate, ProductDepe
 from api_service.schemas.range_reward_schemas import RewardRangeLineSchema, RewardRangeSchema, \
     RewardRangeResponseSchema, RewardRangeBaseSchema
 
-from api_service.schemas.vsl_schemas import VSLScheme
+from api_service.schemas.vsl_schemas import VSLScheme, VSLSchemeWithBrands
 
 from api_service.schemas.vendor_schemas import VendorSchema, VslId
 
@@ -57,7 +57,7 @@ __all__ = list()
 
 __all__ += ["VendorSchema"]
 
-__all__ += ["VSLScheme", "VslId"]
+__all__ += ["VSLScheme", "VslId", "VSLSchemeWithBrands"]
 
 __all__ += ["ParsingRequest", "ParsingLinesIn", "ParsingToDiffData", "SourceContext", "ParsingResultOut",
             "AddAttributesValuesRequest", "DependencyImageItem", "DependencyOriginImplementation", "ImageResponseItem"]

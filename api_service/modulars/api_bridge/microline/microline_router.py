@@ -8,7 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.modulars.api_bridge.microline.dependencies import get_microline_service
-from api_service.modulars.api_bridge.microline.scheme import LoginRequest, ProductsFromApiResponse
+from api_service.modulars.api_bridge.microline.schemas import LoginRequest, ProductsFromApiResponse, \
+    ApiSearchAlreadyExists
 from api_service.modulars.api_bridge.microline.service import MicrolineService
 from api_service.modulars.api_bridge.token_services import AuthService, AuthResult
 from config import redis_session
@@ -185,15 +186,20 @@ async def get_products(vendor_id: int,
     all_items.sort(key=lambda x: float(x.get("price", 0)))
     elapsed = time.perf_counter() - start_time
 
-    exists = await session.scalar(
-        select(VendorApiSearch.id)
-        .where(VendorApiSearch.vendor_id == vendor_id)
-        .where(VendorApiSearch.category_id == categoryId)
-    )
+    row = await session.execute(select(VendorApiSearch).where(VendorApiSearch.vendor_id == vendor_id)
+                                .where(VendorApiSearch.category_id == categoryId))
+    obj = row.scalar_one_or_none()
+    if obj:
+        data = {"id": obj.id, "vendor_id": obj.vendor_id, "category_id": obj.category_id, "title": obj.title,
+                "id_path": obj.id_path,
+                "search_params": obj.search_params}
+        already_exists = ApiSearchAlreadyExists(**data, status=True)
+    else:
+        already_exists = ApiSearchAlreadyExists(id=None, vendor_id=vendor_id, category_id=categoryId, title=None,
+                                                id_path=None, search_params=None, status=False)
 
-    already_exists = exists is not None
-    return ProductsFromApiResponse(status="ok", total=len(all_items),
-                                   exec_time=round(elapsed, 1), already_exists=already_exists, products=all_items)
+    return ProductsFromApiResponse(status="ok", total=len(all_items), exec_time=round(elapsed, 1),
+                                   already_exists=already_exists, products=all_items)
 
 
 @microline_router.get("/vendors/{vendor_id}/access-check")

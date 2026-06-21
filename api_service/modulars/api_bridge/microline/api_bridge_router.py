@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api_service.modulars.api_bridge.microline.scheme import AddVendorApiSearch, VendorApiSearchResponse, \
-    DeleteVendorApiSearch, VendorApiSearchDeleteResponse
+from api_service.modulars.api_bridge.microline.schemas import AddVendorApiSearch, VendorApiSearchResponse, \
+    DeleteVendorApiSearch, VendorApiSearchDeleteResponse, ApiSearchVSLResponse
 from api_service.modulars.api_bridge.microline.service import ApiBridgeService
 from engine import db
 
@@ -21,3 +21,10 @@ async def bridge_delete_vendor_api_search(payload: DeleteVendorApiSearch,
                                           session: AsyncSession = Depends(
                                               db.session_dependency)) -> VendorApiSearchDeleteResponse:
     return await ApiBridgeService.bridge_delete_vendor_api_search(payload, session)
+
+
+@api_bridge_router.get("/api_bridge/vendor_api_search_line_link/{api_search_id}", response_model=ApiSearchVSLResponse)
+async def get_vendor_api_search_line_link(api_search_id: int, session: AsyncSession = Depends(db.session_dependency)):
+    return await ApiBridgeService.get_vendor_api_search_line_link(api_search_id, session)
+
+

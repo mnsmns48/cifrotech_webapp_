@@ -1,6 +1,9 @@
 from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel
+
+from api_service.schemas.product_schemas import BrandModel
 
 
 class VSLScheme(BaseModel):
@@ -17,3 +20,7 @@ class VSLScheme(BaseModel):
         return cls.model_validate(vendor.__dict__).model_dump()
 
     model_config = {"from_attributes": True}
+
+
+class VSLSchemeWithBrands(VSLScheme):
+    brands: Optional[list[BrandModel]] = None
