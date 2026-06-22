@@ -31,3 +31,8 @@ class VSLSchemeWithBrands(VSLScheme):
 
 class VSLSchemeWithBrandsCreate(VSLSchemeBase):
     brands: Optional[list[BrandModel]] = None
+
+
+class VendorApiSearchLinkScheme(BaseModel):
+    api_search_id: int
+    vsl_id: int

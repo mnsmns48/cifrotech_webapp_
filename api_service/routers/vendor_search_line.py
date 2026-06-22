@@ -2,11 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.requests import Request
 from sqlalchemy import select
 
-from api_service.schemas import VSLScheme, VSLSchemeWithBrandsCreate, VSLSchemeWithBrands, BrandModel
+from api_service.schemas import VSLScheme, VSLSchemeWithBrandsCreate, VSLSchemeWithBrands, BrandModel, \
+    VendorApiSearchLinkScheme
 from api_service.utils import update_instance_fields
 from engine import db
 from models import ProductBrand
-from models.vendor import VendorSearchLine, VendorSearchLineBrandLink
+from models.vendor import VendorSearchLine, VendorSearchLineBrandLink, VendorApiSearchLineLink
 from sqlalchemy.ext.asyncio import AsyncSession
 
 vendor_search_line_router = APIRouter(tags=['Service-Vendors-Search-Line'])
@@ -116,17 +117,15 @@ async def update_vsl_with_brand(payload: VSLSchemeWithBrands,
     if not vsl:
         raise HTTPException(status_code=404, detail="Vendor Search Line not found")
 
-    errors = []
+    errors = list()
 
     title = (payload.title or "").strip()
     if not title:
         errors.append("Title cannot be empty")
     else:
-        stmt_title = select(VendorSearchLine).where(
-            VendorSearchLine.vendor_id == payload.vendor_id,
-            VendorSearchLine.title == title,
-            VendorSearchLine.id != payload.id
-        )
+        stmt_title = select(VendorSearchLine).where(VendorSearchLine.vendor_id == payload.vendor_id,
+                                                    VendorSearchLine.title == title,
+                                                    VendorSearchLine.id != payload.id)
         exists_title = await session.execute(stmt_title)
         if exists_title.scalar_one_or_none():
             errors.append("Title already exists")
@@ -135,11 +134,9 @@ async def update_vsl_with_brand(payload: VSLSchemeWithBrands,
     if not url:
         errors.append("URL cannot be empty")
     else:
-        stmt_url = select(VendorSearchLine).where(
-            VendorSearchLine.vendor_id == payload.vendor_id,
-            VendorSearchLine.url == url,
-            VendorSearchLine.id != payload.id
-        )
+        stmt_url = select(VendorSearchLine).where(VendorSearchLine.vendor_id == payload.vendor_id,
+                                                  VendorSearchLine.url == url,
+                                                  VendorSearchLine.id != payload.id)
         exists_url = await session.execute(stmt_url)
         if exists_url.scalar_one_or_none():
             errors.append("URL already exists")
@@ -187,3 +184,35 @@ async def update_vsl_with_brand(payload: VSLSchemeWithBrands,
     return VSLSchemeWithBrands.model_validate({"id": vsl.id, "vendor_id": vsl.vendor_id,
                                                "title": vsl.title, "url": vsl.url,
                                                "dt_parsed": vsl.dt_parsed, "brands": brands})
+
+
+@vendor_search_line_router.post("/add_link_vsl_api_search")
+async def add_link_vsl_api_search(payload: VendorApiSearchLinkScheme,
+                                  session: AsyncSession = Depends(db.scoped_session_dependency)):
+    stmt = select(VendorApiSearchLineLink).where(VendorApiSearchLineLink.api_search_id == payload.api_search_id,
+                                                 VendorApiSearchLineLink.vsl_id == payload.vsl_id)
+    exists = await session.execute(stmt)
+    if exists.scalar_one_or_none():
+        return {"result": "already_exists"}
+
+    link = VendorApiSearchLineLink(api_search_id=payload.api_search_id, vsl_id=payload.vsl_id)
+
+    session.add(link)
+    await session.commit()
+    return {"result": "added"}
+
+
+@vendor_search_line_router.delete("/remove_link_vsl_api_search")
+async def remove_link_vsl_api_search(payload: VendorApiSearchLinkScheme,
+                                     session: AsyncSession = Depends(db.scoped_session_dependency)):
+    stmt = select(VendorApiSearchLineLink).where(VendorApiSearchLineLink.api_search_id == payload.api_search_id,
+                                                 VendorApiSearchLineLink.vsl_id == payload.vsl_id)
+    rows = await session.execute(stmt)
+    link = rows.scalar_one_or_none()
+
+    if not link:
+        return {"result": "not_found"}
+
+    await session.delete(link)
+    await session.commit()
+    return {"result": "removed"}
