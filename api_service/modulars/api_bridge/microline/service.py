@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import HTTPException
 from sqlalchemy import select
@@ -11,6 +11,14 @@ from api_service.modulars.api_bridge.token_services import AuthResult
 from api_service.schemas import BrandModel, VSLScheme, VSLSchemeWithBrands
 from models import Vendor, VendorApiSearch, VendorSearchLine, VendorApiSearchLineLink, ProductBrand
 from models.vendor import VendorSearchLineBrandLink
+
+
+def normalize_dt(dt: datetime | None):
+    if dt is None:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
 class MicrolineService:
@@ -124,7 +132,10 @@ class ApiBridgeService:
             vsl_id = v.id
             brands = brand_map[vsl_id] if vsl_id in brand_map else None
             all_vsl_schemes.append(VSLSchemeWithBrands(**base, brands=brands))
-        all_vsl_schemes.sort(key=lambda x: x.dt_parsed or datetime.min, reverse=True)
+
+        all_vsl_schemes.sort(
+            key=lambda x: normalize_dt(getattr(x, "dt_parsed", None)),
+            reverse=True)
 
         linked_vsl_schemes = list()
         for v in linked_vsl:

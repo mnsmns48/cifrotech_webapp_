@@ -18,6 +18,11 @@ async def fetch_product_types(session: AsyncSession = Depends(db.scoped_session_
     return await ProductService.get_product_types(session)
 
 
+@product_router.get("/fetch_brands_list", response_model=list[BrandModel])
+async def fetch_brands(session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await ProductService.get_brands(session)
+
+
 @product_router.post("/update_product_from_dt")
 async def update_product_from_dt(payload: UpdateProductFromDTPayload,
                                  cl_session: ClientSession = Depends(get_http_client_session),
@@ -45,8 +50,3 @@ async def update_product_from_dt(payload: UpdateProductFromDTPayload,
             "title": product.title,
             "info": product.info,
             "pros_cons": product.pros_cons}
-
-
-@product_router.get("/fetch_brands_list", response_model=list[BrandModel])
-async def fetch_brands(session: AsyncSession = Depends(db.scoped_session_dependency)):
-    return await ProductService.get_brands(session)
