@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api_service.api_connect import update_product_from_dtube
 from api_service.modulars.product.service import ProductService
 from api_service.s3_helper import get_http_client_session
-from api_service.schemas import TypeModel, UpdateProductFromDTPayload, BrandModel
+from api_service.schemas import TypeModel, UpdateProductFromDTPayload, BrandModel, BrandsBulkList
 from engine import db
 from models import ProductFeaturesGlobal
 
@@ -50,3 +50,8 @@ async def update_product_from_dt(payload: UpdateProductFromDTPayload,
             "title": product.title,
             "info": product.info,
             "pros_cons": product.pros_cons}
+
+
+@product_router.post("/update_brands")
+async def update_brands(brands_bulk: BrandsBulkList, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await ProductService.update_brands(brands_bulk, session)
