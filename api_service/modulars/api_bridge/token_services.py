@@ -115,7 +115,7 @@ class AuthService:
 
         now = datetime.now(timezone.utc)
         remaining = (token.access_expires_at - now).total_seconds()
-        if remaining < 600:
+        if remaining < 300:
             refreshed = await self.refresh_service.refresh(vendor, session)
             if refreshed == AuthResult.OK:
                 return AuthResult.OK
