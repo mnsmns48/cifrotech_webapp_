@@ -1,16 +1,21 @@
+from collections import defaultdict
 from datetime import datetime, timezone
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, delete, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from api_service.modulars.api_bridge.microline.client import MicrolineClient
 from api_service.modulars.api_bridge.microline.schemas import AddVendorApiSearch, VendorApiSearchResponse, \
-    DeleteVendorApiSearch, VendorApiSearchDeleteResponse, ApiSearchVSLResponse
+    DeleteVendorApiSearch, VendorApiSearchDeleteResponse, ApiSearchVSLResponse, UpdateLinesFromApi
 from api_service.modulars.api_bridge.token_services import AuthResult
-from api_service.schemas import BrandModel, VSLScheme, VSLSchemeWithBrands
-from models import Vendor, VendorApiSearch, VendorSearchLine, VendorApiSearchLineLink, ProductBrand
-from models.vendor import VendorSearchLineBrandLink
+from api_service.schemas import BrandModel, VSLScheme, VSLSchemeWithBrands, RewardRangeLineSchema
+from models import Vendor, VendorApiSearch, VendorSearchLine, VendorApiSearchLineLink, ProductBrand, ProductOrigin, \
+    ParsingLine
+from models.vendor import VendorSearchLineBrandLink, RewardRange
+from parsing.utils import cost_process
 
 
 def normalize_dt(dt: datetime | None):
@@ -149,3 +154,106 @@ class ApiBridgeService:
             status = True
 
         return ApiSearchVSLResponse(status=status, all_VSL=all_vsl_schemes, linked_VSL=linked_vsl_schemes)
+
+    @staticmethod
+    async def update_parsing_line_data_from_api(payload: UpdateLinesFromApi, session: AsyncSession):
+        for p in payload.raw_products:
+            if p.brand:
+                p.brand = p.brand.lower()
+
+        vsl_brands_map = {vsl.id: {b.brand for b in (vsl.brands or [])} for vsl in payload.linked_VSL}
+        vsl_products = defaultdict(list)
+
+        for vsl in payload.linked_VSL:
+            allowed = vsl_brands_map[vsl.id]
+            for p in payload.raw_products:
+                if p.brand and p.brand in allowed:
+                    vsl_products[vsl.id].append(p)
+
+        needed_origins = {int(p.productCode) for plist in vsl_products.values() for p in plist if p.productCode}
+
+        if not needed_origins:
+            return {"status": "ok", "message": "Нет подходящих продуктов"}
+
+        existing_origins = (
+            await session.execute(select(ProductOrigin)
+                                  .where(ProductOrigin.origin.in_(needed_origins)))).scalars().all()
+
+        origin_map = {o.origin: o for o in existing_origins}
+
+        missing_origins = list()
+        deleted_origins = set()
+
+        for origin in needed_origins:
+            if origin not in origin_map:
+                missing_origins.append(origin)
+            else:
+                if origin_map[origin].is_deleted:
+                    deleted_origins.add(origin)
+
+        if missing_origins:
+            name_map = {int(p.productCode): p.name for p in payload.raw_products if p.productCode}
+
+            to_insert = list()
+            for origin in missing_origins:
+                to_insert.append({"origin": origin,
+                                  "title": name_map.get(origin),
+                                  "link": None,
+                                  "pics": None,
+                                  "preview": None,
+                                  "is_deleted": False})
+
+            await session.execute(insert(ProductOrigin), to_insert)
+
+        default_range = (await session.execute(select(RewardRange)
+                                               .where(RewardRange.is_default == True)
+                                               .options(selectinload(RewardRange.lines)))).scalar_one()
+
+        reward_lines = [RewardRangeLineSchema.model_validate(line) for line in default_range.lines]
+
+        total_inserted = 0
+
+        for vsl in payload.linked_VSL:
+            vsl_id = vsl.id
+            products = vsl_products[vsl_id]
+
+            await session.execute(delete(ParsingLine).where(ParsingLine.vsl_id == vsl_id))
+
+            new_rows = list()
+            seen_origins = set()
+
+            for p in products:
+                if not p.productCode:
+                    continue
+
+                origin = int(p.productCode)
+                if origin in deleted_origins:
+                    continue
+
+                if origin in seen_origins:
+                    continue
+                seen_origins.add(origin)
+
+                input_price = p.price
+                output_price = cost_process(input_price, reward_lines)
+
+                new_rows.append({"vsl_id": vsl_id,
+                                 "origin": origin,
+                                 "shipment": p.delivery,
+                                 "warranty": None,
+                                 "input_price": input_price,
+                                 "output_price": output_price,
+                                 "optional": f"{int(p.amount)} шт",
+                                 "profit_range_id": default_range.id})
+
+            if new_rows:
+                await session.execute(insert(ParsingLine), new_rows)
+                total_inserted += len(new_rows)
+
+            await session.execute(
+                update(VendorSearchLine).where(VendorSearchLine.id == vsl_id).values(
+                    dt_parsed=datetime.now(timezone.utc)))
+
+        await session.commit()
+
+        return {"status": "ok", "inserted": total_inserted}

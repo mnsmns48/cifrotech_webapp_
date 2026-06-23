@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.modulars.api_bridge.microline.schemas import AddVendorApiSearch, VendorApiSearchResponse, \
-    DeleteVendorApiSearch, VendorApiSearchDeleteResponse, ApiSearchVSLResponse
+    DeleteVendorApiSearch, VendorApiSearchDeleteResponse, ApiSearchVSLResponse, UpdateLinesFromApi
 from api_service.modulars.api_bridge.microline.service import ApiBridgeService
 from engine import db
 
@@ -28,3 +28,7 @@ async def get_vendor_api_search_line_link(api_search_id: int, session: AsyncSess
     return await ApiBridgeService.get_vendor_api_search_line_link(api_search_id, session)
 
 
+@api_bridge_router.post("/update_parsing_line_data_from_api")
+async def update_parsing_line_data_from_api(payload: UpdateLinesFromApi,
+                                            session: AsyncSession = Depends(db.session_dependency)):
+    return await ApiBridgeService.update_parsing_line_data_from_api(payload, session)

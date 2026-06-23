@@ -193,7 +193,7 @@ async def sync_images_from_pics(
     if product.preview:
         preview_basename = os.path.basename(urlparse(product.preview).path)
 
-    for img in product.pics:
+    for img in (product.pics or []):
         fn = os.path.basename(urlparse(img).path)
         if fn in uploaded:
             is_preview = False

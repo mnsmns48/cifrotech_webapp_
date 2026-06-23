@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import jwt
 from aiohttp import ClientSession
@@ -8,7 +8,7 @@ from config import settings
 
 
 def create_dtube_token() -> str:
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     payload = {"service": settings.api.api_service_name,
                "iss": settings.api.api_service_name,
                "sub": f"{settings.api.api_service_name}->digitaltube",

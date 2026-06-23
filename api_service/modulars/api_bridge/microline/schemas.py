@@ -71,3 +71,8 @@ class ApiSearchVSLResponse(BaseModel):
     status: bool
     all_VSL: list[VSLSchemeWithBrands]
     linked_VSL: Optional[list[VSLSchemeWithBrands]]
+
+
+class UpdateLinesFromApi(BaseModel):
+    linked_VSL: list[VSLSchemeWithBrands]
+    raw_products: list[ProductFromApi]
