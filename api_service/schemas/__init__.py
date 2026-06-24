@@ -17,12 +17,13 @@ from api_service.schemas.parsing_schemas import ParsingRequest, ParsingLinesIn, 
 from api_service.schemas.product_schemas import ProductOriginUpdate, ProductDependencyUpdate, ProductResponse, \
     RecalcPricesRequest, RecalcPricesResponse, ProductOriginCreate, ProductDependencyBatchUpdate, OriginsList, \
     TypeModel, BrandModel, ModelForApprove, FetchProductInfoRequest, ImageWithPreview, AnalyzeItem, \
-    UpdateProductFromDTPayload
+    UpdateProductFromDTPayload, BrandsBulkList
 
 from api_service.schemas.range_reward_schemas import RewardRangeLineSchema, RewardRangeSchema, \
     RewardRangeResponseSchema, RewardRangeBaseSchema
 
-from api_service.schemas.vsl_schemas import VSLScheme
+from api_service.schemas.vsl_schemas import VSLScheme, VSLSchemeWithBrands, VSLSchemeWithBrandsCreate, \
+    VendorApiSearchLinkScheme
 
 from api_service.schemas.vendor_schemas import VendorSchema, VslId
 
@@ -57,7 +58,7 @@ __all__ = list()
 
 __all__ += ["VendorSchema"]
 
-__all__ += ["VSLScheme", "VslId"]
+__all__ += ["VSLScheme", "VslId", "VSLSchemeWithBrands", "VSLSchemeWithBrandsCreate", "VendorApiSearchLinkScheme"]
 
 __all__ += ["ParsingRequest", "ParsingLinesIn", "ParsingToDiffData", "SourceContext", "ParsingResultOut",
             "AddAttributesValuesRequest", "DependencyImageItem", "DependencyOriginImplementation", "ImageResponseItem"]
@@ -69,7 +70,7 @@ __all__ += [
     "ProductOriginUpdate", "ProductDependencyUpdate", "ProductResponse", "RecalcPricesRequest", "RecalcPricesResponse",
     "ProductOriginCreate", "ProductDependencyBatchUpdate", "OriginsList", "OriginHubLevelMap", "BrandModel",
     "TypeModel", "ModelForApprove", "FetchProductInfoRequest", "ImageWithPreview", "AnalyzeItem",
-    "UpdateProductFromDTPayload"]
+    "UpdateProductFromDTPayload", "BrandsBulkList"]
 
 __all__ += ["HubMenuLevelSchema", "RenameRequest", "HubPositionPatchOut", "AddHubLevelScheme", "AddHubLevelOutScheme",
             "HubPositionPatch", "HubLevelPath", "UpdateDeleteImageScheme", "UpdatedImageScheme", "PathRoute",

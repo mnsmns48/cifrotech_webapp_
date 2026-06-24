@@ -168,3 +168,7 @@ class UpdateProductFromDTPayload(BaseModel):
     brand: str
     type: str
     title: str
+
+
+class BrandsBulkList(BaseModel):
+    brands: list[str]

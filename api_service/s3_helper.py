@@ -9,7 +9,7 @@ from aiobotocore.client import AioBaseClient
 from aiohttp import ClientSession, ClientConnectionError, ClientResponseError, ClientTimeout, ClientError
 from botocore.config import Config
 from botocore.exceptions import ClientError, BotoCoreError, ParamValidationError
-from fastapi import HTTPException, UploadFile
+from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -193,7 +193,7 @@ async def sync_images_from_pics(
     if product.preview:
         preview_basename = os.path.basename(urlparse(product.preview).path)
 
-    for img in product.pics:
+    for img in (product.pics or []):
         fn = os.path.basename(urlparse(img).path)
         if fn in uploaded:
             is_preview = False
