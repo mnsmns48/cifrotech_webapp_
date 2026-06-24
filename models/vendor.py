@@ -55,7 +55,8 @@ class VendorSearchLine(Base):
     url: Mapped[str] = mapped_column(nullable=False)
     dt_parsed: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    parsing_lines: Mapped["ParsingLine"] = relationship("ParsingLine", back_populates="vendor_search_line")
+    parsing_lines: Mapped["ParsingLine"] = relationship("ParsingLine", back_populates="vendor_search_line",
+                                                        cascade="all, delete-orphan")
     vendor: Mapped["Vendor"] = relationship("Vendor", back_populates="search_lines")
     stocks: Mapped["HUbStock"] = relationship("HUbStock", back_populates="search_lines")
     api_searches: Mapped[list["VendorApiSearch"]] = relationship("VendorApiSearch",
