@@ -161,14 +161,33 @@ class ApiBridgeService:
             if p.brand:
                 p.brand = p.brand.lower()
 
-        vsl_brands_map = {vsl.id: {b.brand for b in (vsl.brands or [])} for vsl in payload.linked_VSL}
+        vsl_brands_map = dict()
+
+        for vsl in payload.linked_VSL:
+            if vsl.brands is None:
+                vsl_brands_map[vsl.id] = None
+            else:
+                brand_list = list()
+                for b in vsl.brands:
+                    brand_list.append(b.brand)
+                vsl_brands_map[vsl.id] = brand_list
+
         vsl_products = defaultdict(list)
 
         for vsl in payload.linked_VSL:
             allowed = vsl_brands_map[vsl.id]
+
             for p in payload.raw_products:
-                if p.brand and p.brand in allowed:
+                if allowed is None:
                     vsl_products[vsl.id].append(p)
+                else:
+                    if p.brand is None:
+                        vsl_products[vsl.id].append(p)
+                    else:
+                        for brand in allowed:
+                            if p.brand == brand:
+                                vsl_products[vsl.id].append(p)
+                                break
 
         needed_origins = {int(p.productCode) for plist in vsl_products.values() for p in plist if p.productCode}
 
