@@ -8,6 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from api_service.modulars.api_bridge.microline.client import MicrolineClient
+from api_service.modulars.api_bridge.microline.helpers import normalize_product_brands, sync_product_brands, \
+    build_vsl_products, collect_needed_origins, build_vsl_brands_map, sync_product_origins, get_default_reward_lines, \
+    rebuild_parsing_lines
 from api_service.modulars.api_bridge.microline.schemas import AddVendorApiSearch, VendorApiSearchResponse, \
     DeleteVendorApiSearch, VendorApiSearchDeleteResponse, ApiSearchVSLResponse, UpdateLinesFromApi
 from api_service.modulars.api_bridge.token_services import AuthResult
@@ -157,122 +160,26 @@ class ApiBridgeService:
 
     @staticmethod
     async def update_parsing_line_data_from_api(payload: UpdateLinesFromApi, session: AsyncSession):
-        for p in payload.raw_products:
-            if p.brand:
-                p.brand = p.brand.lower()
-
-        vsl_brands_map = dict()
-
-        for vsl in payload.linked_VSL:
-            if vsl.brands is None:
-                vsl_brands_map[vsl.id] = None
-            else:
-                brand_list = list()
-                for b in vsl.brands:
-                    brand_list.append(b.brand)
-                vsl_brands_map[vsl.id] = brand_list
-
-        vsl_products = defaultdict(list)
-
-        for vsl in payload.linked_VSL:
-            allowed = vsl_brands_map[vsl.id]
-
-            for p in payload.raw_products:
-                if allowed is None:
-                    vsl_products[vsl.id].append(p)
-                else:
-                    if p.brand is None:
-                        vsl_products[vsl.id].append(p)
-                    else:
-                        for brand in allowed:
-                            if p.brand == brand:
-                                vsl_products[vsl.id].append(p)
-                                break
-
-        needed_origins = {int(p.productCode) for plist in vsl_products.values() for p in plist if p.productCode}
+        normalize_product_brands(payload.raw_products)
+        vsl_brands_map = build_vsl_brands_map(payload.linked_VSL)
+        await sync_product_brands(session=session, raw_products=payload.raw_products, vsl_brands_map=vsl_brands_map,
+                                  linked_vsl=payload.linked_VSL)
+        vsl_products = build_vsl_products(payload.raw_products, payload.linked_VSL, vsl_brands_map)
+        needed_origins = collect_needed_origins(vsl_products)
 
         if not needed_origins:
             return {"status": "ok", "message": "Нет подходящих продуктов"}
 
-        existing_origins = (
-            await session.execute(select(ProductOrigin)
-                                  .where(ProductOrigin.origin.in_(needed_origins)))).scalars().all()
+        deleted_origins = await sync_product_origins(session=session, needed_origins=needed_origins,
+                                                     raw_products=payload.raw_products)
 
-        origin_map = {o.origin: o for o in existing_origins}
+        reward_lines, reward_range_id = await get_default_reward_lines(session)
 
-        missing_origins = list()
-        deleted_origins = set()
-
-        for origin in needed_origins:
-            if origin not in origin_map:
-                missing_origins.append(origin)
-            else:
-                if origin_map[origin].is_deleted:
-                    deleted_origins.add(origin)
-
-        if missing_origins:
-            name_map = {int(p.productCode): p.name for p in payload.raw_products if p.productCode}
-
-            to_insert = list()
-            for origin in missing_origins:
-                to_insert.append({"origin": origin,
-                                  "title": name_map.get(origin),
-                                  "link": None,
-                                  "pics": None,
-                                  "preview": None,
-                                  "is_deleted": False})
-
-            await session.execute(insert(ProductOrigin), to_insert)
-
-        default_range = (await session.execute(select(RewardRange)
-                                               .where(RewardRange.is_default == True)
-                                               .options(selectinload(RewardRange.lines)))).scalar_one()
-
-        reward_lines = [RewardRangeLineSchema.model_validate(line) for line in default_range.lines]
-
-        total_inserted = 0
-
-        for vsl in payload.linked_VSL:
-            vsl_id = vsl.id
-            products = vsl_products[vsl_id]
-
-            await session.execute(delete(ParsingLine).where(ParsingLine.vsl_id == vsl_id))
-
-            new_rows = list()
-            seen_origins = set()
-
-            for p in products:
-                if not p.productCode:
-                    continue
-
-                origin = int(p.productCode)
-                if origin in deleted_origins:
-                    continue
-
-                if origin in seen_origins:
-                    continue
-                seen_origins.add(origin)
-
-                input_price = p.price
-                output_price = cost_process(input_price, reward_lines)
-
-                new_rows.append({"vsl_id": vsl_id,
-                                 "origin": origin,
-                                 "shipment": p.delivery,
-                                 "warranty": None,
-                                 "input_price": input_price,
-                                 "output_price": output_price,
-                                 "optional": f"{int(p.amount)} шт",
-                                 "profit_range_id": default_range.id})
-
-            if new_rows:
-                await session.execute(insert(ParsingLine), new_rows)
-                total_inserted += len(new_rows)
-
-            await session.execute(
-                update(VendorSearchLine).where(VendorSearchLine.id == vsl_id).values(
-                    dt_parsed=datetime.now(timezone.utc)))
-
+        total_inserted = await rebuild_parsing_lines(session=session,
+                                                     linked_vsl=payload.linked_VSL,
+                                                     vsl_products=vsl_products,
+                                                     deleted_origins=deleted_origins,
+                                                     reward_lines=reward_lines,
+                                                     reward_range_id=reward_range_id)
         await session.commit()
-
         return {"status": "ok", "inserted": total_inserted}
