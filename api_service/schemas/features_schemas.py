@@ -33,7 +33,7 @@ class FeatureResponseScheme(BaseModel):
     id: int
     title: str
     info: List[Dict]
-    pros_cons: dict
+    pros_cons: dict | None = None
 
 
 class ProsConsItem(BaseModel):
@@ -99,3 +99,20 @@ class SetFeaturesFormulaRequest(BaseModel):
 
 class SetFormulaResponse(BaseModel):
     updated: Dict[int, FormulaIdObj]
+
+
+class InsertedBlock(BaseModel):
+    param: str
+    bulk: str
+
+
+class InsertBulkParams(BaseModel):
+    feature_id: int
+    bulk: List[InsertedBlock]
+
+
+class FeatureBulkResponseScheme(BaseModel):
+    id: int
+    title: str
+    info: list
+    pros_cons: dict | None = None

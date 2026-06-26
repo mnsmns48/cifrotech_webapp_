@@ -12,7 +12,8 @@ from api_service.schemas import HubLevelPath, PathRoutes, OriginHubLevelMap, Fea
     SetFeaturesHubLevelRequest, SetLevelRoutesResponse, FeatureResponseScheme, ProsConsItem, ProsConsItemUpdate, \
     FeatureCategory, UpdateFeatureCategoryRequest, InnerRowRequest, UpdateInnerRowRequest, FeatureIds, TypesAndBrands, \
     CreateFeaturesGlobal, BrandModel, TypeModel, OriginsList, ProductOriginUpdate, PathRoute, FormulaIdObj, \
-    SetFeaturesFormulaRequest, SetFormulaResponse, FetchProductInfoRequest, ProductResponse
+    SetFeaturesFormulaRequest, SetFormulaResponse, FetchProductInfoRequest, ProductResponse, InsertBulkParams, \
+    FeatureBulkResponseScheme
 
 from models import ProductFeaturesGlobal, ProductBrand, ProductType, HUbMenuLevel, FormulaExpression, \
     ProductFeaturesFormulaLink, ProductFeaturesHubMenuLevelLink, ProductFeaturesLink
@@ -584,3 +585,57 @@ async def fetch_product_information_db(payload: FetchProductInfoRequest, session
 
     finally:
         await session.close()
+
+
+async def insert_bulk_params_db(payload: InsertBulkParams, session: AsyncSession) -> FeatureResponseScheme:
+    stmt = select(ProductFeaturesGlobal).where(ProductFeaturesGlobal.id == payload.feature_id)
+    result = await session.execute(stmt)
+    feature = result.scalar_one_or_none()
+
+    if feature is None:
+        raise HTTPException(status_code=404, detail=f"Feature id={payload.feature_id} не найден.")
+
+    info = feature.info or []
+
+    if not isinstance(info, list):
+        raise HTTPException(status_code=500, detail="Поле info должно быть списком.")
+
+    info = list(info)
+
+    for block in payload.bulk:
+        block_name = block.param.strip()
+        block_text = block.bulk.strip()
+
+        if not block_name:
+            raise HTTPException(status_code=400, detail="Поле 'param' не может быть пустым.")
+
+        parsed = dict()
+
+        for line in block_text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+
+            if ":" not in line:
+                raise HTTPException(status_code=400,
+                                    detail=f"Неверный формат строки: '{line}'. Ожидается 'параметр: значение'.")
+
+            key, value = line.split(":", 1)
+            key = key.strip()
+            value = value.strip()
+
+            if not key or not value:
+                raise HTTPException(status_code=400, detail=f"Неверный формат строки: '{line}'.")
+
+            parsed[key] = value
+
+        info.append({block_name: parsed})
+
+    feature.info = info
+    flag_modified(feature, "info")
+
+    await session.commit()
+    await session.refresh(feature)
+
+    return FeatureResponseScheme(id=feature.id, title=feature.title, info=feature.info,
+                                 pros_cons=feature.pros_cons or {})

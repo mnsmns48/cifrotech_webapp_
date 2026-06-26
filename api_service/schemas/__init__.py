@@ -42,7 +42,7 @@ from api_service.schemas.formula import FormulaBase, FormulaCreate, FormulaUpdat
 from api_service.schemas.features_schemas import FeaturesDataSet, SetFeaturesHubLevelRequest, SetLevelRoutesResponse, \
     FeaturesElement, FeatureResponseScheme, ProsConsItem, ProsConsItemUpdate, FeatureCategory, \
     UpdateFeatureCategoryRequest, InnerRowRequest, UpdateInnerRowRequest, FeatureIds, TypesAndBrands, \
-    CreateFeaturesGlobal, SetFeaturesFormulaRequest, SetFormulaResponse
+    CreateFeaturesGlobal, SetFeaturesFormulaRequest, SetFormulaResponse, InsertBulkParams, FeatureBulkResponseScheme
 
 from api_service.schemas.analytics_schemas import ProductTypeWeightRuleSchema, ProductTypeWeightRuleCreate, \
     ProductTypeWeightRuleDelete, ProductTypeWeightRuleUpdate, ProductTypeWeightRuleSwitch, ProductTypeValueMapScheme, \
@@ -103,7 +103,7 @@ __all__ += ["FormulaBase", "FormulaCreate", "FormulaUpdate", "FormulaResponse", 
 __all__ += ["FeaturesDataSet", "PathRoutes", "SetFeaturesHubLevelRequest", "SetLevelRoutesResponse", "FeaturesElement",
             "FeatureResponseScheme", "ProsConsItem", "ProsConsItemUpdate", "FeatureCategory",
             "UpdateFeatureCategoryRequest", "InnerRowRequest", "UpdateInnerRowRequest", "FeatureIds", "TypesAndBrands",
-            "CreateFeaturesGlobal", "SetFeaturesFormulaRequest", "SetFormulaResponse"]
+            "CreateFeaturesGlobal", "SetFeaturesFormulaRequest", "SetFormulaResponse", "InsertBulkParams", "FeatureBulkResponseScheme"]
 
 __all__ += ["ProductTypeWeightRuleSchema", "ProductTypeWeightRuleCreate", "ProductTypeWeightRuleDelete",
             "ProductTypeWeightRuleUpdate", "ProductTypeWeightRuleSwitch", "ProductTypeValueMapScheme",
