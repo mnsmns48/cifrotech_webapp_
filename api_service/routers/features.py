@@ -77,7 +77,6 @@ async def create_new_info_category(payload: FeatureCategory,
     return await create_new_info_category_db(payload, session, cl_session)
 
 
-################!!!!!!!!!!!!!!!!!!!!###############
 @features_router.post("/delete_info_category")
 async def delete_info_category(payload: FeatureCategory,
                                session: AsyncSession = Depends(db.scoped_session_dependency),
@@ -87,26 +86,30 @@ async def delete_info_category(payload: FeatureCategory,
 
 @features_router.post("/update_info_category")
 async def update_info_category(payload: UpdateFeatureCategoryRequest,
-                               session: AsyncSession = Depends(db.scoped_session_dependency)):
-    return await update_info_category_db(payload, session)
+                               session: AsyncSession = Depends(db.scoped_session_dependency),
+                               cl_session: ClientSession = Depends(get_http_client_session)):
+    return await update_info_category_db(payload, session, cl_session)
 
 
 @features_router.post("/add_new_inner_row")
 async def add_new_features_inner_row(payload: InnerRowRequest,
-                                     session: AsyncSession = Depends(db.scoped_session_dependency)):
-    return await add_new_features_inner_row_db(payload, session)
+                                     session: AsyncSession = Depends(db.scoped_session_dependency),
+                                     cl_session: ClientSession = Depends(get_http_client_session)):
+    return await add_new_features_inner_row_db(payload, session, cl_session)
 
 
 @features_router.post("/delete_inner_row")
 async def delete_features_inner_row(payload: InnerRowRequest,
-                                    session: AsyncSession = Depends(db.scoped_session_dependency)):
-    return await delete_features_inner_row_db(payload, session)
+                                    session: AsyncSession = Depends(db.scoped_session_dependency),
+                                    cl_session: ClientSession = Depends(get_http_client_session)):
+    return await delete_features_inner_row_db(payload, session, cl_session)
 
 
 @features_router.post("/update_inner_row")
 async def update_features_inner_row(payload: UpdateInnerRowRequest,
-                                    session: AsyncSession = Depends(db.scoped_session_dependency)):
-    return await update_features_inner_row_db(payload, session)
+                                    session: AsyncSession = Depends(db.scoped_session_dependency),
+                                    cl_session: ClientSession = Depends(get_http_client_session)):
+    return await update_features_inner_row_db(payload, session, cl_session)
 
 
 @features_router.post("/delete_features")

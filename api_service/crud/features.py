@@ -11,7 +11,9 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from api_service.api_connect import can_connect, create_new_entity_in_server, create_new_product_in_server, \
     create_pros_cons_value_in_server, update_pros_cons_value_in_server, delete_pros_cons_value_in_server, \
-    insert_bulk_data_in_server, create_new_info_category_in_server, delete_info_category_in_server
+    insert_bulk_data_in_server, create_new_info_category_in_server, delete_info_category_in_server, \
+    update_info_category_in_server, create_features_inner_row_in_server, update_features_inner_row_in_server, \
+    delete_features_inner_row_in_server
 from api_service.schemas import HubLevelPath, PathRoutes, OriginHubLevelMap, FeaturesDataSet, FeaturesElement, \
     SetFeaturesHubLevelRequest, SetLevelRoutesResponse, FeatureResponseScheme, ProsConsItem, ProsConsItemUpdate, \
     FeatureCategory, UpdateFeatureCategoryRequest, InnerRowRequest, UpdateInnerRowRequest, FeatureIds, TypesAndBrands, \
@@ -371,121 +373,151 @@ async def delete_info_category_db(payload: FeatureCategory, session: AsyncSessio
     raise HTTPException(status_code=503, detail="DigitalTube service Unavailable — сервер временно недоступен")
 
 
-async def update_info_category_db(payload: UpdateFeatureCategoryRequest, session: AsyncSession):
-    old_title = payload.old_category_title.strip()
-    new_title = payload.new_category_title.strip()
+async def update_info_category_db(payload: UpdateFeatureCategoryRequest, session: AsyncSession, cl_session):
+    is_connected = await can_connect(cl_session)
+    if is_connected:
+        old_title = payload.old_category_title.strip()
+        new_title = payload.new_category_title.strip()
 
-    if old_title == new_title:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Old and new category titles are identical"
-        )
+        if old_title == new_title:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Old and new category titles are identical"
+            )
 
-    if not new_title:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="New category title cannot be empty"
-        )
-    feature = await get_feature_or_404(session, payload.id)
-    info = normalize_category_info(feature)
-    index = find_category_index(info, old_title)
-    if index is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Old category not found"
-        )
-    existing_index = find_category_index(info, new_title)
-    if existing_index is not None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="New category title already exists"
-        )
-    old_block = info[index]
-    old_values = old_block[old_title]
-    new_block = {new_title: old_values}
-    info[index] = new_block
-    feature.info = info
-    updated_info = await save_feature(session, feature)
+        if not new_title:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="New category title cannot be empty"
+            )
+        feature = await get_feature_or_404(session, payload.id)
+        info = normalize_category_info(feature)
+        index = find_category_index(info, old_title)
+        if index is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Old category not found"
+            )
+        existing_index = find_category_index(info, new_title)
+        if existing_index is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="New category title already exists"
+            )
+        result = await update_info_category_in_server(feature_title=feature.title,
+                                                      category=old_title,
+                                                      new_category=new_title,
+                                                      session=cl_session)
+        if result:
+            old_block = info[index]
+            old_values = old_block[old_title]
+            new_block = {new_title: old_values}
+            info[index] = new_block
+            feature.info = info
+            updated_info = await save_feature(session, feature)
 
-    return {"status": "updated", "info": updated_info}
+            return {"status": "updated", "info": updated_info}
 
-
-async def add_new_features_inner_row_db(payload: InnerRowRequest, session: AsyncSession):
-    feature = await get_feature_or_404(session, payload.id)
-    info = normalize_category_info(feature)
-
-    category_block = None
-    for block in info:
-        if payload.category_title in block:
-            category_block = block
-            break
-    if not category_block:
-        return {"status": "error", "message": "Category not found"}
-    category_block[payload.category_title][payload.new_param] = payload.new_value
-    flag_modified(feature, "info")
-
-    await session.commit()
-    await session.refresh(feature)
-
-    return {"status": "created", "info": feature.info}
+    raise HTTPException(status_code=503, detail="DigitalTube service Unavailable — сервер временно недоступен")
 
 
-async def delete_features_inner_row_db(payload: InnerRowRequest, session: AsyncSession):
-    feature = await get_feature_or_404(session, payload.id)
-    info = normalize_category_info(feature)
+async def add_new_features_inner_row_db(payload: InnerRowRequest, session: AsyncSession, cl_session):
+    is_connected = await can_connect(cl_session)
+    if is_connected:
+        feature = await get_feature_or_404(session, payload.id)
+        info = normalize_category_info(feature)
+        result = await create_features_inner_row_in_server(feature_title=feature.title,
+                                                           category_title=payload.category_title,
+                                                           new_param=payload.new_param,
+                                                           new_value=payload.new_value,
+                                                           session=cl_session)
+        if result:
+            category_block = None
+            for block in info:
+                if payload.category_title in block:
+                    category_block = block
+                    break
+            if not category_block:
+                return {"status": "error", "message": "Category not found"}
+            category_block[payload.category_title][payload.new_param] = payload.new_value
+            flag_modified(feature, "info")
 
-    category_block = None
-    for block in info:
-        if payload.category_title in block:
-            category_block = block
-            break
+            await session.commit()
+            await session.refresh(feature)
 
-    if not category_block:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
-
-    category_data = category_block[payload.category_title]
-
-    if payload.new_param not in category_data:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Param not found")
-
-    del category_data[payload.new_param]
-
-    flag_modified(feature, "info")
-
-    await session.commit()
-    await session.refresh(feature)
-
-    return {"status": "deleted", "info": feature.info}
+            return {"status": "created", "info": feature.info}
+    raise HTTPException(status_code=503, detail="DigitalTube service Unavailable — сервер временно недоступен")
 
 
-async def update_features_inner_row_db(payload: UpdateInnerRowRequest, session: AsyncSession):
-    feature = await get_feature_or_404(session, payload.id)
-    info = normalize_category_info(feature)
-    category_block = None
-    for block in info:
-        if payload.category_title in block:
-            category_block = block
-            break
+async def delete_features_inner_row_db(payload: InnerRowRequest, session: AsyncSession, cl_session):
+    is_connected = await can_connect(cl_session)
+    if is_connected:
+        feature = await get_feature_or_404(session, payload.id)
+        info = normalize_category_info(feature)
 
-    if not category_block:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+        category_block = None
+        for block in info:
+            if payload.category_title in block:
+                category_block = block
+                break
 
-    category_data = category_block[payload.category_title]
+        if not category_block:
+            raise HTTPException(status_code=404, detail="Category not found")
 
-    if payload.old_param not in category_data:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Old param not found"
-        )
+        category_data = category_block[payload.category_title]
 
-    del category_data[payload.old_param]
-    category_data[payload.new_param] = payload.new_value
-    flag_modified(feature, "info")
+        if payload.new_param not in category_data:
+            raise HTTPException(status_code=404, detail="Param not found")
+        result = await delete_features_inner_row_in_server(feature_title=feature.title,
+                                                           category_title=payload.category_title,
+                                                           new_param=payload.new_param,
+                                                           new_value=payload.new_value,
+                                                           session=cl_session)
+        if result:
+            del category_data[payload.new_param]
+            flag_modified(feature, "info")
+            await session.commit()
+            await session.refresh(feature)
+            return {"status": "deleted", "info": feature.info}
 
-    await session.commit()
-    await session.refresh(feature)
+    raise HTTPException(status_code=503, detail="DigitalTube service Unavailable — сервер временно недоступен")
 
-    return {"status": "updated", "info": feature.info}
+
+async def update_features_inner_row_db(payload: UpdateInnerRowRequest, session: AsyncSession, cl_session):
+    is_connected = await can_connect(cl_session)
+    if is_connected:
+        feature = await get_feature_or_404(session, payload.id)
+        info = normalize_category_info(feature)
+        category_block = None
+        for block in info:
+            if payload.category_title in block:
+                category_block = block
+                break
+
+        if not category_block:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+
+        category_data = category_block[payload.category_title]
+        result = await update_features_inner_row_in_server(feature_title=feature.title,
+                                                           category_title=payload.category_title,
+                                                           new_param=payload.new_param,
+                                                           new_value=payload.new_value,
+                                                           old_param=payload.old_param,
+                                                           old_value=payload.old_value,
+                                                           session=cl_session)
+
+        if payload.old_param not in category_data:
+            raise HTTPException(status_code=404, detail="Old param not found")
+        if result:
+            del category_data[payload.old_param]
+            category_data[payload.new_param] = payload.new_value
+            flag_modified(feature, "info")
+
+            await session.commit()
+            await session.refresh(feature)
+
+            return {"status": "updated", "info": feature.info}
+    raise HTTPException(status_code=503, detail="DigitalTube service Unavailable — сервер временно недоступен")
 
 
 async def delete_feature_db(feature_ids: FeatureIds, session: AsyncSession):

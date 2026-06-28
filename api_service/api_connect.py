@@ -172,3 +172,72 @@ async def delete_info_category_in_server(feature_title: str, category: str, sess
         if response.status != 200:
             return None
         return await response.json()
+
+
+async def update_info_category_in_server(feature_title: str, category: str, new_category: str, session: ClientSession):
+    url = f"{BASE_DTUBE_URL}/update_info_category/"
+    token = create_dtube_token()
+    async with session.post(url,
+                            json={"feature_title": feature_title, "category": category, "new_category": new_category},
+                            headers={"Accept": "application/json", "Authorization": f"Bearer {token}"}) as response:
+        if response.status != 200:
+            return None
+        return await response.json()
+
+
+async def create_features_inner_row_in_server(feature_title: str,
+                                              category_title: str,
+                                              new_param: str,
+                                              new_value: str,
+                                              session: ClientSession):
+    url = f"{BASE_DTUBE_URL}/add_new_features_inner_row/"
+    token = create_dtube_token()
+    async with session.post(url,
+                            json={"feature_title": feature_title,
+                                  "category_title": category_title,
+                                  "new_param": new_param,
+                                  "new_value": new_value},
+                            headers={"Accept": "application/json", "Authorization": f"Bearer {token}"}) as response:
+        if response.status != 200:
+            return None
+        return await response.json()
+
+
+async def update_features_inner_row_in_server(feature_title: str,
+                                              category_title: str,
+                                              new_param: str,
+                                              new_value: str,
+                                              old_param: str,
+                                              old_value: str,
+                                              session: ClientSession):
+    url = f"{BASE_DTUBE_URL}/update_features_inner_row/"
+    token = create_dtube_token()
+    async with session.post(url,
+                            json={"feature_title": feature_title,
+                                  "category_title": category_title,
+                                  "new_param": new_param,
+                                  "new_value": new_value,
+                                  "old_param": old_param,
+                                  "old_value": old_value},
+                            headers={"Accept": "application/json", "Authorization": f"Bearer {token}"}) as response:
+        if response.status != 200:
+            return None
+        return await response.json()
+
+
+async def delete_features_inner_row_in_server(feature_title: str,
+                                              category_title: str,
+                                              new_param: str,
+                                              new_value: str,
+                                              session: ClientSession):
+    url = f"{BASE_DTUBE_URL}/delete_features_inner_row/"
+    token = create_dtube_token()
+    async with session.post(url,
+                            json={"feature_title": feature_title,
+                                  "category_title": category_title,
+                                  "new_param": new_param,
+                                  "new_value": new_value},
+                            headers={"Accept": "application/json", "Authorization": f"Bearer {token}"}) as response:
+        if response.status != 200:
+            return None
+        return await response.json()
