@@ -1,6 +1,7 @@
 from collections import defaultdict
 from typing import Dict
 
+from aiohttp import ClientSession
 from fastapi import HTTPException, status
 from sqlalchemy import select, delete
 from sqlalchemy.dialects.postgresql import insert
@@ -8,12 +9,15 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
+from api_service.api_connect import can_connect, create_new_entity_in_server, create_new_product_in_server, \
+    create_pros_cons_value_in_server, update_pros_cons_value_in_server, delete_pros_cons_value_in_server, \
+    insert_bulk_data_in_server, create_new_info_category_in_server, delete_info_category_in_server
 from api_service.schemas import HubLevelPath, PathRoutes, OriginHubLevelMap, FeaturesDataSet, FeaturesElement, \
     SetFeaturesHubLevelRequest, SetLevelRoutesResponse, FeatureResponseScheme, ProsConsItem, ProsConsItemUpdate, \
     FeatureCategory, UpdateFeatureCategoryRequest, InnerRowRequest, UpdateInnerRowRequest, FeatureIds, TypesAndBrands, \
-    CreateFeaturesGlobal, BrandModel, TypeModel, OriginsList, ProductOriginUpdate, PathRoute, FormulaIdObj, \
+    CreateFeaturesGlobal, BrandModel, TypeModel, OriginsList, PathRoute, FormulaIdObj, \
     SetFeaturesFormulaRequest, SetFormulaResponse, FetchProductInfoRequest, ProductResponse, InsertBulkParams, \
-    FeatureBulkResponseScheme
+    CreateNewCriteria, CreateNewEntityRequest
 
 from models import ProductFeaturesGlobal, ProductBrand, ProductType, HUbMenuLevel, FormulaExpression, \
     ProductFeaturesFormulaLink, ProductFeaturesHubMenuLevelLink, ProductFeaturesLink
@@ -166,92 +170,109 @@ async def get_features_by_origin_db(feature_id: int, session: AsyncSession):
     return FeatureResponseScheme(id=row.id, title=row.title, info=info_list, pros_cons=pros_cons)
 
 
-async def delete_pros_cons_value_db(payload: ProsConsItem, session: AsyncSession):
-    stmt = select(ProductFeaturesGlobal).where(ProductFeaturesGlobal.id == payload.id)
-    result = await session.execute(stmt)
-    feature: ProductFeaturesGlobal | None = result.scalar_one_or_none()
+async def delete_pros_cons_value_db(payload: ProsConsItem, session: AsyncSession, cl_session):
+    is_connected = await can_connect(cl_session)
+    if is_connected:
+        stmt = select(ProductFeaturesGlobal).where(ProductFeaturesGlobal.id == payload.id)
+        result = await session.execute(stmt)
+        feature: ProductFeaturesGlobal | None = result.scalar_one_or_none()
 
-    if not feature:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Feature not found")
+        if not feature:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Feature not found")
 
-    if not feature.pros_cons:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="pros_cons is empty")
+        if not feature.pros_cons:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="pros_cons is empty")
 
-    if payload.attribute not in feature.pros_cons:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                            detail=f"Attribute '{payload.attribute}' not found in pros_cons")
+        if payload.attribute not in feature.pros_cons:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail=f"Attribute '{payload.attribute}' not found in pros_cons")
+        result = await delete_pros_cons_value_in_server(product_title=feature.title,
+                                                        attribute=payload.attribute,
+                                                        value=payload.value, session=cl_session)
+        if result:
+            items = feature.pros_cons[payload.attribute]
 
-    items = feature.pros_cons[payload.attribute]
+            if payload.value not in items:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Value not found in list")
 
-    if payload.value not in items:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Value not found in list")
+            updated_items = [v for v in items if v != payload.value]
+            new_pros_cons = {**feature.pros_cons, payload.attribute: updated_items}
+            feature.pros_cons = new_pros_cons
 
-    updated_items = [v for v in items if v != payload.value]
-    new_pros_cons = {**feature.pros_cons, payload.attribute: updated_items}
-    feature.pros_cons = new_pros_cons
+            await session.commit()
+            await session.refresh(feature)
 
-    await session.commit()
-    await session.refresh(feature)
+            return {"status": "success", "id": feature.id, "updated": feature.pros_cons}
 
-    return {"status": "success", "id": feature.id, "updated": feature.pros_cons}
-
-
-async def add_pros_cons_value_db(payload: ProsConsItem, session: AsyncSession):
-    stmt = select(ProductFeaturesGlobal).where(ProductFeaturesGlobal.id == payload.id)
-    result = await session.execute(stmt)
-    feature: ProductFeaturesGlobal | None = result.scalar_one_or_none()
-
-    if not feature:
-        raise HTTPException(status_code=404, detail="Feature not found")
-
-    if not feature.pros_cons:
-        feature.pros_cons = {
-            "advantage": [],
-            "disadvantage": []
-        }
-
-    if payload.attribute not in feature.pros_cons:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Attribute '{payload.attribute}' not found in pros_cons"
-        )
-
-    items = feature.pros_cons[payload.attribute]
-    updated_items = items + [payload.value]
-    new_pros_cons = {**feature.pros_cons, payload.attribute: updated_items}
-    feature.pros_cons = new_pros_cons
-
-    await session.commit()
-    await session.refresh(feature)
-
-    return {"status": "success", "id": feature.id, "updated": feature.pros_cons}
+    raise HTTPException(status_code=503, detail="DigitalTube service Unavailable — сервер временно недоступен")
 
 
-async def update_pros_cons_value_db(payload: ProsConsItemUpdate, session: AsyncSession):
-    stmt = select(ProductFeaturesGlobal).where(ProductFeaturesGlobal.id == payload.id)
-    result = await session.execute(stmt)
-    feature: ProductFeaturesGlobal | None = result.scalar_one_or_none()
+async def add_pros_cons_value_db(payload: ProsConsItem, session: AsyncSession, cl_session: ClientSession):
+    is_connected = await can_connect(cl_session)
+    if is_connected:
+        stmt = select(ProductFeaturesGlobal).where(ProductFeaturesGlobal.id == payload.id)
+        result = await session.execute(stmt)
+        feature: ProductFeaturesGlobal | None = result.scalar_one_or_none()
 
-    if not feature:
-        raise HTTPException(status_code=404, detail="Feature not found")
+        if not feature:
+            raise HTTPException(status_code=404, detail="Feature not found")
 
-    if not feature.pros_cons:
-        feature.pros_cons = {}
+        if not feature.pros_cons:
+            feature.pros_cons = {"advantage": [], "disadvantage": []}
 
-    items = feature.pros_cons.get(payload.attribute, [])
+        if payload.attribute not in feature.pros_cons:
+            raise HTTPException(status_code=400, detail=f"Attribute '{payload.attribute}' not found in pros_cons")
 
-    if payload.old_value not in items:
-        raise HTTPException(status_code=400, detail="Old value not found in list")
+        update_dt_info = await create_pros_cons_value_in_server(product_title=feature.title,
+                                                                attribute=payload.attribute,
+                                                                value=payload.value, session=cl_session)
+        if update_dt_info:
+            items = feature.pros_cons[payload.attribute]
+            updated_items = items + [payload.value]
+            new_pros_cons = {**feature.pros_cons, payload.attribute: updated_items}
+            feature.pros_cons = new_pros_cons
 
-    updated_items = [payload.new_value if v == payload.old_value else v for v in items]
+            await session.commit()
+            await session.refresh(feature)
 
-    new_pros_cons = {**feature.pros_cons, payload.attribute: updated_items}
-    feature.pros_cons = new_pros_cons
+            return {"status": "success", "id": feature.id, "updated": feature.pros_cons}
+    raise HTTPException(status_code=503, detail="DigitalTube service Unavailable — сервер временно недоступен")
 
-    await session.commit()
-    await session.refresh(feature)
 
-    return {"status": "success", "id": feature.id, "updated": feature.pros_cons}
+async def update_pros_cons_value_db(payload: ProsConsItemUpdate, session: AsyncSession, cl_session):
+    is_connected = await can_connect(cl_session)
+    if is_connected:
+
+        stmt = select(ProductFeaturesGlobal).where(ProductFeaturesGlobal.id == payload.id)
+        result = await session.execute(stmt)
+        feature: ProductFeaturesGlobal | None = result.scalar_one_or_none()
+
+        if not feature:
+            raise HTTPException(status_code=404, detail="Feature not found")
+
+        if not feature.pros_cons:
+            feature.pros_cons = {}
+        result = await update_pros_cons_value_in_server(product_title=feature.title,
+                                                        attribute=payload.attribute,
+                                                        value=payload.old_value,
+                                                        new_value=payload.new_value,
+                                                        session=cl_session)
+        if result:
+            items = feature.pros_cons.get(payload.attribute, [])
+
+            if payload.old_value not in items:
+                raise HTTPException(status_code=400, detail="Old value not found in list")
+
+            updated_items = [payload.new_value if v == payload.old_value else v for v in items]
+
+            new_pros_cons = {**feature.pros_cons, payload.attribute: updated_items}
+            feature.pros_cons = new_pros_cons
+
+            await session.commit()
+            await session.refresh(feature)
+
+            return {"status": "success", "id": feature.id, "updated": feature.pros_cons}
+    raise HTTPException(status_code=503, detail="DigitalTube service Unavailable — сервер временно недоступен")
 
 
 async def get_feature_or_404(session: AsyncSession, feature_id: int):
@@ -287,51 +308,67 @@ async def save_feature(session: AsyncSession, feature: ProductFeaturesGlobal):
     return feature.info
 
 
-async def create_new_info_category_db(payload: FeatureCategory, session: AsyncSession):
-    feature = await get_feature_or_404(session, payload.id)
-    info = normalize_category_info(feature)
-    new_title = payload.category_title.strip()
+async def create_new_info_category_db(payload: FeatureCategory, session: AsyncSession, cl_session: ClientSession):
+    is_connected = await can_connect(cl_session)
+    if is_connected:
+        feature = await get_feature_or_404(session, payload.id)
 
-    if not new_title:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Category title cannot be empty"
-        )
-    index = find_category_index(info, new_title)
-    if index is not None:
-        return {"status": "exists", "info": info}
+        info = normalize_category_info(feature)
+        new_title = payload.category_title.strip()
 
-    info.append({new_title: {}})
-    feature.info = info
+        if not new_title:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Category title cannot be empty"
+            )
+        result = await create_new_info_category_in_server(feature_title=feature.title, category=new_title,
+                                                          session=cl_session)
+        if result:
+            index = find_category_index(info, new_title)
+            if index is not None:
+                return {"status": "exists", "info": info}
 
-    updated_info = await save_feature(session, feature)
-    return {"status": "created", "info": updated_info}
+            info.append({new_title: {}})
+            feature.info = info
+
+            updated_info = await save_feature(session, feature)
+            return {"status": "created", "info": updated_info}
+
+    raise HTTPException(status_code=503, detail="DigitalTube service Unavailable — сервер временно недоступен")
 
 
-async def delete_info_category_db(payload: FeatureCategory, session: AsyncSession):
-    feature = await get_feature_or_404(session, payload.id)
+async def delete_info_category_db(payload: FeatureCategory, session: AsyncSession, cl_session):
+    is_connected = await can_connect(cl_session)
+    if is_connected:
+        feature = await get_feature_or_404(session, payload.id)
 
-    info = normalize_category_info(feature)
-    category_title = payload.category_title.strip()
+        info = normalize_category_info(feature)
+        category_title = payload.category_title.strip()
 
-    if not category_title:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Category title cannot be empty"
-        )
+        if not category_title:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Category title cannot be empty"
+            )
 
-    index = find_category_index(info, category_title)
-    if index is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Category not found"
-        )
+        index = find_category_index(info, category_title)
+        if index is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Category not found"
+            )
 
-    del info[index]
-    feature.info = info
+        result = await delete_info_category_in_server(feature_title=feature.title,
+                                                      category=category_title,
+                                                      session=cl_session)
+        if result:
+            del info[index]
+            feature.info = info
 
-    updated_info = await save_feature(session, feature)
-    return {"status": "deleted", "info": updated_info}
+            updated_info = await save_feature(session, feature)
+            return {"status": "deleted", "info": updated_info}
+
+    raise HTTPException(status_code=503, detail="DigitalTube service Unavailable — сервер временно недоступен")
 
 
 async def update_info_category_db(payload: UpdateFeatureCategoryRequest, session: AsyncSession):
@@ -470,49 +507,63 @@ async def types_brands_request_db(session: AsyncSession):
     )
 
 
-async def add_new_type_request_db(title: ProductOriginUpdate, session: AsyncSession):
-    try:
-        new_type = ProductType(type=title.title)
-        session.add(new_type)
-        await session.commit()
-        await session.refresh(new_type)
+async def add_new_type_request_db(payload: CreateNewCriteria, session: AsyncSession, cl_session: ClientSession):
+    is_connected = await can_connect(cl_session)
+    if is_connected:
+        result = await create_new_entity_in_server(CreateNewEntityRequest(type=payload.title, kind=payload.kind),
+                                                   cl_session)
+        if result:
+            try:
+                new_type = ProductType(type=payload.title)
+                session.add(new_type)
+                await session.commit()
+                await session.refresh(new_type)
 
-        return {"id": new_type.id, "type": new_type.type}
+                return {"id": new_type.id, "type": new_type.type}
 
-    except IntegrityError:
-        await session.rollback()
-        return {"error": "Тип с таким названием уже существует"}
-
-
-async def add_new_brand_request_db(title: ProductOriginUpdate, session: AsyncSession):
-    try:
-        new_brand = ProductBrand(brand=title.title)
-        session.add(new_brand)
-        await session.commit()
-        await session.refresh(new_brand)
-
-        return {"id": new_brand.id, "brand": new_brand.brand}
-
-    except IntegrityError:
-        await session.rollback()
-        return {"error": "Бренд с таким названием уже существует"}
+            except IntegrityError:
+                await session.rollback()
+                return {"error": "Тип с таким названием уже существует"}
+    raise HTTPException(status_code=503, detail="DigitalTube service Unavailable — сервер временно недоступен")
 
 
-async def create_new_feature_global_db(payload: CreateFeaturesGlobal, session: AsyncSession):
-    new_feature = ProductFeaturesGlobal(title=payload.title, type_id=payload.type_obj.id,
-                                        brand_id=payload.brand_obj.id, info={}, pros_cons={}, source="custom")
+async def add_new_brand_request_db(payload: CreateNewCriteria, session: AsyncSession, cl_session: ClientSession):
+    is_connected = await can_connect(cl_session)
+    if is_connected:
+        await create_new_entity_in_server(CreateNewEntityRequest(brand=payload.title, kind=payload.kind), cl_session)
+        try:
+            new_brand = ProductBrand(brand=payload.title)
+            session.add(new_brand)
+            await session.commit()
+            await session.refresh(new_brand)
+            return {"id": new_brand.id, "brand": new_brand.brand}
 
-    session.add(new_feature)
-    await session.commit()
-    await session.refresh(new_feature)
+        except IntegrityError:
+            await session.rollback()
+            return {"error": "Бренд с таким названием уже существует"}
+    raise HTTPException(status_code=503, detail="DigitalTube service Unavailable — сервер временно недоступен")
 
-    return {"id": new_feature.id,
-            "title": new_feature.title,
-            "type": {"id": payload.type_obj.id, "type": payload.type_obj.type},
-            "brand": {"id": payload.brand_obj.id, "brand": payload.brand_obj.brand},
-            "info": new_feature.info,
-            "pros_cons": new_feature.pros_cons,
-            "source": new_feature.source}
+
+async def create_new_feature_global_db(payload: CreateFeaturesGlobal, session: AsyncSession, cl_session):
+    is_connected = await can_connect(cl_session)
+    if is_connected:
+        result = await create_new_product_in_server(payload, cl_session)
+        if result:
+            new_feature = ProductFeaturesGlobal(title=payload.title, type_id=payload.type_obj.id,
+                                                brand_id=payload.brand_obj.id, info={}, pros_cons={}, source="custom")
+
+            session.add(new_feature)
+            await session.commit()
+            await session.refresh(new_feature)
+
+            return {"id": new_feature.id,
+                    "title": new_feature.title,
+                    "type": {"id": payload.type_obj.id, "type": payload.type_obj.type},
+                    "brand": {"id": payload.brand_obj.id, "brand": payload.brand_obj.brand},
+                    "info": new_feature.info,
+                    "pros_cons": new_feature.pros_cons,
+                    "source": new_feature.source}
+    raise HTTPException(status_code=503, detail="DigitalTube service Unavailable — сервер временно недоступен")
 
 
 async def set_feature_formula_dependency_db(payload: SetFeaturesFormulaRequest,
@@ -581,55 +632,65 @@ async def fetch_product_information_db(payload: FetchProductInfoRequest, session
         await session.close()
 
 
-async def insert_bulk_params_db(payload: InsertBulkParams, session: AsyncSession) -> FeatureResponseScheme:
-    stmt = select(ProductFeaturesGlobal).where(ProductFeaturesGlobal.id == payload.feature_id)
-    result = await session.execute(stmt)
-    feature = result.scalar_one_or_none()
+async def insert_bulk_params_db(payload: InsertBulkParams, session: AsyncSession,
+                                cl_session: ClientSession) -> FeatureResponseScheme:
+    is_connected = await can_connect(cl_session)
+    if is_connected:
+        stmt = select(ProductFeaturesGlobal).where(ProductFeaturesGlobal.id == payload.feature_id)
+        result = await session.execute(stmt)
+        feature = result.scalar_one_or_none()
 
-    if feature is None:
-        raise HTTPException(status_code=404, detail=f"Feature id={payload.feature_id} не найден.")
+        if feature is None:
+            raise HTTPException(status_code=404, detail=f"Feature id={payload.feature_id} не найден.")
 
-    info = feature.info or []
+        info = feature.info or []
 
-    if not isinstance(info, list):
-        raise HTTPException(status_code=500, detail="Поле info должно быть списком.")
+        if not isinstance(info, list):
+            raise HTTPException(status_code=500, detail="Поле info должно быть списком.")
 
-    info = list(info)
+        await insert_bulk_data_in_server(
+            feature_title=feature.title,
+            bulk=[{"param": b.param, "bulk": b.bulk} for b in payload.bulk],
+            session=cl_session
+        )
 
-    for block in payload.bulk:
-        block_name = block.param.strip()
-        block_text = block.bulk.strip()
+        info = list(info)
 
-        if not block_name:
-            raise HTTPException(status_code=400, detail="Поле 'param' не может быть пустым.")
+        for block in payload.bulk:
+            block_name = block.param.strip()
+            block_text = block.bulk.strip()
 
-        parsed = dict()
+            if not block_name:
+                raise HTTPException(status_code=400, detail="Поле 'param' не может быть пустым.")
 
-        for line in block_text.splitlines():
-            line = line.strip()
-            if not line:
-                continue
+            parsed = dict()
 
-            if ":" not in line:
-                raise HTTPException(status_code=400,
-                                    detail=f"Неверный формат строки: '{line}'. Ожидается 'параметр: значение'.")
+            for line in block_text.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
 
-            key, value = line.split(":", 1)
-            key = key.strip()
-            value = value.strip()
+                if ":" not in line:
+                    raise HTTPException(status_code=400,
+                                        detail=f"Неверный формат строки: '{line}'. Ожидается 'параметр: значение'.")
 
-            if not key or not value:
-                raise HTTPException(status_code=400, detail=f"Неверный формат строки: '{line}'.")
+                key, value = line.split(":", 1)
+                key = key.strip()
+                value = value.strip()
 
-            parsed[key] = value
+                if not key or not value:
+                    raise HTTPException(status_code=400, detail=f"Неверный формат строки: '{line}'.")
 
-        info.append({block_name: parsed})
+                parsed[key] = value
 
-    feature.info = info
-    flag_modified(feature, "info")
+            info.append({block_name: parsed})
 
-    await session.commit()
-    await session.refresh(feature)
+        feature.info = info
+        flag_modified(feature, "info")
 
-    return FeatureResponseScheme(id=feature.id, title=feature.title, info=feature.info,
-                                 pros_cons=feature.pros_cons or {})
+        await session.commit()
+        await session.refresh(feature)
+
+        return FeatureResponseScheme(id=feature.id, title=feature.title, info=info, pros_cons=feature.pros_cons or {})
+
+    raise HTTPException(status_code=503, detail="DigitalTube service Unavailable — сервер временно недоступен")

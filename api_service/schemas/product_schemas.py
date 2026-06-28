@@ -31,6 +31,11 @@ class ProductOriginUpdate(BaseModel):
     title: str
 
 
+class CreateNewCriteria(BaseModel):
+    title: str
+    kind: list[str]
+
+
 class ProductDependencyUpdate(BaseModel):
     origin: int
     title: str
@@ -172,3 +177,26 @@ class UpdateProductFromDTPayload(BaseModel):
 
 class BrandsBulkList(BaseModel):
     brands: list[str]
+
+
+class CreateNewEntityRequest(BaseModel):
+    type: str | None = None
+    brand: str | None = None
+    kind: list[str] | None = None
+
+    @model_validator(mode="after")
+    def validate_pairs(self):
+
+        if not self.kind:
+            raise ValueError("Поле 'kind' обязательно")
+
+        if self.type and self.brand:
+            raise ValueError("Нельзя передавать одновременно 'type' и 'brand'")
+
+        if self.type and self.kind:
+            return self
+
+        if self.brand and self.kind:
+            return self
+
+        raise ValueError("Должны быть переданы либо (type и kind), либо (brand и kind)")

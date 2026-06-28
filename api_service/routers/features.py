@@ -1,3 +1,4 @@
+from aiohttp import ClientSession
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,15 +9,15 @@ from api_service.crud.features import product_features_depps_db, features_hub_le
     update_features_inner_row_db, delete_feature_db, types_brands_request_db, add_new_brand_request_db, \
     add_new_type_request_db, create_new_feature_global_db, set_feature_formula_dependency_db, \
     fetch_product_information_db, insert_bulk_params_db
+from api_service.s3_helper import get_http_client_session
 
 from api_service.schemas import FeaturesDataSet, PathRoutes, SetFeaturesHubLevelRequest, SetLevelRoutesResponse, \
     OriginsList, OriginHubLevelMap, FeatureResponseScheme, ProsConsItem, ProsConsItemUpdate, FeatureCategory, \
     UpdateFeatureCategoryRequest, InnerRowRequest, UpdateInnerRowRequest, FeatureIds, TypesAndBrands, \
     ProductOriginUpdate, CreateFeaturesGlobal, SetFeaturesFormulaRequest, SetFormulaResponse, FetchProductInfoRequest, \
-    ProductResponse, InsertBulkParams, FeatureBulkResponseScheme
+    ProductResponse, InsertBulkParams, FeatureBulkResponseScheme, CreateNewCriteria
 
 from engine import db
-from models import ProductFeaturesGlobal
 
 features_router = APIRouter(tags=['Features'], prefix="/features")
 
@@ -48,37 +49,43 @@ async def get_features_by_origin(feature_id: int, session: AsyncSession = Depend
     return await get_features_by_origin_db(feature_id, session)
 
 
-@features_router.post("/delete_pros_cons_value")
-async def delete_pros_cons_value(payload: ProsConsItem,
-                                 session: AsyncSession = Depends(db.scoped_session_dependency)):
-    return await delete_pros_cons_value_db(payload, session)
-
-
 @features_router.post("/add_pros_cons_value")
 async def add_pros_cons_value(payload: ProsConsItem,
-                              session: AsyncSession = Depends(db.scoped_session_dependency)):
-    return await add_pros_cons_value_db(payload, session)
+                              session: AsyncSession = Depends(db.scoped_session_dependency),
+                              cl_session: ClientSession = Depends(get_http_client_session)):
+    return await add_pros_cons_value_db(payload, session, cl_session)
 
 
 @features_router.post("/update_pros_cons_value")
 async def update_pros_cons_value(payload: ProsConsItemUpdate,
-                                 session: AsyncSession = Depends(db.scoped_session_dependency)):
-    return await update_pros_cons_value_db(payload, session)
+                                 session: AsyncSession = Depends(db.scoped_session_dependency),
+                                 cl_session: ClientSession = Depends(get_http_client_session)):
+    return await update_pros_cons_value_db(payload, session, cl_session)
+
+
+@features_router.post("/delete_pros_cons_value")
+async def delete_pros_cons_value(payload: ProsConsItem,
+                                 session: AsyncSession = Depends(db.scoped_session_dependency),
+                                 cl_session: ClientSession = Depends(get_http_client_session)):
+    return await delete_pros_cons_value_db(payload, session, cl_session)
 
 
 @features_router.post("/create_new_info_category")
 async def create_new_info_category(payload: FeatureCategory,
-                                   session: AsyncSession = Depends(db.scoped_session_dependency)):
-    return await create_new_info_category_db(payload, session)
+                                   session: AsyncSession = Depends(db.scoped_session_dependency),
+                                   cl_session: ClientSession = Depends(get_http_client_session)):
+    return await create_new_info_category_db(payload, session, cl_session)
 
 
+################!!!!!!!!!!!!!!!!!!!!###############
 @features_router.post("/delete_info_category")
 async def delete_info_category(payload: FeatureCategory,
-                               session: AsyncSession = Depends(db.scoped_session_dependency)):
-    return await delete_info_category_db(payload, session)
+                               session: AsyncSession = Depends(db.scoped_session_dependency),
+                               cl_session: ClientSession = Depends(get_http_client_session)):
+    return await delete_info_category_db(payload, session, cl_session)
 
 
-@features_router.post("/Update_info_category")
+@features_router.post("/update_info_category")
 async def update_info_category(payload: UpdateFeatureCategoryRequest,
                                session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await update_info_category_db(payload, session)
@@ -114,21 +121,24 @@ async def types_brands_request(session: AsyncSession = Depends(db.scoped_session
 
 
 @features_router.post("/add_new_brand")
-async def add_new_brand_request(title: ProductOriginUpdate,
-                                session: AsyncSession = Depends(db.scoped_session_dependency)):
-    return await add_new_brand_request_db(title, session)
+async def add_new_brand_request(payload: CreateNewCriteria,
+                                session: AsyncSession = Depends(db.scoped_session_dependency),
+                                cl_session: ClientSession = Depends(get_http_client_session)):
+    return await add_new_brand_request_db(payload, session, cl_session)
 
 
 @features_router.post("/add_new_type")
-async def add_new_type_request(title: ProductOriginUpdate,
-                               session: AsyncSession = Depends(db.scoped_session_dependency)):
-    return await add_new_type_request_db(title, session)
+async def add_new_type_request(payload: CreateNewCriteria,
+                               session: AsyncSession = Depends(db.scoped_session_dependency),
+                               cl_session: ClientSession = Depends(get_http_client_session)):
+    return await add_new_type_request_db(payload, session, cl_session)
 
 
 @features_router.post("/create_new_feature_global")
 async def create_new_feature_global(payload: CreateFeaturesGlobal,
-                                    session: AsyncSession = Depends(db.scoped_session_dependency)):
-    return await create_new_feature_global_db(payload, session)
+                                    session: AsyncSession = Depends(db.scoped_session_dependency),
+                                    cl_session: ClientSession = Depends(get_http_client_session)):
+    return await create_new_feature_global_db(payload, session, cl_session)
 
 
 @features_router.post("/set_formula_dependency", response_model=SetFormulaResponse)
@@ -145,5 +155,6 @@ async def fetch_product_information(payload: FetchProductInfoRequest,
 
 @features_router.post("/insert_bulk_params", response_model=FeatureBulkResponseScheme)
 async def insert_bulk_params(payload: InsertBulkParams,
-                             session: AsyncSession = Depends(db.scoped_session_dependency)):
-    return await insert_bulk_params_db(payload, session)
+                             session: AsyncSession = Depends(db.scoped_session_dependency),
+                             cl_session: ClientSession = Depends(get_http_client_session)):
+    return await insert_bulk_params_db(payload, session, cl_session)
