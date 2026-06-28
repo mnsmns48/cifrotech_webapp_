@@ -499,14 +499,8 @@ async def add_new_brand_request_db(title: ProductOriginUpdate, session: AsyncSes
 
 
 async def create_new_feature_global_db(payload: CreateFeaturesGlobal, session: AsyncSession):
-    new_feature = ProductFeaturesGlobal(
-        title=payload.title,
-        type_id=payload.type_obj.id,
-        brand_id=payload.brand_obj.id,
-        info={},
-        pros_cons={},
-        source="custom"
-    )
+    new_feature = ProductFeaturesGlobal(title=payload.title, type_id=payload.type_obj.id,
+                                        brand_id=payload.brand_obj.id, info={}, pros_cons={}, source="custom")
 
     session.add(new_feature)
     await session.commit()

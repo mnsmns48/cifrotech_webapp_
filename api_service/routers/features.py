@@ -131,7 +131,7 @@ async def create_new_feature_global(payload: CreateFeaturesGlobal,
     return await create_new_feature_global_db(payload, session)
 
 
-@features_router.post("//set_formula_dependency", response_model=SetFormulaResponse)
+@features_router.post("/set_formula_dependency", response_model=SetFormulaResponse)
 async def set_feature_formula_dependency(payload: SetFeaturesFormulaRequest,
                                          session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await set_feature_formula_dependency_db(payload, session)
