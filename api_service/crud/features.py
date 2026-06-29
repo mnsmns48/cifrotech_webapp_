@@ -580,8 +580,8 @@ async def create_new_feature_global_db(payload: CreateFeaturesGlobal, session: A
     is_connected = await can_connect(cl_session)
     if is_connected:
         result = await create_new_product_in_server(payload, cl_session)
-        if result:
-            new_feature = ProductFeaturesGlobal(title=payload.title, type_id=payload.type_obj.id,
+        if result.get('status') == 'ok':
+            new_feature = ProductFeaturesGlobal(title=result.get("title_line"), type_id=payload.type_obj.id,
                                                 brand_id=payload.brand_obj.id, info={}, pros_cons={}, source="custom")
 
             session.add(new_feature)

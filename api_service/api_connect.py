@@ -5,8 +5,7 @@ from typing import Literal
 import jwt
 from aiohttp import ClientSession, ClientConnectorError, ContentTypeError, ClientResponseError, ClientTimeout
 
-from api_service.schemas import UpdateProductFromDTPayload, CreateNewEntityRequest, CreateFeaturesGlobal, ProsConsItem, \
-    InsertBulkParams
+from api_service.schemas import UpdateProductFromDTPayload, CreateNewEntityRequest, CreateFeaturesGlobal
 from config import settings
 
 BASE_DTUBE_URL = settings.api.digitaltube_url

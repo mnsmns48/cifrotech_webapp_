@@ -14,7 +14,7 @@ from api_service.s3_helper import get_http_client_session
 from api_service.schemas import FeaturesDataSet, PathRoutes, SetFeaturesHubLevelRequest, SetLevelRoutesResponse, \
     OriginsList, OriginHubLevelMap, FeatureResponseScheme, ProsConsItem, ProsConsItemUpdate, FeatureCategory, \
     UpdateFeatureCategoryRequest, InnerRowRequest, UpdateInnerRowRequest, FeatureIds, TypesAndBrands, \
-    ProductOriginUpdate, CreateFeaturesGlobal, SetFeaturesFormulaRequest, SetFormulaResponse, FetchProductInfoRequest, \
+    CreateFeaturesGlobal, SetFeaturesFormulaRequest, SetFormulaResponse, FetchProductInfoRequest, \
     ProductResponse, InsertBulkParams, FeatureBulkResponseScheme, CreateNewCriteria
 
 from engine import db
