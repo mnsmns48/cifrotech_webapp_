@@ -16,6 +16,7 @@ from api_miniapp.routers import miniapp_router
 from api_service.routers import service_router
 from api_users.routers import auth_api_router
 from api_v2.routers import api_v2_router
+from api_v3.routers import api_v3
 from bot.bot_main import bot_setup_webhook, bot_fastapi_router, bot, dp
 from bot.crud_bot import get_option_value, add_bot_options
 from config import settings, redis_session
@@ -50,6 +51,7 @@ app.add_middleware(CORSMiddleware, allow_origins=settings.cors,
 
 app.include_router(miniapp_router, tags=['Telegram Mini App'])
 app.include_router(api_v2_router, tags=["Api V2"])
+app.include_router(api_v3)
 app.include_router(bot_fastapi_router, tags=["TG Bot Router"])
 app.include_router(router=auth_api_router)
 app.include_router(service_router)

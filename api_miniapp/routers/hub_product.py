@@ -24,7 +24,6 @@ async def get_levels(session: AsyncSession = Depends(db.scoped_session_dependenc
 @cache_with_duration(expire=180)
 async def products_by_path(ids: list[int] = Query(...), session: AsyncSession = Depends(db.scoped_session_dependency)):
     start = time.monotonic()
-
     products = await fetch_products_by_path(ids, session)
     result = list()
 
