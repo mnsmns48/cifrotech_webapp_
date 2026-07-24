@@ -4,7 +4,8 @@ from typing import Optional, List
 from fastapi import APIRouter, Query, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api_miniapp.schemas import HubProductScheme
+from api_miniapp.crud import fetch_hub_levels
+from api_miniapp.schemas import HubProductScheme, HubLevelScheme
 from api_service.s3_helper import get_url_from_s3
 from api_v3.crud import fetch_products_cursor_paginated
 from api_v3.filters import generate_filters_hash
@@ -40,10 +41,13 @@ async def get_products(cursor: int | None = None,
 
     duration_ms = int((time.monotonic() - start) * 1000)
 
-    return {
-        "products": products,
-        "next_cursor": next_cursor,
-        "has_more": has_more,
-        "filters_hash": filters_hash,
-        "duration_ms": duration_ms
-    }
+    return {"products": products,
+            "next_cursor": next_cursor,
+            "has_more": has_more,
+            "filters_hash": filters_hash,
+            "duration_ms": duration_ms}
+
+
+@api_v3.get("/init_levels", response_model=List[HubLevelScheme])
+async def get_levels(session: AsyncSession = Depends(db.scoped_session_dependency)):
+    return await fetch_hub_levels(session)

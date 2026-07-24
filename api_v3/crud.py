@@ -41,7 +41,6 @@ async def fetch_products_cursor_paginated(
             ProductOrigin.title,
             ProductFeaturesGlobal.title
         )
-        .order_by(func.random())
         .limit(limit)
     )
 
