@@ -7,7 +7,7 @@ from aiohttp import ClientConnectionError, ClientResponseError
 from botocore.exceptions import ClientError, BotoCoreError, ParamValidationError
 from aiohttp import ClientSession
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
-from sqlalchemy import select, update
+from sqlalchemy import select, update, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -23,7 +23,7 @@ from api_service.schemas import (ParsingRequest, ProductOriginUpdate, ProductDep
                                  RecalcPricesRequest, OriginsPayload, SourceContext, ParsingResultOut, ParsingLinesIn,
                                  OriginsList, ProductDependencyBatchUpdate, AddAttributesValuesRequest,
                                  DependencyImageItem, DependencyOriginImplementation, ImageResponseItem, VslId,
-                                 ModelForApprove)
+                                 ModelForApprove, ParsingLineClearItemsRequest)
 
 from api_service.schemas.range_reward_schemas import RewardRangeResponseSchema
 from api_service.utils import AppDependencies
@@ -108,7 +108,7 @@ async def update_parsing_item(origin: int, data: ProductOriginUpdate,
         return {"updated": data.title}
 
 
-@parsing_router.post("/delete_parsing_items/")
+@parsing_router.post("/delete_parsing_item_ever/")
 async def delete_parsing_items(origins: list[int], session: AsyncSession = Depends(db.scoped_session_dependency)):
     if not origins:
         raise HTTPException(422, detail="Список origin пуст")
@@ -117,6 +117,20 @@ async def delete_parsing_items(origins: list[int], session: AsyncSession = Depen
     if not result:
         raise HTTPException(404, detail="Переданные origin не найдены")
     stmt = update(ProductOrigin).where(ProductOrigin.origin.in_(result)).values(is_deleted=True)
+    await session.execute(stmt)
+    await session.commit()
+
+
+@parsing_router.post("/delete_from_parsing_line/")
+async def delete_from_parsing_line(payload: ParsingLineClearItemsRequest,
+                                   session: AsyncSession = Depends(db.scoped_session_dependency)):
+    if not payload.origins:
+        raise HTTPException(422, detail="Список origin пуст")
+    origin_exist = select(ProductOrigin.origin).where(ProductOrigin.origin.in_(payload.origins))
+    result = (await session.execute(origin_exist)).scalars().all()
+    if not result:
+        raise HTTPException(404, detail="Переданные origin не найдены")
+    stmt = (delete(ParsingLine).where(ParsingLine.vsl_id == payload.vsl_id, ParsingLine.origin.in_(payload.origins)))
     await session.execute(stmt)
     await session.commit()
 

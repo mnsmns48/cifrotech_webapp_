@@ -83,3 +83,8 @@ class ImageResponseItem(BaseModel):
     filename: str
     url: str | None
     is_preview: bool
+
+
+class ParsingLineClearItemsRequest(BaseModel):
+    origins: list[int]
+    vsl_id: int

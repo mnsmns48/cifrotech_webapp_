@@ -11,8 +11,10 @@ from api_service.schemas.price_sync_schemas import PathIdRequest, PriceSyncPicke
     SyncPathWOrigins, UpdateHubApproveItems, SyncPathWMarket, SyncPathWModels, ProductMarketSettingsSchema, \
     UpdateMarketSettingsRequest, HubStockUpdateSyncPathItem
 
-from api_service.schemas.parsing_schemas import ParsingRequest, ParsingLinesIn, ParsingToDiffData, SourceContext, \
-    ParsingResultOut, AddAttributesValuesRequest, DependencyImageItem, DependencyOriginImplementation, ImageResponseItem
+from api_service.schemas.parsing_schemas import (ParsingRequest, ParsingLinesIn, ParsingToDiffData, SourceContext, \
+                                                 ParsingResultOut, AddAttributesValuesRequest, DependencyImageItem,
+                                                 DependencyOriginImplementation,
+                                                 ImageResponseItem, ParsingLineClearItemsRequest)
 
 from api_service.schemas.product_schemas import ProductOriginUpdate, ProductDependencyUpdate, ProductResponse, \
     RecalcPricesRequest, RecalcPricesResponse, ProductOriginCreate, ProductDependencyBatchUpdate, OriginsList, \
@@ -61,7 +63,8 @@ __all__ += ["VendorSchema"]
 __all__ += ["VSLScheme", "VslId", "VSLSchemeWithBrands", "VSLSchemeWithBrandsCreate", "VendorApiSearchLinkScheme"]
 
 __all__ += ["ParsingRequest", "ParsingLinesIn", "ParsingToDiffData", "SourceContext", "ParsingResultOut",
-            "AddAttributesValuesRequest", "DependencyImageItem", "DependencyOriginImplementation", "ImageResponseItem"]
+            "AddAttributesValuesRequest", "DependencyImageItem", "DependencyOriginImplementation", "ImageResponseItem",
+            "ParsingLineClearItemsRequest"]
 
 __all__ += ["RewardRangeLineSchema", "RewardRangeSchema", "RewardRangeResponseSchema", "RewardRangeBaseSchema",
             "AttributeKeyValueSchema", "AttributeKey", "AttrValueRequestByKeyAndExcludes"]
@@ -103,7 +106,8 @@ __all__ += ["FormulaBase", "FormulaCreate", "FormulaUpdate", "FormulaResponse", 
 __all__ += ["FeaturesDataSet", "PathRoutes", "SetFeaturesHubLevelRequest", "SetLevelRoutesResponse", "FeaturesElement",
             "FeatureResponseScheme", "ProsConsItem", "ProsConsItemUpdate", "FeatureCategory",
             "UpdateFeatureCategoryRequest", "InnerRowRequest", "UpdateInnerRowRequest", "FeatureIds", "TypesAndBrands",
-            "CreateFeaturesGlobal", "SetFeaturesFormulaRequest", "SetFormulaResponse", "InsertBulkParams", "FeatureBulkResponseScheme"]
+            "CreateFeaturesGlobal", "SetFeaturesFormulaRequest", "SetFormulaResponse", "InsertBulkParams",
+            "FeatureBulkResponseScheme"]
 
 __all__ += ["ProductTypeWeightRuleSchema", "ProductTypeWeightRuleCreate", "ProductTypeWeightRuleDelete",
             "ProductTypeWeightRuleUpdate", "ProductTypeWeightRuleSwitch", "ProductTypeValueMapScheme",
