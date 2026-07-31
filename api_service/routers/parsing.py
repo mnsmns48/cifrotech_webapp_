@@ -108,7 +108,7 @@ async def update_parsing_item(origin: int, data: ProductOriginUpdate,
         return {"updated": data.title}
 
 
-@parsing_router.post("/delete_parsing_item_ever/")
+@parsing_router.post("/delete_parsing_item_ever")
 async def delete_parsing_items(origins: list[int], session: AsyncSession = Depends(db.scoped_session_dependency)):
     if not origins:
         raise HTTPException(422, detail="Список origin пуст")
@@ -121,7 +121,7 @@ async def delete_parsing_items(origins: list[int], session: AsyncSession = Depen
     await session.commit()
 
 
-@parsing_router.post("/delete_from_parsing_line/")
+@parsing_router.post("/delete_from_parsing_line")
 async def delete_from_parsing_line(payload: ParsingLineClearItemsRequest,
                                    session: AsyncSession = Depends(db.scoped_session_dependency)):
     if not payload.origins:
