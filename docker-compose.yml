@@ -1,0 +1,32 @@
+services:
+  backend:
+    image: c_webapp_backend_dev
+    build: .
+    container_name: c_webapp_backend_dev
+    restart: always
+
+    working_dir: /cifrotech_webapp_
+
+    environment:
+      MODE: dev
+      SP: /run/secrets/app_env
+
+    volumes:
+      - .:/cifrotech_webapp_
+      - ./.env:/run/secrets/app_env:ro
+
+    ports:
+      - "5000:5000"
+
+    command: uvicorn main:app --host 0.0.0.0 --port 5000
+
+    depends_on:
+      - redis
+
+
+  redis:
+    image: redis:latest
+    container_name: c_webapp_redis_dev
+    restart: always
+    ports:
+      - "6379:6379"

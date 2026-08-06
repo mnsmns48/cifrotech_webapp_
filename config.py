@@ -18,11 +18,24 @@ BROWSER_HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "Referer": "https://google.com"}
 
 load_dotenv(dotenv_path=BASE_DIR / ".env")
-secret_env_path = os.getenv("SP")
-if secret_env_path:
-    load_dotenv(dotenv_path=secret_env_path)
+
+MODE = os.getenv("MODE", "dev").lower()
+SP = os.getenv("SP")
+
+if MODE == "prod":
+    if not SP:
+        raise RuntimeError("MODE=prod, но переменная SP не указана")
+    if not os.path.exists(SP):
+        raise RuntimeError(f"MODE=prod: файл с секретами не найден по пути SP={SP}")
+    load_dotenv(dotenv_path=SP)
+    secret_env_path = SP
 else:
-    raise RuntimeError("Не указана переменная SP с путём до файла .env с ключами")
+    if not SP:
+        raise RuntimeError("MODE=dev, но переменная SP не указана (ожидается путь к private/.env)")
+    if not os.path.exists(SP):
+        raise RuntimeError(f"MODE=dev: файл .env не найден по пути SP={SP}")
+    load_dotenv(dotenv_path=SP)
+    secret_env_path = SP
 
 
 class CustomConfigSettings(BaseSettings):
