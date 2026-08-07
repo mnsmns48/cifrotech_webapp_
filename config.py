@@ -16,26 +16,44 @@ BROWSER_HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                                  "Chrome/100.0.4896.75 Safari/537.36",
                    "Accept-Language": "en-US,en;q=0.9",
                    "Referer": "https://google.com"}
+root_env = BASE_DIR / ".env"
 
-load_dotenv(dotenv_path=BASE_DIR / ".env")
+if not root_env.exists():
+    raise RuntimeError(f"Корневой .env не найден: {root_env}")
+
+load_dotenv(root_env)
 
 MODE = os.getenv("MODE", "dev").lower()
 SP = os.getenv("SP")
 
-if MODE == "prod":
-    if not SP:
-        raise RuntimeError("MODE=prod, но переменная SP не указана")
-    if not os.path.exists(SP):
-        raise RuntimeError(f"MODE=prod: файл с секретами не найден по пути SP={SP}")
-    load_dotenv(dotenv_path=SP)
-    secret_env_path = SP
+if not SP:
+    raise RuntimeError(f"MODE={MODE}: переменная SP не указана")
+
+if MODE == "dev":
+    secret_env_path = Path(SP)
+    if not secret_env_path.is_absolute():
+        secret_env_path = BASE_DIR / secret_env_path
+
 else:
-    if not SP:
-        raise RuntimeError("MODE=dev, но переменная SP не указана (ожидается путь к private/.env)")
-    if not os.path.exists(SP):
-        raise RuntimeError(f"MODE=dev: файл .env не найден по пути SP={SP}")
-    load_dotenv(dotenv_path=SP)
-    secret_env_path = SP
+    secret_env_path = Path(SP)
+    if not secret_env_path.is_absolute():
+        raise RuntimeError(
+            "MODE=prod: SP должен содержать абсолютный путь "
+            "к внешнему .env"
+        )
+
+if not secret_env_path.exists():
+    raise RuntimeError(f"MODE={MODE}: файл секретов не найден: " f"{secret_env_path}")
+
+if not secret_env_path.is_file():
+    raise RuntimeError(
+        f"MODE={MODE}: SP указывает не на файл: "
+        f"{secret_env_path}"
+    )
+
+load_dotenv(secret_env_path)
+
+secret_env_path = secret_env_path.resolve()
 
 
 class CustomConfigSettings(BaseSettings):
