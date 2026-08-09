@@ -8,7 +8,7 @@ from api_v2.crud import get_root_menu, get_page_items, get_random12
 from config import settings
 from engine import db
 
-api_v2_router = APIRouter(prefix="/api2")
+api_v2_router = APIRouter(prefix="/api2", tags=["api_v2"])
 
 
 @api_v2_router.get("/root")

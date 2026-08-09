@@ -46,7 +46,7 @@ async def bot_setup_webhook():
     return bot_obj.username
 
 
-bot_fastapi_router = APIRouter()
+bot_fastapi_router = APIRouter(tags=["fastapi Bot Router"])
 
 
 @bot_fastapi_router.post("/webhook")

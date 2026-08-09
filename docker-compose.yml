@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
   c_webapp:
-    image: c_webapp_image:latest
+    image: c_webapp_backend:latest
     container_name: c_webapp
     depends_on:
       - postgres
@@ -15,7 +15,7 @@ services:
 
     volumes:
       - .:/cifrotech_webapp_
-      - /Users/smdlkhn/Documents/cifrotech_env/.env:/run/secrets/app_env:ro
+      - /path-to-env/.env:/run/secrets/app_env:ro
 
     ports:
       - "5000:5000"
