@@ -6,7 +6,7 @@ from api_service.modulars.api_bridge.microline.schemas import AddVendorApiSearch
 from api_service.modulars.api_bridge.microline.service import ApiBridgeService
 from engine import db
 
-api_bridge_router = APIRouter()
+api_bridge_router = APIRouter(tags=["Api Bridge"])
 
 
 @api_bridge_router.post("/api_bridge/add_vendor_api_search", response_model=VendorApiSearchResponse)
