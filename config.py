@@ -21,39 +21,12 @@ root_env = BASE_DIR / ".env"
 if not root_env.exists():
     raise RuntimeError(f"Корневой .env не найден: {root_env}")
 
-load_dotenv(root_env)
-
-MODE = os.getenv("MODE", "dev").lower()
-SP = os.getenv("SP")
-
-if not SP:
-    raise RuntimeError(f"MODE={MODE}: переменная SP не указана")
-
-if MODE == "dev":
-    secret_env_path = Path(SP)
-    if not secret_env_path.is_absolute():
-        secret_env_path = BASE_DIR / secret_env_path
-
+load_dotenv(dotenv_path=BASE_DIR / ".env")
+secret_env_path = os.getenv("SP")
+if secret_env_path:
+    load_dotenv(dotenv_path=secret_env_path)
 else:
-    secret_env_path = Path(SP)
-    if not secret_env_path.is_absolute():
-        raise RuntimeError(
-            "MODE=prod: SP должен содержать абсолютный путь "
-            "к внешнему .env"
-        )
-
-if not secret_env_path.exists():
-    raise RuntimeError(f"MODE={MODE}: файл секретов не найден: " f"{secret_env_path}")
-
-if not secret_env_path.is_file():
-    raise RuntimeError(
-        f"MODE={MODE}: SP указывает не на файл: "
-        f"{secret_env_path}"
-    )
-
-load_dotenv(secret_env_path)
-
-secret_env_path = secret_env_path.resolve()
+    raise RuntimeError("Не указана переменная SP с путём до файла .env с ключами")
 
 
 class CustomConfigSettings(BaseSettings):
