@@ -10,14 +10,17 @@ from api_service.s3_helper import get_url_from_s3
 from api_v3.crud import fetch_products_cursor_paginated
 from api_v3.filters import generate_filters_hash
 from api_v3.menu_resolver import resolve_menu_levels_to_path_ids, build_cursor_response
+from api_v3.schemas import ProductResponse
 from engine import db
 
 api_v3 = APIRouter(prefix="/api3", tags=["api_v3"])
 
 
-@api_v3.get("/products")
-async def get_products(cursor: int | None = None,
-                       limit: int = 24,
+@api_v3.get("/products", response_model=ProductResponse,
+            description=("Возвращает список товаров, отфильтрованные по уровням меню. "
+                         "Использует курсорную пагинацию, возвращает next_cursor, "
+                         "флаг has_more, хеш фильтров и время выполнения."))
+async def get_products(cursor: int | None = None, limit: int = 24,
                        menu_levels: List[int] = Query(None),
                        session: AsyncSession = Depends(db.scoped_session_dependency)):
     start = time.monotonic()
@@ -26,7 +29,7 @@ async def get_products(cursor: int | None = None,
     filters_hash = generate_filters_hash(filters)
     rows = await fetch_products_cursor_paginated(session=session, path_ids=path_ids, cursor=cursor, limit=limit)
     next_cursor, has_more = build_cursor_response(rows, limit)
-    products = []
+    products = list()
     for row in rows:
         pics = row.get("pics")
         preview = row.get("preview")
@@ -36,16 +39,16 @@ async def get_products(cursor: int | None = None,
         if preview:
             preview = get_url_from_s3(filename=preview, path=row.get("origin"))
 
-        transformed = {**row, "pics": pics, "preview": preview}
+        transformed = {**row, "pics": pics, "preview": preview, "attrs": row["attrs"]}
         products.append(HubProductScheme.model_validate(transformed))
 
     duration_ms = int((time.monotonic() - start) * 1000)
 
-    return {"products": products,
-            "next_cursor": next_cursor,
-            "has_more": has_more,
-            "filters_hash": filters_hash,
-            "duration_ms": duration_ms}
+    return ProductResponse(products=products,
+                           next_cursor=next_cursor,
+                           has_more=has_more,
+                           filters_hash=filters_hash,
+                           duration_ms=duration_ms)
 
 
 @api_v3.get("/init_levels", response_model=List[HubLevelScheme])

@@ -22,6 +22,17 @@ class AttributeBase(BaseModel):
         return v.strip() if v else v
 
 
+class CreateAttrKey(BaseModel):
+    key: str
+    alias: str | None = None
+
+
+class UpdateAttrKey(BaseModel):
+    key_id: int
+    new_key: str
+    alias: str | None = None
+
+
 class CreateAttribute(AttributeBase):
     key: int
 
@@ -46,6 +57,7 @@ class Types(BaseModel):
 class AttributeKey(BaseModel):
     id: int
     key: str
+    alias: Optional[str]
 
     model_config = ConfigDict(from_attributes=True)
 
