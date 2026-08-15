@@ -30,9 +30,7 @@ async def create_attribute_key(session: AsyncSession, payload: CreateAttrKey) ->
 
 
 async def update_attribute_key(session: AsyncSession, payload: UpdateAttrKey) -> AttributeKey | None:
-    result = await session.execute(
-        select(AttributeKey).where(AttributeKey.id == payload.key_id)
-    )
+    result = await session.execute(select(AttributeKey).where(AttributeKey.id == payload.key_id))
     attr_key = result.scalar_one_or_none()
 
     if attr_key is None:
@@ -47,16 +45,11 @@ async def update_attribute_key(session: AsyncSession, payload: UpdateAttrKey) ->
 
 
 async def delete_attribute_key(session: AsyncSession, key_id: int):
-    result = await session.execute(
-        select(AttributeKey).where(AttributeKey.id == key_id)
-    )
+    result = await session.execute(select(AttributeKey).where(AttributeKey.id == key_id))
     attr_key = result.scalar_one_or_none()
 
     if attr_key is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Attribute key {key_id} not found"
-        )
+        raise HTTPException(status_code=404, detail=f"Attribute key {key_id} not found")
 
     try:
         await session.delete(attr_key)

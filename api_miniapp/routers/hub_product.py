@@ -9,7 +9,9 @@ from api_miniapp.schemas import HubLevelScheme, HubProductScheme, HubProductResp
 from api_miniapp.schemas.hub_prod_scheme import ProductFeaturesResponse
 from api_miniapp.utils import cache_with_duration
 from api_service.s3_helper import get_url_from_s3
+from api_service.schemas import AttributeKeyValueSchema
 from engine import db
+from models import AttributeKey
 
 hub_product = APIRouter()
 
@@ -26,18 +28,31 @@ async def products_by_path(ids: list[int] = Query(...), session: AsyncSession = 
     start = time.monotonic()
     products = await fetch_products_by_path(ids, session)
     result = list()
-
     for product in products:
         pics = product.get("pics")
         preview = product.get("preview")
         model = product.get("model")
+        attrs_raw = product.get("attrs") or []
 
         if pics:
             pics = [get_url_from_s3(filename=icon, path=product.get("origin")) for icon in pics]
         if preview:
             preview = get_url_from_s3(filename=preview, path=product.get("origin"))
 
-        transformed = {**product, "pics": pics, "preview": preview, "model": model}
+        attrs = [AttributeKeyValueSchema(
+            id=a["id"],
+            value=a["value"],
+            alias=a["alias"],
+            key=AttributeKey(
+                id=a["key"]["id"],
+                key=a["key"]["key"],
+                alias=a["key"]["alias"]
+            )
+        )
+            for a in attrs_raw
+        ]
+
+        transformed = {**product, "pics": pics, "preview": preview, "model": model, "attrs": attrs}
         result.append(HubProductScheme.model_validate(transformed))
 
     duration_ms = int((time.monotonic() - start) * 1000)
