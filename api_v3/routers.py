@@ -37,9 +37,12 @@ async def get_products(cursor: int | None = None,
     filters_hash = generate_filters_hash(filters)
     rows = await fetch_products_cursor_paginated(session=session, path_ids=path_ids, cursor=cursor, limit=limit)
     next_cursor, has_more = build_cursor_response(rows, limit)
-    feature_ids = [row["feature_id"] for row in rows if row.get("feature_id")]
-    unique_feature_ids = list({fid for fid in feature_ids if fid is not None})
-    short_specs_map = await DescBuilder.get_short_specs_bulk(feature_ids=unique_feature_ids,
+    unique_feature_ids = set()
+    for row in rows:
+        feature_id = row.get("feature_id")
+        if feature_id is not None:
+            unique_feature_ids.add(feature_id)
+    short_specs_map = await DescBuilder.get_short_specs_bulk(feature_ids=list(unique_feature_ids),
                                                              session=session,
                                                              cache=cache)
     products: List[HubProductSchemeExtV3] = list()
