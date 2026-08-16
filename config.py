@@ -46,7 +46,6 @@ class Token(CustomConfigSettings):
 
 
 class APISettings(CustomConfigSettings):
-    photo_path: str
     backend_url: str
     digitaltube_url: str
     docs_url: str
