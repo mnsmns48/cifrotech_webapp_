@@ -13,7 +13,7 @@ from api_service.crud.attributes import fetch_all_attribute_keys, create_attribu
 from api_service.schemas import CreateAttribute, UpdateAttribute, TypesDependenciesResponse, TypeDependencyLink, \
     AttributeBrandRuleLink, ProductFeaturesAttributeOptions, Types, ModelAttributesRequest, ModelAttributesResponse, \
     AttributeModelOptionLink, AttributeOriginValueCheckRequest, AttributeOriginValueCheckResponse, AttributeValueSchema, \
-    AttrValueRequestByKeyAndExcludes
+    AttrValueRequestByKeyAndExcludes, CreateAttrKey, UpdateAttrKey
 from engine import db
 from models.attributes import OverrideType, AttributeValue
 
@@ -26,15 +26,15 @@ async def fetch_attribute_keys(session: AsyncSession = Depends(db.scoped_session
 
 
 @attributes_router.post("/create_attr_key")
-async def create_attr_key(key: str, session: AsyncSession = Depends(db.scoped_session_dependency)):
-    new_key = await create_attribute_key(session, key)
+async def create_attr_key(payload: CreateAttrKey, session: AsyncSession = Depends(db.scoped_session_dependency)
+                          ):
+    new_key = await create_attribute_key(session, payload)
     return {"status": "ok", "created": new_key}
 
 
 @attributes_router.put("/update_attr_key")
-async def update_attr_key(key_id: int, new_key: str,
-                          session: AsyncSession = Depends(db.scoped_session_dependency)):
-    updated = await update_attribute_key(session, key_id, new_key)
+async def update_attr_key(payload: UpdateAttrKey, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    updated = await update_attribute_key(session, payload)
 
     if updated is None:
         raise HTTPException(status_code=404, detail="Key not found")
@@ -42,7 +42,7 @@ async def update_attr_key(key_id: int, new_key: str,
     return {"status": "ok", "updated": updated}
 
 
-@attributes_router.delete("/attributes/delete_attr_key")
+@attributes_router.delete("/delete_attr_key")
 async def delete_attr_key(key_id: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
     result = await delete_attribute_key(session, key_id)
     if result:

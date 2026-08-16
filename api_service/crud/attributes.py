@@ -6,9 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 from starlette import status
 
-from api_service.schemas import CreateAttribute, AttributeBrandRuleLink, ProductFeaturesAttributeOptions, \
+from api_service.schemas import CreateAttrKey, AttributeBrandRuleLink, ProductFeaturesAttributeOptions, \
     AttributeValueSchema, ModelAttributeValuesSchema, ModelAttributesRequest, ModelAttributesResponse, \
-    AttributeModelOptionLink, AttributeOriginValueCheckRequest, AttributeOriginValueCheckResponse, FormulaResponse
+    AttributeModelOptionLink, AttributeOriginValueCheckRequest, AttributeOriginValueCheckResponse, FormulaResponse, \
+    UpdateAttrKey, CreateAttribute
 
 from models import ProductType, AttributeKey, AttributeValue, AttributeLink, AttributeBrandRule, ProductBrand, \
     ProductFeaturesGlobal, AttributeModelOption, ProductImage, FormulaExpression, ProductFeaturesFormulaLink
@@ -20,40 +21,35 @@ async def fetch_all_attribute_keys(session: AsyncSession):
     return execute.scalars().all()
 
 
-async def create_attribute_key(session: AsyncSession, key: str) -> AttributeKey:
-    new_key = AttributeKey(key=key)
+async def create_attribute_key(session: AsyncSession, payload: CreateAttrKey) -> AttributeKey:
+    new_key = AttributeKey(key=payload.key, alias=payload.alias)
     session.add(new_key)
     await session.commit()
     await session.refresh(new_key)
     return new_key
 
 
-async def update_attribute_key(session: AsyncSession, key_id: int, new_key: str) -> AttributeKey | None:
-    result = await session.execute(
-        select(AttributeKey).where(AttributeKey.id == key_id)
-    )
+async def update_attribute_key(session: AsyncSession, payload: UpdateAttrKey) -> AttributeKey | None:
+    result = await session.execute(select(AttributeKey).where(AttributeKey.id == payload.key_id))
     attr_key = result.scalar_one_or_none()
 
     if attr_key is None:
         return None
 
-    attr_key.key = new_key
+    attr_key.key = payload.new_key
+    attr_key.alias = payload.alias
+
     await session.commit()
     await session.refresh(attr_key)
     return attr_key
 
 
 async def delete_attribute_key(session: AsyncSession, key_id: int):
-    result = await session.execute(
-        select(AttributeKey).where(AttributeKey.id == key_id)
-    )
+    result = await session.execute(select(AttributeKey).where(AttributeKey.id == key_id))
     attr_key = result.scalar_one_or_none()
 
     if attr_key is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Attribute key {key_id} not found"
-        )
+        raise HTTPException(status_code=404, detail=f"Attribute key {key_id} not found")
 
     try:
         await session.delete(attr_key)
@@ -91,7 +87,7 @@ async def fetch_all_attribute_values_with_keys(session: AsyncSession):
 
 
 async def create_attribute(session: AsyncSession, payload: CreateAttribute) -> AttributeValue:
-    key_exists_stmt = select(AttributeKey.id).where(AttributeKey.id == payload.key)
+    key_exists_stmt = select(AttributeKey.id).where(AttributeKey.id == payload.key_id)
     key_exists = (await session.execute(key_exists_stmt)).scalar_one_or_none()
     if key_exists is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -415,7 +411,6 @@ async def attributes_origin_value_check_request_db(payload: AttributeOriginValue
         FormulaResponse.model_validate(formula_obj)
         if formula_obj else None
     )
-
 
     return AttributeOriginValueCheckResponse(title=payload.title,
                                              have_images=bool(have_images),

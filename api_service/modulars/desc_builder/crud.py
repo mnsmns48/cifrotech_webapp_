@@ -1,5 +1,6 @@
 import re
 
+from fastapi_cache.decorator import cache
 from jinja2 import TemplateSyntaxError, UndefinedError, TemplateRuntimeError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +12,7 @@ from api_service.schemas import GenerateDescriptionPayload, SpecsParamScheme, De
     DescriptionSuccess
 from api_service.s3_helper import get_url_from_s3
 from config import settings
+from cache.builder import cache_key_builder
 from models import ProductFeaturesGlobal, SpecsComposer, SpecPath, ProductFeaturesLink
 
 

@@ -43,8 +43,7 @@ async def resolve_menu_levels_to_path_ids(selected_levels: List[int], session: A
     for level_id in selected_levels:
         collect_descendants(tree, level_id, result)
 
-    shuffled = random.sample(list(result), k=len(result))
-    return shuffled
+    return list(result)
 
 
 def build_cursor_response(rows: list[RowMapping], limit: int):

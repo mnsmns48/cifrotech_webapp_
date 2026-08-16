@@ -31,7 +31,8 @@ from api_service.schemas.vendor_schemas import VendorSchema, VslId
 
 from api_service.schemas.service import ServiceImageResponse, ServiceImageCreate, ServiceImageUpdate
 
-from api_service.schemas.attribute_schemas import CreateAttribute, UpdateAttribute, TypesDependenciesResponse, \
+from api_service.schemas.attribute_schemas import CreateAttrKey, UpdateAttrKey, CreateAttribute, UpdateAttribute, \
+    TypesDependenciesResponse, \
     TypeDependencyLink, AttributeBrandRuleLink, TypeAndBrandPayload, ProductFeaturesAttributeOptions, \
     AttributeValueSchema, ModelAttributeValuesSchema, Types, ModelAttributesRequest, ModelAttributesResponse, \
     AttributeModelOptionLink, ParsingResultAttributeResponse, AttributeValueSchema, AttributeOriginValueCheckRequest, \
@@ -90,14 +91,14 @@ __all__ += ["PathIdRequest", "PriceSyncPickedPath", "ParsingLine", "ParsingHubDi
 
 __all__ += ["ServiceImageResponse", "ServiceImageCreate", "ServiceImageUpdate"]
 
-__all__ += ["CreateAttribute", "UpdateAttribute", "TypesDependenciesResponse", "TypeDependencyLink",
+__all__ += ["CreateAttrKey", "UpdateAttrKey", "TypesDependenciesResponse", "TypeDependencyLink",
             "AttributeBrandRuleLink", "TypeAndBrandPayload", "ProductFeaturesGlobalResponse", "Types",
             "ProductDependenciesKeysValuesScheme", "AttributeKeySchema", "AttributeValueSchema",
             "ProductDependenciesSchema", "AttributeModelOptionLink", "ModelAttributeValuesSchema",
             "ProductFeaturesAttributeOptions", "AttributeValueSchema", "ModelAttributeValuesSchema", "Types",
             "ModelAttributesRequest", "ModelAttributesResponse", "AttributeModelOptionLink",
             "ParsingResultAttributeResponse", "AttributeValueSchema", "AttributeOriginValueCheckRequest",
-            "AttributeOriginValueCheckResponse"]
+            "AttributeOriginValueCheckResponse", "CreateAttribute", "UpdateAttribute"]
 
 __all__ += ["FormulaBase", "FormulaCreate", "FormulaUpdate", "FormulaResponse", "FormulaPreviewResponse",
             "FormulaPreviewRequest", "FormulaValidateRequest", "FormulaIdObj", "FormulaEntityTypeScheme",

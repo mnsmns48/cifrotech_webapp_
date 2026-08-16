@@ -22,6 +22,7 @@ class AttributeKey(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     key: Mapped[str] = mapped_column(nullable=False, unique=True)
+    alias: Mapped[str] = mapped_column(nullable=True)
 
     attr_link: Mapped[list["AttributeLink"]] = relationship(back_populates="attr_key")
     values: Mapped[list["AttributeValue"]] = relationship(back_populates="attr_key", cascade="all, delete-orphan")

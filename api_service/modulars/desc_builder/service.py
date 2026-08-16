@@ -1,6 +1,8 @@
-from typing import List
+from typing import List, Dict, Tuple
 
 from fastapi import HTTPException
+from redis.asyncio import Redis
+
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -10,11 +12,13 @@ from api_service.schemas import FormulaIdObj, FormulaEntityTypeScheme, GenerateD
     FetchComposerResponse, TypeModel, FormulaResponse
 from api_service.schemas.desc_builder import SpecsComposerExpandedScheme, SpecsPathRequest, SpecPathResponse, \
     CreateSpecsComposer, SaveSpecsComposer, SpecsComposerResponse, UpdateComposer, CreateSpecPath, UpdateSpecPath, \
-    DescriptionResponse
+    DescriptionResponse, BlockResponse, ProductDescription
 from api_service.s3_helper import get_url_from_s3
+from cache import CacheManager
+from cache.settings import cache_ttl
 from config import settings
 from models import DescBuilderFormulaLink, SpecsComposer, FormulaExpression, SpecPath, ProductType, \
-    ProductFeaturesGlobal
+    ProductFeaturesGlobal, ProductFeaturesLink
 
 
 class DescBuilder:
@@ -73,12 +77,8 @@ class DescBuilder:
                                        (SpecPath.source == payload.source)))
         rows = (await session.execute(stmt)).scalars().all()
         return [
-            SpecPathResponse(
-                id=row.id,
-                title=row.title,
-                path=row.path,
-                icon=get_url_from_s3(filename=row.icon or "no_photo.png", path=settings.s3.utils_path),
-            )
+            SpecPathResponse(id=row.id, title=row.title, path=row.path,
+                             icon=get_url_from_s3(filename=row.icon or "no_photo.png", path=settings.s3.utils_path))
             for row in rows
         ]
 
@@ -135,13 +135,11 @@ class DescBuilder:
 
     @staticmethod
     async def create_spec_path(payload: CreateSpecPath, session: AsyncSession):
-        spec = SpecPath(
-            title=payload.title,
-            icon=None,
-            path=payload.path,
-            formula_id=payload.formula_id,
-            source=payload.source
-        )
+        spec = SpecPath(title=payload.title,
+                        icon=None,
+                        path=payload.path,
+                        formula_id=payload.formula_id,
+                        source=payload.source)
         session.add(spec)
         await session.commit()
         await session.refresh(spec)
@@ -173,3 +171,102 @@ class DescBuilder:
         await session.delete(spec)
         await session.commit()
         return {"status": "deleted", "id": spec_path_id}
+
+    @staticmethod
+    async def get_short_specs_bulk(feature_ids: List[int], session: AsyncSession,
+                                   cache: CacheManager) -> Dict[int, List[BlockResponse]]:
+
+        if not feature_ids:
+            return {}
+
+        cached_map, missing_ids = await DescBuilder.fetch_short_specs_from_cache_bulk(feature_ids, cache)
+        if not missing_ids:
+            return DescBuilder._convert_to_block_response_bulk(cached_map)
+        new_map = await DescBuilder.generate_short_specs_for_feature_ids(missing_ids, session)
+        await DescBuilder.cache_short_specs_bulk(new_map, cache)
+        full_map = {**cached_map, **new_map}
+        return DescBuilder._convert_to_block_response_bulk(full_map)
+
+    @staticmethod
+    async def get_short_specs_by_origins(origins: List[str], session: AsyncSession,
+                                         redis: Redis) -> Dict[str, List[BlockResponse]]:
+        if not origins:
+            return {}
+
+        origin_map = await DescBuilder.resolve_feature_ids_by_origins(origins, session)
+        feature_ids = list(origin_map.values())
+
+        specs_map = await DescBuilder.get_short_specs_bulk(feature_ids, session, redis)
+        result: Dict[str, List[BlockResponse]] = dict()
+        for origin, fid in origin_map.items():
+            result[origin] = specs_map.get(fid, [])
+
+        return result
+
+    @staticmethod
+    async def resolve_feature_ids_by_origins(origins: List[str], session: AsyncSession) -> Dict[str, int]:
+
+        if not origins:
+            return {}
+
+        stmt = (select(ProductFeaturesLink.origin, ProductFeaturesLink.feature_id)
+                .where(ProductFeaturesLink.origin.in_(origins)))
+
+        rows = await session.execute(stmt)
+        rows = rows.all()
+        return {origin: fid for origin, fid in rows}
+
+    @staticmethod
+    async def fetch_short_specs_from_cache_bulk(feature_ids: List[int],
+                                                cache: CacheManager) -> Tuple[Dict[int, ProductDescription], List[int]]:
+        keys = [f"short_specs:{fid}" for fid in feature_ids]
+        raw_map = await cache.mget(keys, model=ProductDescription)
+        cached: Dict[int, ProductDescription] = dict()
+        missing: List[int] = list()
+
+        for fid, key in zip(feature_ids, keys):
+            obj = raw_map.get(key)
+            if obj is None:
+                missing.append(fid)
+            else:
+                cached[fid] = obj
+
+        return cached, missing
+
+    @staticmethod
+    async def cache_short_specs_bulk(specs_map: Dict[int, ProductDescription], cache: CacheManager) -> None:
+        if not specs_map:
+            return
+
+        mapping = {f"short_specs:{fid}": desc for fid, desc in specs_map.items()}
+        await cache.mset(mapping, ttl=cache_ttl.short_specs)
+
+    @staticmethod
+    async def generate_short_specs_for_feature_ids(feature_ids: List[int],
+                                                   session: AsyncSession) -> Dict[int, ProductDescription]:
+
+        if not feature_ids:
+            return {}
+
+        pf_map = {fid: None for fid in feature_ids}
+        payload = GenerateDescriptionPayload(product_features_map=pf_map)
+        raw_response = await DescBuilder.generate_description(payload, session)
+        desc_response = DescriptionResponse.model_validate(raw_response)
+
+        if desc_response.error:
+            return {}
+
+        return desc_response.success.products
+
+    @staticmethod
+    def _convert_to_block_response_bulk(specs_map: Dict[int, ProductDescription]) -> Dict[int, List[BlockResponse]]:
+
+        result: Dict[int, List[BlockResponse]] = dict()
+
+        for fid, product_desc in specs_map.items():
+            blocks = list()
+            for block in product_desc.blocks:
+                blocks.append(BlockResponse(**block.dict()))
+            result[fid] = blocks
+
+        return result
