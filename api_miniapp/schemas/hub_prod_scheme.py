@@ -2,8 +2,6 @@ from typing import Optional, List, Dict
 
 from pydantic import BaseModel
 
-from api_service.schemas import AttributeKeyValueSchema
-
 
 class HubLevelScheme(BaseModel):
     id: int
@@ -19,7 +17,6 @@ class HubProductScheme(BaseModel):
     origin: int
     warranty: Optional[str]
     output_price: Optional[float]
-    attrs: list[AttributeKeyValueSchema]
     title: str
     pics: Optional[List[str]]
     preview: Optional[str]

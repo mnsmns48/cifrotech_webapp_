@@ -8,7 +8,7 @@ from api_service.s3_helper import get_url_from_s3
 
 from config import settings
 from models import HUbMenuLevel, HUbStock, ProductOrigin, ProductImage, ProductFeaturesGlobal, ProductFeaturesLink, \
-    ServiceImage, ProductType, ProductBrand, AttributeOriginValue, AttributeValue, AttributeKey
+    ServiceImage, ProductType, ProductBrand
 
 
 async def fetch_hub_levels(session: AsyncSession):
@@ -69,42 +69,22 @@ async def fetch_products_by_path(path_ids: list, session: AsyncSession) -> Seque
             func.array_agg(ProductImage.key).filter(ProductImage.key.isnot(None)).label("pics"),
             func.max(case((ProductImage.is_preview.is_(True), ProductImage.key))).label("preview"),
             ProductFeaturesGlobal.title.label("model"),
-            func.json_agg(
-                func.json_build_object(
-                    "id", AttributeValue.id,
-                    "value", AttributeValue.value,
-                    "alias", AttributeValue.alias,
-                    "key", func.json_build_object(
-                        "id", AttributeKey.id,
-                        "key", AttributeKey.key,
-                        "alias", AttributeKey.alias
-                    )
-                )
-            ).filter(AttributeValue.id.isnot(None)).label("attrs")
         )
         .join(ProductOrigin, ProductOrigin.origin == HUbStock.origin)
         .outerjoin(ProductImage, ProductImage.origin_id == ProductOrigin.origin)
         .outerjoin(ProductFeaturesLink, ProductFeaturesLink.origin == ProductOrigin.origin)
         .outerjoin(ProductFeaturesGlobal, ProductFeaturesGlobal.id == ProductFeaturesLink.feature_id)
-
-        .outerjoin(AttributeOriginValue, AttributeOriginValue.origin_id == ProductOrigin.origin)
-        .outerjoin(AttributeValue, AttributeValue.id == AttributeOriginValue.attr_value_id)
-        .outerjoin(AttributeKey, AttributeKey.id == AttributeValue.attr_key_id)
-
         .where(
             HUbStock.path_id.in_(path_ids),
             ProductOrigin.is_deleted.is_(False)
         )
-        .group_by(
-            HUbStock.id,
-            ProductOrigin.title,
-            ProductFeaturesGlobal.title
-        )
+        .group_by(HUbStock.id, ProductOrigin.title, ProductFeaturesGlobal.title)
         .order_by(HUbStock.output_price)
     )
 
     execute = await session.execute(stmt)
-    return execute.mappings().all()
+    rows = execute.mappings().all()
+    return rows
 
 
 async def fetch_no_img_pic(session: AsyncSession):

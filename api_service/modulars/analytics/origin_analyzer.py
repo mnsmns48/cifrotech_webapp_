@@ -11,7 +11,7 @@ from api_service.modulars.analytics.crud import (load_weight_rules,
                                                  load_value_key_map)
 
 from api_service.schemas import AnalyzeItem, ProductMarketSettingsSchema
-from config import cache_key_builder
+from cache.builder import cache_key_builder
 
 
 @cache(expire=1000, key_builder=cache_key_builder)

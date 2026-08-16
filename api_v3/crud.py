@@ -1,17 +1,28 @@
-import random
-
-from fastapi_cache.decorator import cache
 from sqlalchemy import RowMapping, select, func, case, cast, JSON
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config import cache_key_builder
 from models import HUbStock, ProductOrigin, ProductImage, ProductFeaturesLink, ProductFeaturesGlobal, AttributeValue, \
     AttributeOriginValue, AttributeKey
 
 
-@cache(expire=60, key_builder=cache_key_builder)
 async def fetch_products_cursor_paginated(
         session: AsyncSession, path_ids: list[int], cursor: int | None, limit: int) -> list[RowMapping]:
+    sub_attrs = (
+        select(
+            AttributeValue.id.label("attr_id"),
+            AttributeValue.value.label("attr_value"),
+            AttributeValue.alias.label("attr_alias"),
+            AttributeKey.id.label("key_id"),
+            AttributeKey.key.label("key_name"),
+            AttributeKey.alias.label("key_alias"),
+            AttributeOriginValue.origin_id.label("origin_id"),
+        )
+        .join(AttributeOriginValue, AttributeOriginValue.attr_value_id == AttributeValue.id)
+        .join(AttributeKey, AttributeKey.id == AttributeValue.attr_key_id)
+        .distinct()
+        .subquery()
+    )
+
     stmt = (
         select(
             HUbStock.id,
@@ -22,19 +33,21 @@ async def fetch_products_cursor_paginated(
             func.array_agg(ProductImage.key).filter(ProductImage.key.isnot(None)).label("pics"),
             func.max(case((ProductImage.is_preview.is_(True), ProductImage.key))).label("preview"),
             func.max(ProductFeaturesGlobal.title).label("model"),
+            ProductFeaturesGlobal.id.label("feature_id"),
+
             func.coalesce(
                 func.json_agg(
                     func.json_build_object(
-                        "id", AttributeValue.id,
+                        "id", sub_attrs.c.attr_id,
                         "key", func.json_build_object(
-                            "id", AttributeKey.id,
-                            "key", AttributeKey.key,
-                            "alias", AttributeKey.alias,
+                            "id", sub_attrs.c.key_id,
+                            "key", sub_attrs.c.key_name,
+                            "alias", sub_attrs.c.key_alias,
                         ),
-                        "value", AttributeValue.value,
-                        "alias", AttributeValue.alias
+                        "value", sub_attrs.c.attr_value,
+                        "alias", sub_attrs.c.attr_alias,
                     )
-                ).filter(AttributeValue.id.isnot(None)),
+                ).filter(sub_attrs.c.attr_id.isnot(None)),
                 cast('[]', JSON)
             ).label("attrs")
         )
@@ -42,9 +55,9 @@ async def fetch_products_cursor_paginated(
         .outerjoin(ProductImage, ProductImage.origin_id == ProductOrigin.origin)
         .outerjoin(ProductFeaturesLink, ProductFeaturesLink.origin == ProductOrigin.origin)
         .outerjoin(ProductFeaturesGlobal, ProductFeaturesGlobal.id == ProductFeaturesLink.feature_id)
-        .outerjoin(AttributeOriginValue, AttributeOriginValue.origin_id == ProductOrigin.origin)
-        .outerjoin(AttributeValue, AttributeValue.id == AttributeOriginValue.attr_value_id)
-        .outerjoin(AttributeKey, AttributeKey.id == AttributeValue.attr_key_id)
+
+        .outerjoin(sub_attrs, sub_attrs.c.origin_id == ProductOrigin.origin)
+
         .where(
             HUbStock.path_id.in_(path_ids),
             ProductOrigin.is_deleted.is_(False)
@@ -58,7 +71,8 @@ async def fetch_products_cursor_paginated(
         stmt.group_by(
             HUbStock.id,
             ProductOrigin.title,
-            ProductFeaturesGlobal.title
+            ProductFeaturesGlobal.title,
+            ProductFeaturesGlobal.id
         )
         .order_by(HUbStock.id.desc())
         .limit(limit)
