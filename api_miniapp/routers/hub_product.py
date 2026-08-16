@@ -7,8 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api_miniapp.crud import fetch_hub_levels, fetch_products_by_path, get_feature_by_origin
 from api_miniapp.schemas import HubLevelScheme, HubProductScheme, HubProductResponse
 from api_miniapp.schemas.hub_prod_scheme import ProductFeaturesResponse
-from api_miniapp.utils import cache_with_duration
 from api_service.s3_helper import get_url_from_s3
+from cache import CacheManager, get_cache_manager
+from cache.settings import cache_ttl
 
 from engine import db
 
@@ -22,12 +23,19 @@ async def get_levels(session: AsyncSession = Depends(db.scoped_session_dependenc
 
 
 @hub_product.get("/products_by_path_ids", response_model=HubProductResponse)
-@cache_with_duration(expire=180)
-async def products_by_path(ids: list[int] = Query(...), session: AsyncSession = Depends(db.scoped_session_dependency)):
+async def products_by_path(ids: list[int] = Query(...),
+                           session: AsyncSession = Depends(db.scoped_session_dependency),
+                           cache: CacheManager = Depends(get_cache_manager)):
     start = time.monotonic()
-    products = await fetch_products_by_path(ids, session)
-    result = list()
+    ids_sorted = ",".join(map(str, sorted(ids)))
+    cache_key = f"products_by_path_miniAPP:{ids_sorted}"
+    cached = await cache.get(cache_key, model=HubProductResponse)
+    if cached is not None:
+        return cached
 
+    products = await fetch_products_by_path(ids, session)
+
+    result = list()
     for product in products:
         pics = product.get("pics")
         preview = product.get("preview")
@@ -43,7 +51,10 @@ async def products_by_path(ids: list[int] = Query(...), session: AsyncSession = 
 
     duration_ms = int((time.monotonic() - start) * 1000)
 
-    return HubProductResponse(products=result, duration_ms=duration_ms)
+    response = HubProductResponse(products=result, duration_ms=duration_ms)
+    await cache.set(cache_key, response, ttl=cache_ttl.short)
+
+    return response
 
 
 @hub_product.get("/get_product_features/{origin}", response_model=ProductFeaturesResponse)
