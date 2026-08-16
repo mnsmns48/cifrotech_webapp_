@@ -42,7 +42,6 @@ async def get_products(cursor: int | None = None,
     short_specs_map = await DescBuilder.get_short_specs_bulk(feature_ids=unique_feature_ids,
                                                              session=session,
                                                              cache=cache)
-
     products: List[HubProductSchemeExtV3] = list()
     for row in rows:
         origin = row["origin"]
