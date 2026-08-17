@@ -1,6 +1,5 @@
 import re
 
-from fastapi_cache.decorator import cache
 from jinja2 import TemplateSyntaxError, UndefinedError, TemplateRuntimeError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,7 +11,7 @@ from api_service.schemas import GenerateDescriptionPayload, SpecsParamScheme, De
     DescriptionSuccess
 from api_service.s3_helper import get_url_from_s3
 from config import settings
-from cache.builder import cache_key_builder
+
 from models import ProductFeaturesGlobal, SpecsComposer, SpecPath, ProductFeaturesLink
 
 
@@ -66,11 +65,8 @@ def group_by_type_source(meta_rows):
 
 async def load_group_resources(session: AsyncSession, type_id: int, source: str):
     stmt_comp = (
-        select(SpecsComposer)
-        .where(
-            SpecsComposer.type_id == type_id,
-            SpecsComposer.source == source,
-        )
+        select(SpecsComposer).where(SpecsComposer.type_id == type_id,
+                                    SpecsComposer.source == source)
         .options(selectinload(SpecsComposer.formula))
     )
     result = await session.execute(stmt_comp)
@@ -95,83 +91,95 @@ async def load_group_resources(session: AsyncSession, type_id: int, source: str)
         return None, None, None
     paths_map = build_paths_map(path_rows)
     lines = [line.strip() for line in formula_text.split("\n") if line.strip()]
-
     return composer, paths_map, lines
 
 
 def build_paths_map(path_rows: list[SpecPath]):
     paths_map = dict()
-
     for row in path_rows:
         category, param = row.path
         if row.title not in paths_map:
             paths_map[row.title] = {
-                "icon": row.icon,
-                "paths": [],
+                "icon": row.icon, "paths": [], "alias": row.alias, "in_filter": row.in_filter
             }
         paths_map[row.title]["paths"].append(SpecsParamScheme(category=category, param=param))
 
     return paths_map
 
 
-def render_formula_description(line: str, paths_map: dict, info: dict):
-    raw_vars = re.findall(r"{{\s*([A-Za-z0-9_]+)(?:\s*\|[^}]*)?\s*}}", line)
-
-    if not raw_vars:
-        return None
-
-    unique_vars = list()
-    for v in raw_vars:
-        if v not in unique_vars:
-            unique_vars.append(v)
-
+def render_formula_description(prepared_line: dict, paths_map: dict, info: dict):
     values = dict()
     first_icon = None
     first_title = None
+    first_alias = None
+    first_in_filter = None
     has_non_empty_value = False
 
-    for var in unique_vars:
-        if var in paths_map:
-            schemes = paths_map[var]["paths"]
-            value = get_param(info, schemes)
-
-            if value:
-                has_non_empty_value = True
-
-                if first_icon is None:
-                    icon = paths_map[var]["icon"]
-                    if icon:
-                        first_icon = get_url_from_s3(
-                            icon,
-                            settings.s3.utils_path
-                        )
-                        first_title = var
-
-            values[var] = str(value or "")
-        else:
+    for var in prepared_line["vars"]:
+        if var not in paths_map:
             values[var] = ""
+            continue
+
+        schemes = paths_map[var]["paths"]
+        value = get_param(info, schemes)
+
+        values[var] = str(value or "")
+
+        if not value:
+            continue
+
+        has_non_empty_value = True
+
+        if first_title is None:
+            first_title = var
+            first_alias = paths_map[var].get("alias")
+            first_in_filter = paths_map[var].get("in_filter")
+
+            icon = paths_map[var].get("icon")
+
+            if icon:
+                first_icon = get_url_from_s3(icon, settings.s3.utils_path)
 
     if not has_non_empty_value:
         return None
 
-    template = env.from_string(line)
-    rendered = template.render(**values).strip()
+    rendered = prepared_line["template"].render(**values).strip()
     rendered = re.sub(r"^,+", "", rendered)
     rendered = re.sub(r",+$", "", rendered)
     rendered = re.sub(r"\s{2,}", " ", rendered).strip()
 
-    return {"title": first_title, "icon": first_icon, "text": rendered, "values": values}
+    return {"title": first_title, "icon": first_icon, "text": rendered,
+            "values": values, "alias": first_alias, "in_filter": first_in_filter}
 
 
-def render_group(ids: list[int], pf_map: dict[int, dict], paths_map, lines):
+def prepare_formula_lines(lines: list[str]) -> list[dict]:
+    prepared = list()
+
+    for line in lines:
+        raw_vars = re.findall(r"{{\s*([A-Za-z0-9_]+)(?:\s*\|[^}]*)?\s*}}", line)
+
+        if not raw_vars:
+            continue
+
+        prepared.append({"vars": list(dict.fromkeys(raw_vars)), "template": env.from_string(line)})
+
+    return prepared
+
+
+def render_group(ids: list[int], pf_map: dict[int, dict], paths_map: dict, lines: list[str]):
+    prepared_lines = prepare_formula_lines(lines)
+
     result = dict()
+
     for pid in ids:
         info = pf_map[pid]
         blocks = list()
-        for line in lines:
+
+        for line in prepared_lines:
             block = render_formula_description(line, paths_map, info)
             if block:
                 blocks.append(block)
+
         result[pid] = {"blocks": blocks}
 
     return result
@@ -207,7 +215,9 @@ async def generate_description_db(payload: GenerateDescriptionPayload, session: 
                 group_results.append({pid: {"blocks": []} for pid in ids})
                 continue
             group_results.append(render_group(ids, pf_map, paths_map, lines))
+
         result = assemble_result(group_results)
+
         return DescriptionResponse(success=DescriptionSuccess(products=result))
 
     except (TemplateSyntaxError, UndefinedError, TemplateRuntimeError) as e:

@@ -1,6 +1,6 @@
 from typing import Any, Optional, Dict, List
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 from api_service.schemas import TypeModel, FormulaResponse
 
@@ -37,6 +37,8 @@ class SpecPathResponse(BaseModel):
     title: str
     path: list[Any]
     icon: str | None = None
+    alias: str | None = None
+    in_filter: bool | None = None
 
 
 class CreateSpecsComposer(BaseModel):
@@ -66,12 +68,16 @@ class CreateSpecPath(BaseModel):
     path: List[Any]
     formula_id: int
     source: str
+    alias: str | None = None
+    in_filter: bool | None = None
 
 
 class UpdateSpecPath(BaseModel):
     id: int
     title: str = Field(..., max_length=100)
     path: List[Any]
+    alias: str | None = None
+    in_filter: bool | None = None
 
 
 class DeleteSpecPath(BaseModel):
@@ -83,6 +89,8 @@ class BlockResponse(BaseModel):
     icon: Optional[str] = None
     text: str
     values: Dict[str, str]
+    alias: Optional[str] = None
+    in_filter: bool | None = None
 
 
 class ProductDescription(BaseModel):
