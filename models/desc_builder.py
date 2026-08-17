@@ -39,6 +39,9 @@ class SpecPath(Base):
     path: Mapped[dict] = mapped_column(JSONB, nullable=False)
     formula_id: Mapped[int] = mapped_column(ForeignKey("formula_expression.id", ondelete="CASCADE"), nullable=False)
     source: Mapped[str] = mapped_column(String(50), nullable=False)
+    alias: Mapped[str] = mapped_column(String(50), nullable=True)
+    in_filter: Mapped[bool] = mapped_column(nullable=True)
+
     formula: Mapped["FormulaExpression"] = relationship(back_populates="spec_paths")
 
     __table_args__ = (

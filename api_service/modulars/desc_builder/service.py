@@ -74,10 +74,10 @@ class DescBuilder:
     @staticmethod
     async def fetch_spec_path(payload: SpecsPathRequest, session: AsyncSession) -> List[SpecPathResponse]:
         stmt = (select(SpecPath).where(and_(SpecPath.formula_id == payload.formula_id),
-                                       (SpecPath.source == payload.source)))
+                                       (SpecPath.source == payload.source)).order_by(SpecPath.id))
         rows = (await session.execute(stmt)).scalars().all()
         return [
-            SpecPathResponse(id=row.id, title=row.title, path=row.path,
+            SpecPathResponse(id=row.id, title=row.title, path=row.path, alias=row.alias, in_filter=row.in_filter,
                              icon=get_url_from_s3(filename=row.icon or "no_photo.png", path=settings.s3.utils_path))
             for row in rows
         ]
@@ -139,28 +139,37 @@ class DescBuilder:
                         icon=None,
                         path=payload.path,
                         formula_id=payload.formula_id,
-                        source=payload.source)
+                        source=payload.source,
+                        alias=payload.alias,
+                        in_filter=payload.in_filter)
         session.add(spec)
         await session.commit()
         await session.refresh(spec)
         return spec
 
     @staticmethod
-    async def update_spec_path(payload: UpdateSpecPath, session: AsyncSession):
+    async def update_spec_path(payload: UpdateSpecPath, session: AsyncSession) -> SpecPath:
         spec = await session.get(SpecPath, payload.id)
+
         if not spec:
             raise HTTPException(404, "SpecPath not found")
+
+        updates = {"title": payload.title,
+                   "path": payload.path,
+                   "alias": payload.alias,
+                   "in_filter": payload.in_filter}
+
         changed = False
-        if spec.title != payload.title:
-            spec.title = payload.title
-            changed = True
-        if spec.path != payload.path:
-            spec.path = payload.path
-            changed = True
-        if not changed:
-            return spec
-        await session.commit()
-        await session.refresh(spec)
+
+        for field, value in updates.items():
+            if getattr(spec, field) != value:
+                setattr(spec, field, value)
+                changed = True
+
+        if changed:
+            await session.commit()
+            await session.refresh(spec)
+
         return spec
 
     @staticmethod
