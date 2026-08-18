@@ -74,16 +74,13 @@ async def fetch_all_attribute_values_with_keys(session: AsyncSession):
     result = await session.execute(query)
     values = result.scalars().all()
 
-    return [
-        {
-            "id": v.id,
-            "value": v.value,
-            "alias": v.alias,
-            "attr_key_id": v.attr_key_id,
-            "key": v.attr_key.key,
-        }
-        for v in values
-    ]
+    result = list()
+    for v in values:
+        result.append(
+            {"id": v.id, "value": v.value, "alias": v.alias, "attr_key_id": v.attr_key_id, "key": v.attr_key.key}
+        )
+
+    return result
 
 
 async def create_attribute(session: AsyncSession, payload: CreateAttribute) -> AttributeValue:
@@ -93,8 +90,10 @@ async def create_attribute(session: AsyncSession, payload: CreateAttribute) -> A
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Attribute key {payload.key} not found", )
 
-    stmt = (insert(AttributeValue).values(attr_key_id=payload.key, value=payload.attribute_name, alias=payload.alias)
-            .returning(AttributeValue))
+    stmt = (insert(AttributeValue)
+            .values(attr_key_id=payload.key_id, value=payload.attribute_name, alias=payload.alias)
+            .returning(AttributeValue)
+            )
 
     try:
         result = await session.execute(stmt)

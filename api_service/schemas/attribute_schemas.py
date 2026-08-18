@@ -8,7 +8,7 @@ from models.attributes import OverrideType
 
 class AttributeBase(BaseModel):
     attribute_name: str
-    alias: str | None
+    alias: str | None = None
 
     @field_validator("attribute_name")
     def validate_name(cls, v):
@@ -34,7 +34,7 @@ class UpdateAttrKey(BaseModel):
 
 
 class CreateAttribute(AttributeBase):
-    key: int
+    key_id: int
 
 
 class UpdateAttribute(AttributeBase):
