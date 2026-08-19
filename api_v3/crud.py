@@ -1,5 +1,6 @@
 from sqlalchemy import RowMapping, select, func, case, cast, JSON
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from models import HUbStock, ProductOrigin, ProductImage, ProductFeaturesLink, ProductFeaturesGlobal, AttributeValue, \
     AttributeOriginValue, AttributeKey
@@ -80,4 +81,45 @@ async def fetch_products_cursor_paginated(session: AsyncSession, path_ids: list[
             "attrs": attrs_info,
         })
 
+    result.sort(
+        key=lambda x: x["output_price"]
+        if x["output_price"] is not None
+        else float("inf")
+    )
+
     return result
+
+
+async def get_product_full(session, origin: int):
+    result = await session.execute(
+        select(ProductOrigin)
+        .where(ProductOrigin.origin == origin)
+        .options(
+            selectinload(ProductOrigin.stocks),
+            selectinload(ProductOrigin.features)
+            .selectinload(ProductFeaturesLink.origin_rel),
+            selectinload(ProductOrigin.images),
+            selectinload(ProductOrigin.attribute_values)
+            .selectinload(AttributeOriginValue.attr_value)
+            .selectinload(AttributeValue.attr_key),
+        )
+    )
+    product_origin = result.scalar_one_or_none()
+    return product_origin
+
+
+async def get_feature_with_type_brand(session, feature_id: int):
+    result = await session.execute(
+        select(ProductFeaturesGlobal)
+        .where(ProductFeaturesGlobal.id == feature_id)
+        .options(
+            selectinload(ProductFeaturesGlobal.type),
+            selectinload(ProductFeaturesGlobal.brand),
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_menu_level(session, level_id: int):
+    from models import HUbMenuLevel
+    return await session.scalar(select(HUbMenuLevel).where(HUbMenuLevel.id == level_id))
