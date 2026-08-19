@@ -116,3 +116,18 @@ class FeatureBulkResponseScheme(BaseModel):
     title: str
     info: list
     pros_cons: dict | None = None
+
+
+class FeatureInnerRow(BaseModel):
+    param: str
+    value: str
+
+
+class FeatureCategoryScheme(BaseModel):
+    title: str
+    rows: List[FeatureInnerRow]
+
+
+class FeatureProductScheme(BaseModel):
+    features_id: int
+    features: List[FeatureCategoryScheme]

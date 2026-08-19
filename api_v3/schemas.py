@@ -1,8 +1,12 @@
+from datetime import datetime
+from typing import Optional, List, Dict
+
 from pydantic import BaseModel
 
 from api_miniapp.schemas import HubProductScheme
-from api_service.schemas import AttributeKeyValueSchema
+from api_service.schemas import AttributeKeyValueSchema, HubLevelPath, TypeModel, BrandModel
 from api_service.schemas.desc_builder import BlockResponse
+from api_service.schemas.features_schemas import FeatureProductScheme
 
 
 class HubProductSchemeExtV3(HubProductScheme):
@@ -10,9 +14,27 @@ class HubProductSchemeExtV3(HubProductScheme):
     short_specs: list[BlockResponse] | None = None
 
 
-class ProductResponse(BaseModel):
+class BatchProductsResponse(BaseModel):
     products: list[HubProductSchemeExtV3]
     next_cursor: int | None = None
     has_more: bool
     filters_hash: str
     duration_ms: int
+
+
+class ProductV3Response(BaseModel):
+    id: int
+    origin: int
+    route: list[HubLevelPath]
+    warranty: Optional[str] = None
+    output_price: Optional[float] = None
+    title: str
+    updated_at: datetime
+    type_obj: Optional[TypeModel] = None
+    brand_obj: Optional[BrandModel] = None
+    attrs: List[AttributeKeyValueSchema] = []
+    pics: List[str] = []
+    preview: Optional[str] = None
+    pros_cons: Optional[Dict] = None
+    full_specs: Optional[FeatureProductScheme] = None
+    duration: int
