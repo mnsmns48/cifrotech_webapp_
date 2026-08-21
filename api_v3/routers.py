@@ -8,14 +8,12 @@ from api_miniapp.crud import fetch_hub_levels
 from api_service.modulars.desc_builder.service import DescBuilder
 
 from api_service.s3_helper import get_url_from_s3
-from api_service.schemas import AttributeKeyValueSchema
 from api_service.schemas.desc_builder import BlockResponse
 
 from api_v3.crud import fetch_products_cursor_paginated, get_product_full
-from api_v3.filters import generate_filters_hash
 from api_v3.logic import resolve_menu_levels_to_path_ids, build_cursor_response, build_route, build_attrs, build_images, \
     build_feature_data
-from api_v3.schemas import BatchProductsResponse, HubProductSchemeExtV3, ProductV3Response, HubLevelSchemeV3
+from api_v3.schemas import InfiniteProductsResponse, HubProductSchemeExtV3, ProductV3Response, HubLevelSchemeV3
 from cache import get_cache_manager, CacheManager
 from cache.keys.hub import MENU_LEVELS
 from cache.settings import cache_ttl
@@ -33,7 +31,6 @@ async def get_levels(session: AsyncSession = Depends(db.scoped_session_dependenc
         return [HubLevelSchemeV3(**item) for item in cached]
 
     levels = await fetch_hub_levels(session)
-
     raw_levels = [item.model_dump() for item in levels]
     await cache.set(MENU_LEVELS, raw_levels, ttl=cache_ttl.menu)
 
@@ -41,7 +38,7 @@ async def get_levels(session: AsyncSession = Depends(db.scoped_session_dependenc
 
 
 @api_v3.get("/products",
-            response_model=BatchProductsResponse,
+            response_model=InfiniteProductsResponse,
             description=("Возвращает список товаров, отфильтрованные по уровням меню. "
                          "Использует курсорную пагинацию, возвращает next_cursor, "
                          "флаг has_more, хеш фильтров и время выполнения"))
@@ -52,8 +49,6 @@ async def get_products(cursor: int | None = None,
                        cache: CacheManager = Depends(get_cache_manager)):
     start = time.monotonic()
     path_ids = await resolve_menu_levels_to_path_ids(menu_levels, session)
-    filters = {"menu_levels": menu_levels}
-    filters_hash = generate_filters_hash(filters)
     rows = await fetch_products_cursor_paginated(session=session, path_ids=path_ids, cursor=cursor, limit=limit)
     next_cursor, has_more = build_cursor_response(rows, limit)
     unique_feature_ids = set()
@@ -68,10 +63,8 @@ async def get_products(cursor: int | None = None,
     for row in rows:
         origin = row["origin"]
         feature_id = row["feature_id"]
-
         pics = row.get("pics")
         preview = row.get("preview")
-
         if pics:
             pics = [get_url_from_s3(filename=icon, path=origin) for icon in pics]
 
@@ -79,19 +72,16 @@ async def get_products(cursor: int | None = None,
             preview = get_url_from_s3(filename=preview, path=origin)
 
         blocks: List[BlockResponse] = short_specs_map.get(feature_id, [])
-        attrs: List[AttributeKeyValueSchema] = row["attrs"]
 
         transformed = {**row,
                        "pics": pics,
                        "preview": preview,
-                       "attrs": attrs,
                        "short_specs": blocks}
         products.append(HubProductSchemeExtV3.model_validate(transformed))
     duration_ms = int((time.monotonic() - start) * 1000)
 
-    return BatchProductsResponse(products=products, next_cursor=next_cursor, has_more=has_more,
-                                 filters_hash=filters_hash,
-                                 duration_ms=duration_ms)
+    return InfiniteProductsResponse(products=products, next_cursor=next_cursor, has_more=has_more,
+                                    duration_ms=duration_ms)
 
 
 @api_v3.get("/product",

@@ -31,61 +31,27 @@ async def fetch_products_cursor_paginated(session: AsyncSession, path_ids: list[
 
     origins = [row["origin"] for row in base_rows]
 
-    pics_stmt = (select(ProductImage.origin_id,
-                        func.array_agg(ProductImage.key)
+    pics_stmt = (select(ProductImage.origin_id, func.array_agg(ProductImage.key)
                         .filter(ProductImage.key.isnot(None))
                         .label("pics"),
-                        func.max(
-                            case((ProductImage.is_preview.is_(True), ProductImage.key))
-                        ).label("preview"),
+                        func.max(case((ProductImage.is_preview.is_(True), ProductImage.key))).label("preview"),
                         )
                  .where(ProductImage.origin_id.in_(origins))
                  .group_by(ProductImage.origin_id)
                  )
     pics_map = {row["origin_id"]: row for row in (await session.execute(pics_stmt)).mappings().all()}
 
-    attrs_stmt = (
-        select(
-            AttributeOriginValue.origin_id,
-            func.json_agg(
-                func.json_build_object(
-                    "id", AttributeValue.id,
-                    "key", func.json_build_object(
-                        "id", AttributeKey.id,
-                        "key", AttributeKey.key,
-                        "alias", AttributeKey.alias,
-                    ),
-                    "value", AttributeValue.value,
-                    "alias", AttributeValue.alias,
-                )
-            ).filter(AttributeValue.id.isnot(None)).label("attrs")
-        )
-        .join(AttributeValue, AttributeValue.id == AttributeOriginValue.attr_value_id)
-        .join(AttributeKey, AttributeKey.id == AttributeValue.attr_key_id)
-        .where(AttributeOriginValue.origin_id.in_(origins))
-        .group_by(AttributeOriginValue.origin_id)
-    )
-    attrs_map = {row["origin_id"]: row["attrs"] for row in (await session.execute(attrs_stmt)).mappings().all()}
-
     result = list()
     for row in base_rows:
         origin = row["origin"]
 
         pics_info = pics_map.get(origin, {})
-        attrs_info = attrs_map.get(origin, [])
 
         result.append({
-            **row,
-            "pics": pics_info.get("pics", []),
-            "preview": pics_info.get("preview"),
-            "attrs": attrs_info,
+            **row, "pics": pics_info.get("pics", []), "preview": pics_info.get("preview")
         })
 
-    result.sort(
-        key=lambda x: x["output_price"]
-        if x["output_price"] is not None
-        else float("inf")
-    )
+    result.sort(key=lambda x: x["output_price"] if x["output_price"] is not None else float("inf"))
 
     return result
 

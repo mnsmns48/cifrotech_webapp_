@@ -15,15 +15,13 @@ class HubLevelSchemeV3(HubMenuLevelSchema):
 
 
 class HubProductSchemeExtV3(HubProductScheme):
-    attrs: list[AttributeKeyValueSchema]
     short_specs: list[BlockResponse] | None = None
 
 
-class BatchProductsResponse(BaseModel):
+class InfiniteProductsResponse(BaseModel):
     products: list[HubProductSchemeExtV3]
     next_cursor: int | None = None
     has_more: bool
-    filters_hash: str
     duration_ms: int
 
 
