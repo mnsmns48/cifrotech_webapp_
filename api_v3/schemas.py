@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional, List, Dict
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from api_miniapp.schemas import HubProductScheme
 from api_service.schemas import AttributeKeyValueSchema, HubLevelPath, TypeModel, BrandModel, HubMenuLevelSchema
@@ -43,3 +43,39 @@ class ProductV3Response(BaseModel):
     pros_cons: Optional[Dict] = None
     full_specs: Optional[FeatureProductScheme] = None
     duration: int
+
+
+class CategoryQuery(BaseModel):
+    path: str = Field(..., description="Path like 'smartfony/apple/iphone'")
+    page: int = Field(1, ge=1)
+    limit: int = Field(24, ge=1, le=200)
+    sort: Optional[str] = None
+
+
+class Pagination(BaseModel):
+    page: int
+    limit: int
+    total: int
+
+
+class FilterOption(BaseModel):
+    key: str
+    label: str
+    type: str
+    values: list
+    active: list
+    meta: Optional[dict]
+
+
+class FiltersResponse(BaseModel):
+    sku_filters: list[FilterOption]
+    model_filters: list[FilterOption]
+
+
+class CategoryProductsResponse(BaseModel):
+    category: HubLevelSchemeV3
+    breadcrumbs: list[HubLevelSchemeV3]
+    products: list[ProductV3Response]
+    pagination: Pagination
+    filters: FiltersResponse
+    filters_hash: str

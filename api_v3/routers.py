@@ -17,6 +17,8 @@ from api_v3.logic import resolve_menu_levels_to_path_ids, build_cursor_response,
     build_feature_data
 from api_v3.schemas import BatchProductsResponse, HubProductSchemeExtV3, ProductV3Response, HubLevelSchemeV3
 from cache import get_cache_manager, CacheManager
+from cache.keys.hub import MENU_LEVELS
+from cache.settings import cache_ttl
 
 from engine import db
 
@@ -24,8 +26,18 @@ api_v3 = APIRouter(prefix="/api3", tags=["api_v3"])
 
 
 @api_v3.get("/init_levels", response_model=List[HubLevelSchemeV3])
-async def get_levels(session: AsyncSession = Depends(db.scoped_session_dependency)):
-    return await fetch_hub_levels(session)
+async def get_levels(session: AsyncSession = Depends(db.scoped_session_dependency),
+                     cache: CacheManager = Depends(get_cache_manager)):
+    cached = await cache.get(MENU_LEVELS)
+    if cached is not None:
+        return [HubLevelSchemeV3(**item) for item in cached]
+
+    levels = await fetch_hub_levels(session)
+
+    raw_levels = [item.model_dump() for item in levels]
+    await cache.set(MENU_LEVELS, raw_levels, ttl=cache_ttl.menu)
+
+    return levels
 
 
 @api_v3.get("/products",

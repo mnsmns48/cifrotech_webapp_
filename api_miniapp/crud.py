@@ -1,4 +1,5 @@
 from typing import Sequence, List
+
 from sqlalchemy import select, literal, func, case, RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -6,7 +7,7 @@ from sqlalchemy.orm import aliased
 from api_miniapp.schemas import ProductFeaturesSchema
 from api_service.s3_helper import get_url_from_s3
 from api_v3.schemas import HubLevelSchemeV3
-from app_utils import slugify
+from api_v3.slug import slugify
 
 from config import settings
 from models import HUbMenuLevel, HUbStock, ProductOrigin, ProductImage, ProductFeaturesGlobal, ProductFeaturesLink, \

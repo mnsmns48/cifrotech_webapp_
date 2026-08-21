@@ -15,6 +15,7 @@ from api_service.schemas.desc_builder import SpecsComposerExpandedScheme, SpecsP
     DescriptionResponse, BlockResponse, ProductDescription
 from api_service.s3_helper import get_url_from_s3
 from cache import CacheManager
+from cache.keys.features import short_specs_key
 from cache.settings import cache_ttl
 from config import settings
 from models import DescBuilderFormulaLink, SpecsComposer, FormulaExpression, SpecPath, ProductType, \
@@ -228,9 +229,9 @@ class DescBuilder:
     @staticmethod
     async def fetch_short_specs_from_cache_bulk(feature_ids: List[int],
                                                 cache: CacheManager) -> Tuple[Dict[int, ProductDescription], List[int]]:
-        keys = [f"short_specs:{fid}" for fid in feature_ids]
+        keys = [short_specs_key(fid) for fid in feature_ids]
         raw_map = await cache.mget(keys, model=ProductDescription)
-        cached: Dict[int, ProductDescription] = dict()
+        cached: Dict[int, ProductDescription] = {}
         missing: List[int] = list()
 
         for fid, key in zip(feature_ids, keys):
@@ -247,7 +248,7 @@ class DescBuilder:
         if not specs_map:
             return
 
-        mapping = {f"short_specs:{fid}": desc for fid, desc in specs_map.items()}
+        mapping = {short_specs_key(fid): desc for fid, desc in specs_map.items()}
         await cache.mset(mapping, ttl=cache_ttl.short_specs)
 
     @staticmethod
