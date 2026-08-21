@@ -5,19 +5,17 @@ from fastapi import APIRouter, Query, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_miniapp.crud import fetch_hub_levels
-from api_miniapp.schemas import HubLevelScheme
 from api_service.modulars.desc_builder.service import DescBuilder
 
 from api_service.s3_helper import get_url_from_s3
-from api_service.schemas import AttributeKeyValueSchema, TypeModel, BrandModel
+from api_service.schemas import AttributeKeyValueSchema
 from api_service.schemas.desc_builder import BlockResponse
-from api_service.schemas.features_schemas import FeatureProductScheme
-from api_v3.cache_module import get_cached_features, set_cached_features
-from api_v3.crud import fetch_products_cursor_paginated, get_product_full, get_feature_with_type_brand
+
+from api_v3.crud import fetch_products_cursor_paginated, get_product_full
 from api_v3.filters import generate_filters_hash
 from api_v3.logic import resolve_menu_levels_to_path_ids, build_cursor_response, build_route, build_attrs, build_images, \
-    build_full_specs, build_pros_cons, build_feature_data
-from api_v3.schemas import BatchProductsResponse, HubProductSchemeExtV3, ProductV3Response
+    build_feature_data
+from api_v3.schemas import BatchProductsResponse, HubProductSchemeExtV3, ProductV3Response, HubLevelSchemeV3
 from cache import get_cache_manager, CacheManager
 
 from engine import db
@@ -25,7 +23,7 @@ from engine import db
 api_v3 = APIRouter(prefix="/api3", tags=["api_v3"])
 
 
-@api_v3.get("/init_levels", response_model=List[HubLevelScheme])
+@api_v3.get("/init_levels", response_model=List[HubLevelSchemeV3])
 async def get_levels(session: AsyncSession = Depends(db.scoped_session_dependency)):
     return await fetch_hub_levels(session)
 
@@ -84,18 +82,13 @@ async def get_products(cursor: int | None = None,
                                  duration_ms=duration_ms)
 
 
-@api_v3.get(
-    "/product",
-    response_model=ProductV3Response,
-    description=(
-            "Возвращает полную карточку товара по origin: маршрут категории (route), "
-            "базовые данные (цена, гарантия, бренд, тип), атрибуты, изображения, "
-            "а также расширенные характеристики и текстовые преимущества/недостатки, "
-            "если они заданы для модели."
-    ),
-)
-async def get_product(origin: int,
-                      session: AsyncSession = Depends(db.scoped_session_dependency),
+@api_v3.get("/product",
+            response_model=ProductV3Response,
+            description=("Возвращает полную карточку товара по origin: маршрут категории (route), "
+                         "базовые данные (цена, гарантия, бренд, тип), атрибуты, изображения, "
+                         "а также расширенные характеристики и текстовые преимущества/недостатки, "
+                         "если они заданы для модели"))
+async def get_product(origin: int, session: AsyncSession = Depends(db.scoped_session_dependency),
                       cache: CacheManager = Depends(get_cache_manager)):
     start = time.monotonic()
     origin_obj = await get_product_full(session, origin)

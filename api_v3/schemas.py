@@ -4,9 +4,14 @@ from typing import Optional, List, Dict
 from pydantic import BaseModel
 
 from api_miniapp.schemas import HubProductScheme
-from api_service.schemas import AttributeKeyValueSchema, HubLevelPath, TypeModel, BrandModel
+from api_service.schemas import AttributeKeyValueSchema, HubLevelPath, TypeModel, BrandModel, HubMenuLevelSchema
 from api_service.schemas.desc_builder import BlockResponse
 from api_service.schemas.features_schemas import FeatureProductScheme
+
+
+class HubLevelSchemeV3(HubMenuLevelSchema):
+    slug: str
+    depth: int
 
 
 class HubProductSchemeExtV3(HubProductScheme):

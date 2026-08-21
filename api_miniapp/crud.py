@@ -1,17 +1,19 @@
-from typing import Sequence
+from typing import Sequence, List
 from sqlalchemy import select, literal, func, case, RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from api_miniapp.schemas import ProductFeaturesSchema
 from api_service.s3_helper import get_url_from_s3
+from api_v3.schemas import HubLevelSchemeV3
+from app_utils import slugify
 
 from config import settings
 from models import HUbMenuLevel, HUbStock, ProductOrigin, ProductImage, ProductFeaturesGlobal, ProductFeaturesLink, \
     ServiceImage, ProductType, ProductBrand
 
 
-async def fetch_hub_levels(session: AsyncSession):
+async def fetch_hub_levels(session: AsyncSession) -> List[HubLevelSchemeV3]:
     leaf_levels_with_stock = select(HUbStock.path_id.label("id")).distinct().cte("leaf_levels")
     parent = aliased(HUbMenuLevel)
 
@@ -53,7 +55,10 @@ async def fetch_hub_levels(session: AsyncSession):
         row_dict = dict(row)
         if row_dict.get("icon"):
             row_dict["icon"] = get_url_from_s3(filename=row_dict["icon"], path=settings.s3.utils_path)
-        data.append(row_dict)
+
+        row_dict["slug"] = slugify(row_dict["label"])
+
+        data.append(HubLevelSchemeV3(**row_dict))
 
     return data
 
