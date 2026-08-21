@@ -71,7 +71,6 @@ class FiltersResponse(BaseModel):
 
 
 class CategoryProductsResponse(BaseModel):
-    category: HubLevelSchemeV3
     breadcrumbs: list[HubLevelSchemeV3]
     products: list[ProductV3Response]
     pagination: Pagination

@@ -43,3 +43,4 @@ def generate_filters_hash(filters: Dict[str, Any]) -> str:
     normalized = normalize_filters(filters)
     json_str = json.dumps(normalized, ensure_ascii=False, sort_keys=True)
     return hashlib.md5(json_str.encode("utf-8")).hexdigest()
+с
