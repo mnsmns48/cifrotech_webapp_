@@ -10,12 +10,12 @@ from api_service.schemas import HubLevelPath, AttributeKeyValueSchema, Attribute
 from api_service.schemas.features_schemas import FeatureInnerRow, FeatureCategoryScheme, FeatureProductScheme
 
 from api_v3.crud import get_menu_level, get_feature_with_type_brand
-from api_v3.schemas import HubLevelSchemeV3
+from api_v3.schemas import HubLevelSchemeV3, FiltersResponse, FilterOption
 from cache import CacheManager
 from cache.keys.features import feature_key
 from cache.keys.hub import MENU_LEVELS
 from cache.settings import cache_ttl
-from models import HUbMenuLevel
+from models import HUbMenuLevel, AttributeValue
 
 
 async def load_menu_tree(session: AsyncSession) -> Dict[int, List[int]]:
@@ -177,7 +177,7 @@ async def build_feature_data(session: AsyncSession, cache: CacheManager, origin_
 
 
 async def resolve_slug_path_to_level(slug_path: List[str], cache: CacheManager,
-                                     session: AsyncSession) -> HubLevelSchemeV3:
+                                     session: AsyncSession) -> tuple[HubLevelSchemeV3, list[HubLevelSchemeV3]]:
     cached = await cache.get(MENU_LEVELS)
     if cached is None:
         levels = await fetch_hub_levels(session)
@@ -223,4 +223,13 @@ async def resolve_slug_path_to_level(slug_path: List[str], cache: CacheManager,
                                     detail=f"Slug '{slug}' does not match parent_id={current_level.id}")
             current_level = next_candidates[0]
 
-    return current_level
+    breadcrumbs = list()
+    node = current_level
+    while node is not None:
+        breadcrumbs.append(node)
+        node = id_map.get(node.parent_id)
+
+    breadcrumbs.reverse()
+
+    return current_level, breadcrumbs
+

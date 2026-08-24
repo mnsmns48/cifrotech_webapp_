@@ -1,7 +1,7 @@
 import time
-from typing import List
+from typing import List, Dict
 
-from fastapi import APIRouter, Query, Depends, HTTPException
+from fastapi import APIRouter, Query, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_miniapp.crud import fetch_hub_levels
@@ -10,10 +10,13 @@ from api_service.modulars.desc_builder.service import DescBuilder
 from api_service.s3_helper import get_url_from_s3
 from api_service.schemas.desc_builder import BlockResponse
 
-from api_v3.crud import fetch_products_cursor_paginated, get_product_full
+from api_v3.crud import fetch_products_cursor_paginated, get_product_full, fetch_origins, fetch_feature_ids, \
+    fetch_types_brands, fetch_base_attrs, fetch_brand_rules
+from api_v3.filters import build_sku_filters
 from api_v3.logic import resolve_menu_levels_to_path_ids, build_cursor_response, build_route, build_attrs, build_images, \
-    build_feature_data
-from api_v3.schemas import InfiniteProductsResponse, HubProductSchemeExtV3, ProductV3Response, HubLevelSchemeV3
+    build_feature_data, resolve_slug_path_to_level, collect_descendants
+from api_v3.schemas import InfiniteProductsResponse, HubProductSchemeExtV3, ProductV3Response, HubLevelSchemeV3, \
+    CategoryQuery, CategoryProductsResponse, FiltersResponse
 from cache import get_cache_manager, CacheManager
 from cache.keys.hub import MENU_LEVELS
 from cache.settings import cache_ttl
@@ -124,3 +127,80 @@ async def get_product(origin: int, session: AsyncSession = Depends(db.scoped_ses
                              pros_cons=pros_cons,
                              full_specs=full_specs,
                              duration=duration_ms)
+
+
+@api_v3.get("/category", response_model=CategoryProductsResponse)
+async def get_category_products(request: Request,
+                                query: CategoryQuery = Depends(),
+                                session: AsyncSession = Depends(db.scoped_session_dependency),
+                                cache: CacheManager = Depends(get_cache_manager)):
+    start = time.monotonic()
+    raw_params = request.query_params
+    slug_path = query.path.strip("/").split("/")
+    category, breadcrumbs = await resolve_slug_path_to_level(slug_path=slug_path, cache=cache, session=session)
+    levels_data = await cache.get(MENU_LEVELS)
+    if levels_data is None:
+        levels = await fetch_hub_levels(session)
+        levels_data = [lvl.model_dump() for lvl in levels]
+        await cache.set(MENU_LEVELS, levels_data, ttl=cache_ttl.menu)
+
+    levels = [HubLevelSchemeV3(**item) for item in levels_data]
+    tree: Dict[int, List[int]] = dict()
+    for lvl in levels:
+        if lvl.parent_id is None:
+            continue
+        tree.setdefault(lvl.parent_id, []).append(lvl.id)
+
+    path_ids: set[int] = set()
+    collect_descendants(tree, category.id, path_ids)
+
+    origin_ids = await fetch_origins(path_ids, session)
+    feature_ids = await fetch_feature_ids(origin_ids, session)
+    product_type_ids, brand_ids = await fetch_types_brands(feature_ids, session)
+    base_attrs = await fetch_base_attrs(product_type_ids, session)
+    brand_rules = await fetch_brand_rules(product_type_ids, brand_ids, session)
+
+    sku_filters = await build_sku_filters(product_type_ids=product_type_ids, feature_ids=feature_ids,
+                                          brand_ids=brand_ids, base_attrs=base_attrs,
+                                          brand_rules=brand_rules, session=session)
+    print("path_ids =", path_ids)
+    print("origin_ids =", origin_ids)
+    print("feature_ids =", feature_ids)
+    print("product_type_ids =", product_type_ids)
+    print("brand_ids =", brand_ids)
+    print("base_attrs =", base_attrs)
+
+    # model_filters = build_model_filters(feature_ids=feature_ids, origin_ids=origin_ids, session=session)
+    #
+    # # 10. products
+    # products = await fetch_products(
+    #     origin_ids=origin_ids,
+    #     filters=active_filters,
+    #     sort=query.sort,
+    #     session=session
+    # )
+    #
+    # # 11. pagination
+    # pagination = Pagination(...)
+    #
+    # # 12. sort
+    # sort_response = SortResponse(...)
+    #
+    # # 13. filters_hash
+    # filters_hash = compute_filters_hash(...)
+    #
+    # # 14. duration
+    # duration_ms = int((time.monotonic() - start) * 1000)
+
+    return CategoryProductsResponse(
+        breadcrumbs=breadcrumbs,
+        filters=FiltersResponse(
+            sku_filters=sku_filters,
+            # model_filters=model_filters
+        ),
+        # products=products,
+        # pagination=pagination,
+        # sort=sort_response,
+        # filters_hash=filters_hash,
+        # duration_ms=duration_ms
+    )

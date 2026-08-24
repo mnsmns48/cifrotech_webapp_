@@ -65,14 +65,26 @@ class FilterOption(BaseModel):
     meta: Optional[dict]
 
 
+class SortOption(BaseModel):
+    key: str
+    label: str
+
+
+class SortResponse(BaseModel):
+    active: Optional[str]
+    options: list[SortOption]
+
+
 class FiltersResponse(BaseModel):
     sku_filters: list[FilterOption]
-    model_filters: list[FilterOption]
+    # model_filters: list[FilterOption]
 
 
 class CategoryProductsResponse(BaseModel):
     breadcrumbs: list[HubLevelSchemeV3]
-    products: list[ProductV3Response]
-    pagination: Pagination
     filters: FiltersResponse
-    filters_hash: str
+    # products: list[ProductV3Response]
+    # pagination: Pagination
+    # sort: SortResponse
+    # filters_hash: str
+    # duration_ms: int

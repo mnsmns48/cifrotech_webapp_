@@ -3,7 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from models import HUbStock, ProductOrigin, ProductImage, ProductFeaturesLink, ProductFeaturesGlobal, AttributeValue, \
-    AttributeOriginValue, AttributeKey
+    AttributeOriginValue, AttributeKey, AttributeLink, AttributeBrandRule
+from models.attributes import OverrideType
 
 
 async def fetch_products_cursor_paginated(session: AsyncSession, path_ids: list[int],
@@ -89,3 +90,85 @@ async def get_feature_with_type_brand(session, feature_id: int):
 async def get_menu_level(session, level_id: int):
     from models import HUbMenuLevel
     return await session.scalar(select(HUbMenuLevel).where(HUbMenuLevel.id == level_id))
+
+
+async def fetch_origins(path_ids: set[int], session: AsyncSession) -> set[int]:
+    q = select(HUbStock.origin).where(HUbStock.path_id.in_(path_ids))
+    rows = await session.execute(q)
+    return {row[0] for row in rows}
+
+
+async def fetch_feature_ids(origin_ids: set[int], session: AsyncSession) -> set[int]:
+    if not origin_ids:
+        return set()
+
+    q = select(ProductFeaturesLink.feature_id).where(ProductFeaturesLink.origin.in_(origin_ids))
+    rows = await session.execute(q)
+    return {row[0] for row in rows}
+
+
+async def fetch_types_brands(feature_ids: set[int], session: AsyncSession) -> tuple[set[int], set[int]]:
+    if not feature_ids:
+        return set(), set()
+
+    q = select(ProductFeaturesGlobal.type_id.label("type_id"),
+               ProductFeaturesGlobal.brand_id.label("brand_id")
+               ).where(ProductFeaturesGlobal.id.in_(feature_ids))
+
+    rows = await session.execute(q)
+
+    product_type_ids = set()
+    brand_ids = set()
+
+    for row in rows:
+        product_type_ids.add(row.type_id)
+        brand_ids.add(row.brand_id)
+
+    return product_type_ids, brand_ids
+
+
+async def fetch_base_attrs(product_type_ids: set[int], session: AsyncSession) -> set[int]:
+    if not product_type_ids:
+        return set()
+
+    attr_sets = list()
+
+    for pt_id in product_type_ids:
+        q = select(AttributeLink.attr_key_id).where(AttributeLink.product_type_id == pt_id)
+        rows = await session.execute(q)
+        attr_sets.append({row[0] for row in rows})
+
+    if not attr_sets:
+        return set()
+
+    common_attrs = attr_sets[0]
+
+    for attrs in attr_sets[1:]:
+        common_attrs &= attrs
+
+    return common_attrs
+
+
+async def fetch_brand_rules(product_type_ids: set[int], brand_ids: set[int],
+                            session: AsyncSession) -> dict[int, dict[str, set[int]]]:
+    rules: dict[int, dict[str, set[int]]] = dict()
+
+    if not product_type_ids or not brand_ids:
+        return rules
+
+    q = select(AttributeBrandRule.brand_id,
+               AttributeBrandRule.attr_key_id,
+               AttributeBrandRule.rule_type).where(AttributeBrandRule.product_type_id.in_(product_type_ids),
+                                                   AttributeBrandRule.brand_id.in_(brand_ids))
+    rows = await session.execute(q)
+
+    for brand_id, attr_key_id, rule_type in rows:
+        if brand_id not in rules:
+            rules[brand_id] = {"include": set(), "exclude": set()}
+
+        if rule_type == OverrideType.include:
+            rules[brand_id]["include"].add(attr_key_id)
+        else:
+            rules[brand_id]["exclude"].add(attr_key_id)
+
+    return rules
