@@ -169,9 +169,14 @@ async def build_feature_data(session: AsyncSession, cache: CacheManager, origin_
         full_specs = build_full_specs(feature)
         pros_cons = build_pros_cons(feature)
 
-        await cache.set(key,
-                        {"full_specs": full_specs, "pros_cons": pros_cons},
-                        ttl=cache_ttl.product_info)
+        await cache.set(
+            key,
+            {
+                "full_specs": full_specs.model_dump() if full_specs else None,
+                "pros_cons": pros_cons.model_dump() if hasattr(pros_cons, "model_dump") else pros_cons,
+            },
+            ttl=cache_ttl.product_info
+        )
 
     return type_obj, brand_obj, full_specs, pros_cons
 
@@ -232,4 +237,5 @@ async def resolve_slug_path_to_level(slug_path: List[str], cache: CacheManager,
     breadcrumbs.reverse()
 
     return current_level, breadcrumbs
+
 

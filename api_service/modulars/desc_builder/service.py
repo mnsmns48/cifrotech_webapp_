@@ -198,7 +198,7 @@ class DescBuilder:
         return DescBuilder._convert_to_block_response_bulk(full_map)
 
     @staticmethod
-    async def get_short_specs_by_origins(origins: List[str], session: AsyncSession,
+    async def get_short_specs_by_origins(origins: List[int], session: AsyncSession,
                                          redis: Redis) -> Dict[str, List[BlockResponse]]:
         if not origins:
             return {}
@@ -214,7 +214,7 @@ class DescBuilder:
         return result
 
     @staticmethod
-    async def resolve_feature_ids_by_origins(origins: List[str], session: AsyncSession) -> Dict[str, int]:
+    async def resolve_feature_ids_by_origins(origins: List[int], session: AsyncSession) -> Dict[str, int]:
 
         if not origins:
             return {}

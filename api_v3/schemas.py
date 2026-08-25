@@ -77,14 +77,14 @@ class SortResponse(BaseModel):
 
 class FiltersResponse(BaseModel):
     sku_filters: list[FilterOption]
-    # model_filters: list[FilterOption]
+    model_filters: list[FilterOption]
 
 
 class CategoryProductsResponse(BaseModel):
     breadcrumbs: list[HubLevelSchemeV3]
     filters: FiltersResponse
-    # products: list[ProductV3Response]
+    products: list[HubProductSchemeExtV3]
     # pagination: Pagination
     # sort: SortResponse
     # filters_hash: str
-    # duration_ms: int
+    duration_ms: int

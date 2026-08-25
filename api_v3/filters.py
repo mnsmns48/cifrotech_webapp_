@@ -1,11 +1,15 @@
 import json
 import hashlib
+from collections import defaultdict
 from typing import Any, Dict, Set, List
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api_service.modulars.desc_builder.service import DescBuilder
+from api_service.schemas.desc_builder import BlockResponse
 from api_v3.schemas import HubLevelSchemeV3, FilterOption
+from api_v3.slug import slugify
 from cache import CacheManager
 from cache.settings import cache_ttl
 from models import ProductFeaturesHubMenuLevelLink, ProductFeaturesGlobal, AttributeLink, AttributeBrandRule, \
@@ -86,10 +90,8 @@ async def build_sku_filters(product_type_ids: set[int], feature_ids: set[int], b
     for attr_key_id in common_attrs:
         q_key = select(AttributeKey).where(AttributeKey.id == attr_key_id)
         attr_key = (await session.execute(q_key)).scalar_one()
-        q_values = select(
-            AttributeValue.id,
-            AttributeValue.alias
-        ).join(
+        q_values = select(AttributeValue.id,
+                          AttributeValue.alias).join(
             AttributeModelOption,
             AttributeModelOption.attr_value_id == AttributeValue.id
         ).where(
@@ -115,3 +117,35 @@ async def build_sku_filters(product_type_ids: set[int], feature_ids: set[int], b
                                         active=[],
                                         meta=None))
     return sku_filters
+
+
+def build_model_filters(specs_map: Dict[int, List[BlockResponse]]) -> List[FilterOption]:
+    filter_blocks = []
+    for fid, blocks in specs_map.items():
+        for block in blocks:
+            if block.in_filter:
+                filter_blocks.append(block)
+
+    groups = defaultdict(lambda: {"key": None, "label": None, "values": set()})
+
+    for block in filter_blocks:
+        group_label = block.title or block.alias or "Характеристика"
+        group_key = block.alias or slugify(group_label)
+
+        g = groups[group_key]
+        g["key"] = group_key
+        g["label"] = group_label
+
+        for v in block.values.values():
+            g["values"].add(v)
+
+    model_filters = list()
+    for group_key, data in groups.items():
+        values = sorted(data["values"])
+        model_filters.append(FilterOption(key=data["key"],
+                                          label=data["label"],
+                                          type="select",
+                                          values=[{"label": v} for v in values],
+                                          active=[],
+                                          meta=None))
+    return model_filters

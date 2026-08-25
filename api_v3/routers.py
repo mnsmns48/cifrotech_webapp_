@@ -10,14 +10,16 @@ from api_service.modulars.desc_builder.service import DescBuilder
 from api_service.s3_helper import get_url_from_s3
 from api_service.schemas.desc_builder import BlockResponse
 
-from api_v3.crud import fetch_products_cursor_paginated, get_product_full, fetch_origins, fetch_feature_ids, \
-    fetch_types_brands, fetch_base_attrs, fetch_brand_rules
-from api_v3.filters import build_sku_filters
+from api_v3.crud import (fetch_products_cursor_paginated, get_product_full,
+    # fetch_origins, fetch_feature_ids, fetch_types_brands,
+                         fetch_base_attrs, fetch_brand_rules, fetch_products, fetch_category_feature_data)
+from api_v3.filters import build_sku_filters, build_model_filters
 from api_v3.logic import resolve_menu_levels_to_path_ids, build_cursor_response, build_route, build_attrs, build_images, \
     build_feature_data, resolve_slug_path_to_level, collect_descendants
 from api_v3.schemas import InfiniteProductsResponse, HubProductSchemeExtV3, ProductV3Response, HubLevelSchemeV3, \
-    CategoryQuery, CategoryProductsResponse, FiltersResponse
+    CategoryQuery, CategoryProductsResponse, FiltersResponse, FilterOption
 from cache import get_cache_manager, CacheManager
+from cache.keys.filters import model_filters_key
 from cache.keys.hub import MENU_LEVELS
 from cache.settings import cache_ttl
 
@@ -154,31 +156,27 @@ async def get_category_products(request: Request,
     path_ids: set[int] = set()
     collect_descendants(tree, category.id, path_ids)
 
-    origin_ids = await fetch_origins(path_ids, session)
-    feature_ids = await fetch_feature_ids(origin_ids, session)
-    product_type_ids, brand_ids = await fetch_types_brands(feature_ids, session)
+    origin_ids, feature_ids, product_type_ids, brand_ids = \
+        await fetch_category_feature_data(path_ids, session)
     base_attrs = await fetch_base_attrs(product_type_ids, session)
     brand_rules = await fetch_brand_rules(product_type_ids, brand_ids, session)
 
     sku_filters = await build_sku_filters(product_type_ids=product_type_ids, feature_ids=feature_ids,
                                           brand_ids=brand_ids, base_attrs=base_attrs,
                                           brand_rules=brand_rules, session=session)
-    print("path_ids =", path_ids)
-    print("origin_ids =", origin_ids)
-    print("feature_ids =", feature_ids)
-    print("product_type_ids =", product_type_ids)
-    print("brand_ids =", brand_ids)
-    print("base_attrs =", base_attrs)
 
-    # model_filters = build_model_filters(feature_ids=feature_ids, origin_ids=origin_ids, session=session)
-    #
-    # # 10. products
-    # products = await fetch_products(
-    #     origin_ids=origin_ids,
-    #     filters=active_filters,
-    #     sort=query.sort,
-    #     session=session
-    # )
+    specs_map: Dict[int, List[BlockResponse]] = await DescBuilder.get_short_specs_bulk(list(feature_ids), session,
+                                                                                       cache)
+
+    model_filters_cache_key = model_filters_key(list(feature_ids))
+    cached = await cache.get(model_filters_cache_key)
+    if cached:
+        model_filters = [FilterOption(**item) for item in cached]
+    else:
+        model_filters: List[FilterOption] = build_model_filters(specs_map)
+        await cache.set(model_filters_cache_key, [f.model_dump() for f in model_filters], ttl=cache_ttl.filters)
+
+    products: List[HubProductSchemeExtV3] = await fetch_products(origin_ids, specs_map, session)
     #
     # # 11. pagination
     # pagination = Pagination(...)
@@ -188,19 +186,16 @@ async def get_category_products(request: Request,
     #
     # # 13. filters_hash
     # filters_hash = compute_filters_hash(...)
-    #
-    # # 14. duration
-    # duration_ms = int((time.monotonic() - start) * 1000)
 
     return CategoryProductsResponse(
         breadcrumbs=breadcrumbs,
         filters=FiltersResponse(
             sku_filters=sku_filters,
-            # model_filters=model_filters
+            model_filters=model_filters
         ),
-        # products=products,
+        products=products,
         # pagination=pagination,
         # sort=sort_response,
         # filters_hash=filters_hash,
-        # duration_ms=duration_ms
+        duration_ms=int((time.monotonic() - start) * 1000)
     )
