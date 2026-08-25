@@ -5,10 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from api_service.modulars.desc_builder.service import DescBuilder
+from api_service.schemas import BrandModel, TypeModel
 from api_service.schemas.desc_builder import BlockResponse
-from api_v3.schemas import HubProductSchemeExtV3
+from api_v3.schemas import HubProductSchemeExtV3, CategoryItem
 from models import HUbStock, ProductOrigin, ProductImage, ProductFeaturesLink, ProductFeaturesGlobal, AttributeValue, \
-    AttributeOriginValue, AttributeLink, AttributeBrandRule
+    AttributeOriginValue, AttributeLink, AttributeBrandRule, ProductType, ProductBrand
 from models.attributes import OverrideType
 
 
@@ -97,80 +98,105 @@ async def get_menu_level(session, level_id: int):
     return await session.scalar(select(HUbMenuLevel).where(HUbMenuLevel.id == level_id))
 
 
-# async def fetch_origins(path_ids: set[int], session: AsyncSession) -> set[int]:
-#     q = select(HUbStock.origin).where(HUbStock.path_id.in_(path_ids))
-#     rows = await session.execute(q)
-#     return {row[0] for row in rows}
-#
-#
-# async def fetch_feature_ids(origin_ids: set[int], session: AsyncSession) -> set[int]:
-#     if not origin_ids:
-#         return set()
-#
-#     q = select(ProductFeaturesLink.feature_id).where(ProductFeaturesLink.origin.in_(origin_ids))
-#     rows = await session.execute(q)
-#     return {row[0] for row in rows}
-#
-#
-# async def fetch_types_brands(feature_ids: set[int], session: AsyncSession) -> tuple[set[int], set[int]]:
-#     if not feature_ids:
-#         return set(), set()
-#
-#     q = select(ProductFeaturesGlobal.type_id.label("type_id"),
-#                ProductFeaturesGlobal.brand_id.label("brand_id")
-#                ).where(ProductFeaturesGlobal.id.in_(feature_ids))
-#
-#     rows = await session.execute(q)
-#
-#     product_type_ids = set()
-#     brand_ids = set()
-#
-#     for row in rows:
-#         product_type_ids.add(row.type_id)
-#         brand_ids.add(row.brand_id)
-#
-#     return product_type_ids, brand_ids
-
-
-
-async def fetch_category_feature_data(
-    path_ids: set[int],
-    session: AsyncSession
-) -> tuple[set[int], set[int], set[int], set[int]]:
-    """
-    Возвращает origin_ids, feature_ids, product_type_ids, brand_ids
-    одним SQL-запросом.
-    """
-
+async def fetch_category_items(
+        path_ids: set[int],
+        session: AsyncSession
+) -> list[CategoryItem]:
     if not path_ids:
-        return set(), set(), set(), set()
+        return []
 
-    stmt = (
+    # 1. Основной запрос: hub_stock + origin + feature + model + type + brand
+    base = (
         select(
+            HUbStock.id.label("hubstock_id"),
             HUbStock.origin.label("origin"),
-            ProductFeaturesLink.feature_id.label("feature_id"),
+            HUbStock.warranty,
+            HUbStock.output_price,
+            ProductOrigin.title,
+            ProductFeaturesLink.feature_id,
+            ProductFeaturesGlobal.title.label("model"),
             ProductFeaturesGlobal.type_id.label("type_id"),
             ProductFeaturesGlobal.brand_id.label("brand_id"),
+            ProductType.id.label("ptype_id"),
+            ProductType.type.label("ptype_title"),
+            ProductBrand.id.label("pbrand_id"),
+            ProductBrand.brand.label("pbrand_title"),
+            HUbStock.updated_at,
         )
-        .join(ProductFeaturesLink, ProductFeaturesLink.origin == HUbStock.origin)
-        .join(ProductFeaturesGlobal, ProductFeaturesGlobal.id == ProductFeaturesLink.feature_id)
-        .where(HUbStock.path_id.in_(path_ids))
+        .join(ProductOrigin, ProductOrigin.origin == HUbStock.origin)
+        .outerjoin(ProductFeaturesLink, ProductFeaturesLink.origin == ProductOrigin.origin)
+        .outerjoin(ProductFeaturesGlobal, ProductFeaturesGlobal.id == ProductFeaturesLink.feature_id)
+        .outerjoin(ProductType, ProductType.id == ProductFeaturesGlobal.type_id)
+        .outerjoin(ProductBrand, ProductBrand.id == ProductFeaturesGlobal.brand_id)
+        .where(
+            HUbStock.path_id.in_(path_ids),
+            ProductOrigin.is_deleted.is_(False)
+        )
     )
 
-    rows = (await session.execute(stmt)).mappings().all()
+    base_rows = (await session.execute(base)).mappings().all()
+    if not base_rows:
+        return []
 
-    origin_ids: set[int] = set()
-    feature_ids: set[int] = set()
-    product_type_ids: set[int] = set()
-    brand_ids: set[int] = set()
+    origins = [row["origin"] for row in base_rows]
 
-    for row in rows:
-        origin_ids.add(row["origin"])
-        feature_ids.add(row["feature_id"])
-        product_type_ids.add(row["type_id"])
-        brand_ids.add(row["brand_id"])
+    pics_stmt = (
+        select(
+            ProductImage.origin_id,
+            func.array_agg(ProductImage.key)
+            .filter(ProductImage.key.isnot(None))
+            .label("pics"),
+            func.max(
+                case((ProductImage.is_preview.is_(True), ProductImage.key))
+            ).label("preview"),
+        )
+        .where(ProductImage.origin_id.in_(origins))
+        .group_by(ProductImage.origin_id)
+    )
 
-    return origin_ids, feature_ids, product_type_ids, brand_ids
+    pics_map = {
+        row["origin_id"]: row
+        for row in (await session.execute(pics_stmt)).mappings().all()
+    }
+
+    items: list[CategoryItem] = []
+
+    for row in base_rows:
+        origin = row["origin"]
+        pics_info = pics_map.get(origin, {})
+
+        type_model = None
+        if row["ptype_id"] is not None:
+            type_model = TypeModel(
+                id=row["ptype_id"],
+                type=row["ptype_title"]
+            )
+
+        brand_model = None
+        if row["pbrand_id"] is not None:
+            brand_model = BrandModel(
+                id=row["pbrand_id"],
+                brand=row["pbrand_title"]
+            )
+
+        items.append(
+            CategoryItem(
+                hubstock_id=row["hubstock_id"],
+                origin=origin,
+                warranty=row["warranty"],
+                output_price=row["output_price"],
+                title=row["title"],
+                model=row["model"],
+                feature_id=row["feature_id"],
+                type=type_model,
+                brand=brand_model,
+                pics=pics_info.get("pics", []) or [],
+                preview=pics_info.get("preview"),
+                updated_at=row["updated_at"],
+            )
+        )
+
+    return items
 
 
 async def fetch_base_attrs(product_type_ids: set[int], session: AsyncSession) -> set[int]:
@@ -219,42 +245,42 @@ async def fetch_brand_rules(product_type_ids: set[int], brand_ids: set[int],
 
     return rules
 
-
-async def fetch_products(origin_ids: set[int], specs_map: Dict[int, List[BlockResponse]], session: AsyncSession):
-    if not origin_ids:
-        return []
-
-    stmt = (
-        select(ProductOrigin)
-        .where(ProductOrigin.origin.in_(origin_ids))
-        .options(
-            selectinload(ProductOrigin.images),
-            selectinload(ProductOrigin.features),
-        )
-    )
-    rows = await session.execute(stmt)
-    origin_objects = rows.scalars().all()
-
-    origin_to_feature = await DescBuilder.resolve_feature_ids_by_origins(list(origin_ids), session)
-
-    products = []
-
-    for obj in origin_objects:
-        fid = origin_to_feature.get(obj.origin)
-        short_specs = specs_map.get(fid)
-
-        products.append(
-            HubProductSchemeExtV3(
-                id=obj.id,
-                origin=obj.origin,
-                warranty=obj.warranty,
-                output_price=obj.output_price,
-                title=obj.title,
-                pics=obj.pics,
-                preview=obj.preview,
-                model=obj.model,
-                short_specs=short_specs,
-            )
-        )
-
-    return products
+#
+# async def fetch_products(origin_ids: set[int], specs_map: Dict[int, List[BlockResponse]], session: AsyncSession):
+#     if not origin_ids:
+#         return []
+#
+#     stmt = (
+#         select(ProductOrigin)
+#         .where(ProductOrigin.origin.in_(origin_ids))
+#         .options(
+#             selectinload(ProductOrigin.images),
+#             selectinload(ProductOrigin.features),
+#         )
+#     )
+#     rows = await session.execute(stmt)
+#     origin_objects = rows.scalars().all()
+#
+#     origin_to_feature = await DescBuilder.resolve_feature_ids_by_origins(list(origin_ids), session)
+#
+#     products = []
+#
+#     for obj in origin_objects:
+#         fid = origin_to_feature.get(obj.origin)
+#         short_specs = specs_map.get(fid)
+#
+#         products.append(
+#             HubProductSchemeExtV3(
+#                 id=obj.id,
+#                 origin=obj.origin,
+#                 warranty=obj.warranty,
+#                 output_price=obj.output_price,
+#                 title=obj.title,
+#                 pics=obj.pics,
+#                 preview=obj.preview,
+#                 model=obj.model,
+#                 short_specs=short_specs,
+#             )
+#         )
+#
+#     return products

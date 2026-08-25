@@ -1,3 +1,4 @@
+import math
 import time
 from typing import List, Dict
 
@@ -12,12 +13,14 @@ from api_service.schemas.desc_builder import BlockResponse
 
 from api_v3.crud import (fetch_products_cursor_paginated, get_product_full,
     # fetch_origins, fetch_feature_ids, fetch_types_brands,
-                         fetch_base_attrs, fetch_brand_rules, fetch_products, fetch_category_feature_data)
+                         fetch_base_attrs, fetch_brand_rules,
+                         fetch_category_items)
 from api_v3.filters import build_sku_filters, build_model_filters
 from api_v3.logic import resolve_menu_levels_to_path_ids, build_cursor_response, build_route, build_attrs, build_images, \
     build_feature_data, resolve_slug_path_to_level, collect_descendants
 from api_v3.schemas import InfiniteProductsResponse, HubProductSchemeExtV3, ProductV3Response, HubLevelSchemeV3, \
-    CategoryQuery, CategoryProductsResponse, FiltersResponse, FilterOption
+    CategoryQuery, CategoryProductsResponse, FiltersResponse, FilterOption, CategoryItem, Pagination, SortResponse, \
+    SortOption
 from cache import get_cache_manager, CacheManager
 from cache.keys.filters import model_filters_key
 from cache.keys.hub import MENU_LEVELS
@@ -38,7 +41,6 @@ async def get_levels(session: AsyncSession = Depends(db.scoped_session_dependenc
     levels = await fetch_hub_levels(session)
     raw_levels = [item.model_dump() for item in levels]
     await cache.set(MENU_LEVELS, raw_levels, ttl=cache_ttl.menu)
-
     return levels
 
 
@@ -132,14 +134,18 @@ async def get_product(origin: int, session: AsyncSession = Depends(db.scoped_ses
 
 
 @api_v3.get("/category", response_model=CategoryProductsResponse)
-async def get_category_products(request: Request,
-                                query: CategoryQuery = Depends(),
-                                session: AsyncSession = Depends(db.scoped_session_dependency),
-                                cache: CacheManager = Depends(get_cache_manager)):
+async def get_category_products(
+        request: Request,
+        query: CategoryQuery = Depends(),
+        session: AsyncSession = Depends(db.scoped_session_dependency),
+        cache: CacheManager = Depends(get_cache_manager)
+):
     start = time.monotonic()
-    raw_params = request.query_params
+    # raw_params = request.query_params  # пока не используем → можно убрать
+
     slug_path = query.path.strip("/").split("/")
     category, breadcrumbs = await resolve_slug_path_to_level(slug_path=slug_path, cache=cache, session=session)
+
     levels_data = await cache.get(MENU_LEVELS)
     if levels_data is None:
         levels = await fetch_hub_levels(session)
@@ -147,7 +153,7 @@ async def get_category_products(request: Request,
         await cache.set(MENU_LEVELS, levels_data, ttl=cache_ttl.menu)
 
     levels = [HubLevelSchemeV3(**item) for item in levels_data]
-    tree: Dict[int, List[int]] = dict()
+    tree: Dict[int, List[int]] = {}
     for lvl in levels:
         if lvl.parent_id is None:
             continue
@@ -156,36 +162,104 @@ async def get_category_products(request: Request,
     path_ids: set[int] = set()
     collect_descendants(tree, category.id, path_ids)
 
-    origin_ids, feature_ids, product_type_ids, brand_ids = \
-        await fetch_category_feature_data(path_ids, session)
-    base_attrs = await fetch_base_attrs(product_type_ids, session)
-    brand_rules = await fetch_brand_rules(product_type_ids, brand_ids, session)
+    items: list[CategoryItem] = await fetch_category_items(path_ids, session)
 
-    sku_filters = await build_sku_filters(product_type_ids=product_type_ids, feature_ids=feature_ids,
-                                          brand_ids=brand_ids, base_attrs=base_attrs,
-                                          brand_rules=brand_rules, session=session)
+    if not items:
+        return CategoryProductsResponse(
+            breadcrumbs=breadcrumbs,
+            filters=FiltersResponse(sku_filters=[], model_filters=[]),
+            products=[],
+            duration_ms=int((time.monotonic() - start) * 1000)
+        )
 
-    specs_map: Dict[int, List[BlockResponse]] = await DescBuilder.get_short_specs_bulk(list(feature_ids), session,
-                                                                                       cache)
+    origin_ids = {item.origin for item in items}
+    feature_ids = {item.feature_id for item in items if item.feature_id}
+    product_type_ids = {item.type.id for item in items if item.type}
+    brand_ids = {item.brand.id for item in items if item.brand}
+
+    specs_map = await DescBuilder.get_short_specs_bulk(
+        list(feature_ids), session, cache
+    )
 
     model_filters_cache_key = model_filters_key(list(feature_ids))
     cached = await cache.get(model_filters_cache_key)
+
     if cached:
         model_filters = [FilterOption(**item) for item in cached]
     else:
-        model_filters: List[FilterOption] = build_model_filters(specs_map)
-        await cache.set(model_filters_cache_key, [f.model_dump() for f in model_filters], ttl=cache_ttl.filters)
+        model_filters = build_model_filters(specs_map)
+        await cache.set(
+            model_filters_cache_key,
+            [f.model_dump() for f in model_filters],
+            ttl=cache_ttl.filters
+        )
 
-    products: List[HubProductSchemeExtV3] = await fetch_products(origin_ids, specs_map, session)
-    #
-    # # 11. pagination
-    # pagination = Pagination(...)
-    #
-    # # 12. sort
-    # sort_response = SortResponse(...)
-    #
-    # # 13. filters_hash
-    # filters_hash = compute_filters_hash(...)
+    base_attrs = await fetch_base_attrs(product_type_ids, session)
+    brand_rules = await fetch_brand_rules(product_type_ids, brand_ids, session)
+
+    sku_filters = await build_sku_filters(
+        product_type_ids=product_type_ids,
+        feature_ids=feature_ids,
+        brand_ids=brand_ids,
+        base_attrs=base_attrs,
+        brand_rules=brand_rules,
+        session=session
+    )
+
+    products: list[HubProductSchemeExtV3] = [
+        HubProductSchemeExtV3(
+            id=item.hubstock_id,
+            origin=item.origin,
+            warranty=item.warranty,
+            output_price=item.output_price,
+            title=item.title,
+            pics=item.pics,
+            preview=item.preview,
+            model=item.model,
+            short_specs=specs_map.get(item.feature_id)
+        )
+        for item in items
+    ]
+
+    # 1. SORTING
+    sort_key = query.sort or "price_asc"
+
+    if sort_key == "price_asc":
+        products.sort(key=lambda p: (p.output_price or float("inf")))
+    elif sort_key == "price_desc":
+        products.sort(key=lambda p: -(p.output_price or 0))
+    elif sort_key == "newest":
+        products.sort(
+            key=lambda p: next(i.updated_at for i in items if i.hubstock_id == p.id),
+            reverse=True
+        )
+
+    sort_response = SortResponse(
+        active=sort_key,
+        options=[
+            SortOption(key="price_asc", label="По возрастанию цены"),
+            SortOption(key="price_desc", label="По убыванию цены"),
+            SortOption(key="newest", label="Новинки"),
+        ]
+    )
+
+    # 2. PAGINATION
+    page = query.page or 1
+    limit = query.limit or 20
+
+    total = len(products)
+    start_i = (page - 1) * limit
+    end_i = start_i + limit
+
+    products_page = products[start_i:end_i]
+    total_pages = math.ceil(total / limit)
+
+    pagination = Pagination(
+        page=page,
+        limit=limit,
+        total=total,
+        total_pages=total_pages
+    )
 
     return CategoryProductsResponse(
         breadcrumbs=breadcrumbs,
@@ -193,9 +267,8 @@ async def get_category_products(request: Request,
             sku_filters=sku_filters,
             model_filters=model_filters
         ),
-        products=products,
-        # pagination=pagination,
-        # sort=sort_response,
-        # filters_hash=filters_hash,
+        sort=sort_response,
+        products=products_page,
+        pagination=pagination,
         duration_ms=int((time.monotonic() - start) * 1000)
     )

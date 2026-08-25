@@ -54,6 +54,7 @@ class Pagination(BaseModel):
     page: int
     limit: int
     total: int
+    total_pages: int
 
 
 class FilterOption(BaseModel):
@@ -84,7 +85,22 @@ class CategoryProductsResponse(BaseModel):
     breadcrumbs: list[HubLevelSchemeV3]
     filters: FiltersResponse
     products: list[HubProductSchemeExtV3]
-    # pagination: Pagination
-    # sort: SortResponse
+    pagination: Pagination
+    sort: SortResponse
     # filters_hash: str
     duration_ms: int
+
+
+class CategoryItem(BaseModel):
+    hubstock_id: int
+    origin: int
+    warranty: Optional[str]
+    output_price: Optional[float]
+    title: str
+    model: Optional[str]
+    feature_id: Optional[int]
+    type: Optional[TypeModel]
+    brand: Optional[BrandModel]
+    pics: list[str] = []
+    preview: Optional[str] = None
+    updated_at: datetime
