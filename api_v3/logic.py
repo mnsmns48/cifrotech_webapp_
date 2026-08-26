@@ -10,12 +10,12 @@ from api_service.schemas import HubLevelPath, AttributeKeyValueSchema, Attribute
 from api_service.schemas.features_schemas import FeatureInnerRow, FeatureCategoryScheme, FeatureProductScheme
 
 from api_v3.crud import get_menu_level, get_feature_with_type_brand
-from api_v3.schemas import HubLevelSchemeV3, FiltersResponse, FilterOption
+from api_v3.schemas import HubLevelSchemeV3
 from cache import CacheManager
 from cache.keys.features import feature_key
-from cache.keys.hub import MENU_LEVELS
+from cache.keys.hub import MENU_LEVELS_CACHE_KEY
 from cache.settings import cache_ttl
-from models import HUbMenuLevel, AttributeValue
+from models import HUbMenuLevel
 
 
 async def load_menu_tree(session: AsyncSession) -> Dict[int, List[int]]:
@@ -36,12 +36,11 @@ async def load_menu_tree(session: AsyncSession) -> Dict[int, List[int]]:
     return tree
 
 
-def collect_descendants(tree: Dict[int, List[int]], node_id: int, result: Set[int]):
-    result.add(node_id)
-    if node_id not in tree:
-        return
-    for child in tree[node_id]:
-        collect_descendants(tree, child, result)
+def collect_descendants(tree: Dict[int, List[int]], node_id: int) -> set[int]:
+    result = {node_id}
+    for child in tree.get(node_id, []):
+        result |= collect_descendants(tree, child)
+    return result
 
 
 async def resolve_menu_levels_to_path_ids(selected_levels: List[int], session: AsyncSession) -> List[int]:
@@ -154,8 +153,8 @@ async def build_feature_data(session: AsyncSession, cache: CacheManager, origin_
         return None, None, None, None
 
     type_obj = TypeModel(id=feature.type.id, type=feature.type.type)
-
     brand_obj = BrandModel(id=feature.brand.id, brand=feature.brand.brand)
+
     key = feature_key(feature.id)
     cached = await cache.get(key)
 
@@ -170,8 +169,7 @@ async def build_feature_data(session: AsyncSession, cache: CacheManager, origin_
         pros_cons = build_pros_cons(feature)
 
         await cache.set(
-            key,
-            {
+            key, {
                 "full_specs": full_specs.model_dump() if full_specs else None,
                 "pros_cons": pros_cons.model_dump() if hasattr(pros_cons, "model_dump") else pros_cons,
             },
@@ -183,11 +181,11 @@ async def build_feature_data(session: AsyncSession, cache: CacheManager, origin_
 
 async def resolve_slug_path_to_level(slug_path: List[str], cache: CacheManager,
                                      session: AsyncSession) -> tuple[HubLevelSchemeV3, list[HubLevelSchemeV3]]:
-    cached = await cache.get(MENU_LEVELS)
+    cached = await cache.get(MENU_LEVELS_CACHE_KEY)
     if cached is None:
         levels = await fetch_hub_levels(session)
         raw_levels = [lvl.model_dump() for lvl in levels]
-        await cache.set(MENU_LEVELS, raw_levels, ttl=cache_ttl.menu)
+        await cache.set(MENU_LEVELS_CACHE_KEY, raw_levels, ttl=cache_ttl.menu)
         levels_data = raw_levels
     else:
         levels_data = cached
@@ -237,5 +235,3 @@ async def resolve_slug_path_to_level(slug_path: List[str], cache: CacheManager,
     breadcrumbs.reverse()
 
     return current_level, breadcrumbs
-
-
