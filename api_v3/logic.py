@@ -22,7 +22,7 @@ async def load_menu_tree(session: AsyncSession) -> Dict[int, List[int]]:
     stmt = select(HUbMenuLevel.id, HUbMenuLevel.parent_id)
     rows = (await session.execute(stmt)).all()
 
-    tree: Dict[int, List[int]] = {}
+    tree: Dict[int, List[int]] = dict()
 
     for row in rows:
         node_id = row.id
@@ -36,10 +36,11 @@ async def load_menu_tree(session: AsyncSession) -> Dict[int, List[int]]:
     return tree
 
 
-def collect_descendants(tree: Dict[int, List[int]], node_id: int) -> set[int]:
+def collect_descendants(tree: dict[int, list[int]], node_id: int) -> set[int]:
     result = {node_id}
-    for child in tree.get(node_id, []):
-        result |= collect_descendants(tree, child)
+    children = tree.get(node_id, [])
+    for child in children:
+        result.update(collect_descendants(tree, child))
     return result
 
 
@@ -49,10 +50,10 @@ async def resolve_menu_levels_to_path_ids(selected_levels: List[int], session: A
 
     tree = await load_menu_tree(session)
 
-    result: Set[int] = set()
+    result: set[int] = set()
 
     for level_id in selected_levels:
-        collect_descendants(tree, level_id, result)
+        result.update(collect_descendants(tree, level_id))
 
     return list(result)
 
@@ -101,7 +102,7 @@ def build_images(origin_obj):
 
 
 def build_attrs(origin_obj):
-    attrs = []
+    attrs = list()
     for ov in origin_obj.attribute_values:
         attr_value = ov.attr_value
         attr_key = attr_value.attr_key

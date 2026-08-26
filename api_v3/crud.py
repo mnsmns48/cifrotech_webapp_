@@ -5,7 +5,7 @@ from sqlalchemy.orm import selectinload
 from api_service.schemas import BrandModel, TypeModel
 from api_v3.schemas import CategoryItem
 from models import HUbStock, ProductOrigin, ProductImage, ProductFeaturesLink, ProductFeaturesGlobal, AttributeValue, \
-    AttributeOriginValue, AttributeLink, AttributeBrandRule, ProductType, ProductBrand
+    AttributeOriginValue, AttributeLink, AttributeBrandRule, ProductType, ProductBrand, HUbMenuLevel
 from models.attributes import OverrideType
 
 
@@ -72,16 +72,23 @@ async def fetch_products_cursor_paginated(session: AsyncSession,
     return result
 
 
-async def get_product_full(session, origin: int):
-    result = await session.execute(select(ProductOrigin).options(
-        selectinload(ProductOrigin.stocks),
-        selectinload(ProductOrigin.features)
-        .selectinload(ProductFeaturesLink.origin_rel),
-        selectinload(ProductOrigin.images),
-        selectinload(ProductOrigin.attribute_values)
-        .selectinload(AttributeOriginValue.attr_value)
-        .selectinload(AttributeValue.attr_key)))
-    product_origin = result.scalar_one_or_none()
+async def get_product_full(session: AsyncSession, origin: int):
+    stmt = (
+        select(ProductOrigin)
+        .where(ProductOrigin.origin == origin)
+        .options(
+            selectinload(ProductOrigin.stocks),
+            selectinload(ProductOrigin.features)
+            .selectinload(ProductFeaturesLink.origin_rel),
+            selectinload(ProductOrigin.images),
+            selectinload(ProductOrigin.attribute_values)
+            .selectinload(AttributeOriginValue.attr_value)
+            .selectinload(AttributeValue.attr_key),
+        )
+    )
+
+    result = await session.execute(stmt)
+    product_origin = result.unique().scalar_one_or_none()
     return product_origin
 
 
@@ -93,7 +100,6 @@ async def get_feature_with_type_brand(session, feature_id: int):
 
 
 async def get_menu_level(session, level_id: int):
-    from models import HUbMenuLevel
     return await session.scalar(select(HUbMenuLevel).where(HUbMenuLevel.id == level_id))
 
 
