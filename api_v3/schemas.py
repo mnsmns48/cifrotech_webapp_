@@ -39,6 +39,7 @@ class ProductV3Response(BaseModel):
     pics: List[str] = []
     preview: Optional[str] = None
     pros_cons: Optional[Dict] = None
+    short_specs: list[BlockResponse] | None = None
     full_specs: Optional[FeatureProductScheme] = None
     duration: int
 

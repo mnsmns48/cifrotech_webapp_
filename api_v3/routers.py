@@ -17,8 +17,7 @@ from api_v3.filters import build_sku_filters, build_model_filters
 from api_v3.logic import resolve_menu_levels_to_path_ids, build_cursor_response, build_route, build_attrs, build_images, \
     build_feature_data, resolve_slug_path_to_level, collect_descendants
 from api_v3.schemas import InfiniteProductsResponse, HubProductSchemeExtV3, ProductV3Response, HubLevelSchemeV3, \
-    CategoryQuery, CategoryProductsResponse, FiltersResponse, FilterOption, CategoryItem, Pagination, SortResponse, \
-    SortOption
+    CategoryQuery, CategoryProductsResponse, FiltersResponse, FilterOption, CategoryItem, Pagination
 from api_v3.sorting import apply_sort
 from cache import get_cache_manager, CacheManager
 from cache.keys.filters import model_filters_key
@@ -114,10 +113,11 @@ async def get_product(origin: int, session: AsyncSession = Depends(db.scoped_ses
 
     hub_stock = origin_obj.stocks[0]
     route = await build_route(session, hub_stock.path_id) or []
-    type_obj, brand_obj, full_specs, pros_cons = await build_feature_data(session, cache, origin_obj)
+    type_obj, brand_obj, full_specs, pros_cons, short_specs = await build_feature_data(session, cache, origin_obj)
     attrs = build_attrs(origin_obj) or []
     pics, preview = build_images(origin_obj)
     pics = pics or []
+
     duration_ms = int((time.monotonic() - start) * 1000)
 
     return ProductV3Response(id=hub_stock.id,
@@ -133,6 +133,7 @@ async def get_product(origin: int, session: AsyncSession = Depends(db.scoped_ses
                              pics=pics,
                              preview=preview,
                              pros_cons=pros_cons,
+                             short_specs=short_specs,
                              full_specs=full_specs,
                              duration=duration_ms)
 

@@ -5,6 +5,7 @@ from sqlalchemy import select, RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_miniapp.crud import fetch_hub_levels
+from api_service.modulars.desc_builder.service import DescBuilder
 from api_service.s3_helper import get_url_from_s3
 from api_service.schemas import HubLevelPath, AttributeKeyValueSchema, AttributeKey, BrandModel, TypeModel
 from api_service.schemas.features_schemas import FeatureInnerRow, FeatureCategoryScheme, FeatureProductScheme
@@ -145,13 +146,13 @@ def build_full_specs(feature):
 
 async def build_feature_data(session: AsyncSession, cache: CacheManager, origin_obj):
     if not origin_obj.features:
-        return None, None, None, None
+        return None, None, None, None, None
 
     pf_link = origin_obj.features[0]
     feature = await get_feature_with_type_brand(session, pf_link.feature_id)
 
     if not feature:
-        return None, None, None, None
+        return None, None, None, None, None
 
     type_obj = TypeModel(id=feature.type.id, type=feature.type.type)
     brand_obj = BrandModel(id=feature.brand.id, brand=feature.brand.brand)
@@ -161,23 +162,25 @@ async def build_feature_data(session: AsyncSession, cache: CacheManager, origin_
 
     if cached:
         full_specs_data = cached.get("full_specs")
-        full_specs = (FeatureProductScheme.model_validate(full_specs_data)
-                      if full_specs_data else None)
+        full_specs = (
+            FeatureProductScheme.model_validate(full_specs_data)
+            if full_specs_data else None
+        )
         pros_cons = cached.get("pros_cons")
 
     else:
         full_specs = build_full_specs(feature)
         pros_cons = build_pros_cons(feature)
 
-        await cache.set(
-            key, {
-                "full_specs": full_specs.model_dump() if full_specs else None,
-                "pros_cons": pros_cons.model_dump() if hasattr(pros_cons, "model_dump") else pros_cons,
-            },
-            ttl=cache_ttl.product_info
-        )
+        await cache.set(key, {"full_specs": full_specs.model_dump() if full_specs else None,
+                              "pros_cons": pros_cons.model_dump() if hasattr(pros_cons, "model_dump") else pros_cons,
+                              },
+                        ttl=cache_ttl.product_info)
+    short_specs_map = await DescBuilder.get_short_specs_bulk(feature_ids=[feature.id], session=session,
+                                                             cache=cache)
+    short_specs = short_specs_map.get(feature.id)
 
-    return type_obj, brand_obj, full_specs, pros_cons
+    return type_obj, brand_obj, full_specs, pros_cons, short_specs
 
 
 async def resolve_slug_path_to_level(slug_path: List[str], cache: CacheManager,
