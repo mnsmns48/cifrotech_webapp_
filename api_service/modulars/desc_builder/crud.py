@@ -1,28 +1,10 @@
-import re
-
-from jinja2 import TemplateSyntaxError, UndefinedError, TemplateRuntimeError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from api_service.modulars.formula.environment import env
-from api_service.modulars.formula.filters import get_param
-from api_service.schemas import GenerateDescriptionPayload, SpecsParamScheme, DescriptionResponse, DescriptionError, \
-    DescriptionSuccess
-from api_service.s3_helper import get_url_from_s3
-from config import settings
+from api_service.modulars.desc_builder.logic import normalize_info, build_paths_map
 
-from models import ProductFeaturesGlobal, SpecsComposer, SpecPath, ProductFeaturesLink
-
-
-def normalize_info(raw_info):
-    if isinstance(raw_info, list):
-        merged = {}
-        for block in raw_info:
-            if isinstance(block, dict):
-                merged.update(block)
-        return merged
-    return raw_info or {}
+from models import ProductFeaturesGlobal, SpecsComposer, SpecPath
 
 
 async def prepare_product_info_bulk(session: AsyncSession, pf_map: dict[int, dict | None]):
@@ -30,13 +12,7 @@ async def prepare_product_info_bulk(session: AsyncSession, pf_map: dict[int, dic
     if not ids_to_load:
         return
 
-    stmt = (
-        select(
-            ProductFeaturesGlobal.id,
-            ProductFeaturesGlobal.info,
-        )
-        .where(ProductFeaturesGlobal.id.in_(ids_to_load))
-    )
+    stmt = select(ProductFeaturesGlobal.id, ProductFeaturesGlobal.info).where(ProductFeaturesGlobal.id.in_(ids_to_load))
     result = await session.execute(stmt)
 
     for pid, info_raw in result.all():
@@ -44,31 +20,16 @@ async def prepare_product_info_bulk(session: AsyncSession, pf_map: dict[int, dic
 
 
 async def load_meta_bulk(session: AsyncSession, product_ids: list[int]):
-    stmt = (
-        select(
-            ProductFeaturesGlobal.id,
-            ProductFeaturesGlobal.type_id,
-            ProductFeaturesGlobal.source,
-        )
-        .where(ProductFeaturesGlobal.id.in_(product_ids))
-    )
+    stmt = (select(ProductFeaturesGlobal.id, ProductFeaturesGlobal.type_id, ProductFeaturesGlobal.source)
+            .where(ProductFeaturesGlobal.id.in_(product_ids)))
     result = await session.execute(stmt)
     return result.all()
 
 
-def group_by_type_source(meta_rows):
-    groups = {}
-    for pid, type_id, source in meta_rows:
-        groups.setdefault((type_id, source), []).append(pid)
-    return groups
-
-
 async def load_group_resources(session: AsyncSession, type_id: int, source: str):
-    stmt_comp = (
-        select(SpecsComposer).where(SpecsComposer.type_id == type_id,
-                                    SpecsComposer.source == source)
-        .options(selectinload(SpecsComposer.formula))
-    )
+    stmt_comp = (select(SpecsComposer).where(SpecsComposer.type_id == type_id,
+                                             SpecsComposer.source == source)
+                 .options(selectinload(SpecsComposer.formula)))
     result = await session.execute(stmt_comp)
     composer = result.scalar_one_or_none()
 
@@ -78,13 +39,9 @@ async def load_group_resources(session: AsyncSession, type_id: int, source: str)
     formula_text = composer.formula.formula or ""
     if not formula_text.strip():
         return None, None, None
-    stmt_paths = (
-        select(SpecPath)
-        .where(
-            SpecPath.formula_id == composer.formula_id,
-            SpecPath.source == source,
-        )
-    )
+
+    stmt_paths = (select(SpecPath).where(SpecPath.formula_id == composer.formula_id,
+                                         SpecPath.source == source))
     result = await session.execute(stmt_paths)
     path_rows = list(result.scalars().all())
     if not path_rows:
@@ -92,133 +49,3 @@ async def load_group_resources(session: AsyncSession, type_id: int, source: str)
     paths_map = build_paths_map(path_rows)
     lines = [line.strip() for line in formula_text.split("\n") if line.strip()]
     return composer, paths_map, lines
-
-
-def build_paths_map(path_rows: list[SpecPath]):
-    paths_map = dict()
-    for row in path_rows:
-        category, param = row.path
-        if row.title not in paths_map:
-            paths_map[row.title] = {
-                "icon": row.icon, "paths": [], "alias": row.alias, "in_filter": row.in_filter
-            }
-        paths_map[row.title]["paths"].append(SpecsParamScheme(category=category, param=param))
-
-    return paths_map
-
-
-def render_formula_description(prepared_line: dict, paths_map: dict, info: dict):
-    values = dict()
-    first_icon = None
-    first_title = None
-    first_alias = None
-    first_in_filter = None
-    has_non_empty_value = False
-
-    for var in prepared_line["vars"]:
-        if var not in paths_map:
-            values[var] = ""
-            continue
-
-        schemes = paths_map[var]["paths"]
-        value = get_param(info, schemes)
-
-        values[var] = str(value or "")
-
-        if not value:
-            continue
-
-        has_non_empty_value = True
-
-        if first_title is None:
-            first_title = var
-            first_alias = paths_map[var].get("alias")
-            first_in_filter = paths_map[var].get("in_filter")
-
-            icon = paths_map[var].get("icon")
-
-            if icon:
-                first_icon = get_url_from_s3(icon, settings.s3.utils_path)
-
-    if not has_non_empty_value:
-        return None
-
-    rendered = prepared_line["template"].render(**values).strip()
-    rendered = re.sub(r"^,+", "", rendered)
-    rendered = re.sub(r",+$", "", rendered)
-    rendered = re.sub(r"\s{2,}", " ", rendered).strip()
-
-    return {"title": first_title, "icon": first_icon, "text": rendered,
-            "values": values, "alias": first_alias, "in_filter": first_in_filter}
-
-
-def prepare_formula_lines(lines: list[str]) -> list[dict]:
-    prepared = list()
-
-    for line in lines:
-        raw_vars = re.findall(r"{{\s*([A-Za-z0-9_]+)(?:\s*\|[^}]*)?\s*}}", line)
-
-        if not raw_vars:
-            continue
-
-        prepared.append({"vars": list(dict.fromkeys(raw_vars)), "template": env.from_string(line)})
-
-    return prepared
-
-
-def render_group(ids: list[int], pf_map: dict[int, dict], paths_map: dict, lines: list[str]):
-    prepared_lines = prepare_formula_lines(lines)
-
-    result = dict()
-
-    for pid in ids:
-        info = pf_map[pid]
-        blocks = list()
-
-        for line in prepared_lines:
-            block = render_formula_description(line, paths_map, info)
-            if block:
-                blocks.append(block)
-
-        result[pid] = {"blocks": blocks}
-
-    return result
-
-
-def assemble_result(group_results: list[dict[int, dict]]):
-    final = dict()
-    for group in group_results:
-        final.update(group)
-    return final
-
-
-async def generate_description_db(payload: GenerateDescriptionPayload, session: AsyncSession):
-    try:
-        if payload.product_features_map:
-            pf_map = payload.product_features_map
-        elif payload.origins:
-            stmt = select(ProductFeaturesLink.feature_id).where(ProductFeaturesLink.origin.in_(payload.origins))
-            result = await session.execute(stmt)
-            feature_ids = [row[0] for row in result.all()]
-            pf_map = {fid: None for fid in feature_ids}
-        else:
-            return DescriptionResponse(error=DescriptionError(error="No product_features_map or origins provided"))
-        product_ids = list(pf_map.keys())
-        await prepare_product_info_bulk(session, pf_map)
-        meta_rows = await load_meta_bulk(session, product_ids)
-        groups = group_by_type_source(meta_rows)
-
-        group_results = list()
-        for (type_id, source), ids in groups.items():
-            composer, paths_map, lines = await load_group_resources(session, type_id, source)
-            if not composer:
-                group_results.append({pid: {"blocks": []} for pid in ids})
-                continue
-            group_results.append(render_group(ids, pf_map, paths_map, lines))
-
-        result = assemble_result(group_results)
-
-        return DescriptionResponse(success=DescriptionSuccess(products=result))
-
-    except (TemplateSyntaxError, UndefinedError, TemplateRuntimeError) as e:
-        return DescriptionResponse(error=DescriptionError(error="Template rendering failed", details=str(e)))

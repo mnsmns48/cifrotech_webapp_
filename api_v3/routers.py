@@ -1,6 +1,6 @@
 import math
 import time
-from typing import List, Dict
+from typing import List
 
 from fastapi import APIRouter, Query, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,7 +13,7 @@ from api_service.schemas.desc_builder import BlockResponse
 
 from api_v3.crud import (fetch_products_cursor_paginated, get_product_full, fetch_base_attrs, fetch_brand_rules,
                          fetch_category_items)
-from api_v3.filters import build_sku_filters, build_model_filters
+from api_v3.filters import build_sku_filters, build_model_filters, make_custom_filter
 from api_v3.logic import resolve_menu_levels_to_path_ids, build_cursor_response, build_route, build_attrs, build_images, \
     build_feature_data, resolve_slug_path_to_level, collect_descendants
 from api_v3.schemas import InfiniteProductsResponse, HubProductSchemeExtV3, ProductV3Response, HubLevelSchemeV3, \
@@ -218,6 +218,14 @@ async def get_category_products(query: CategoryQuery = Depends(),
                                           brand_rules=brand_rules,
                                           session=session)
 
+    brand_values = [{"id": item.brand.id, "label": item.brand.brand}
+                    for item in items if item.brand]
+    sku_filters.append(make_custom_filter("brand", "Бренд", brand_values))
+
+    type_values = [{"id": item.type.id, "label": item.type.type}
+                   for item in items if item.type]
+    sku_filters.append(make_custom_filter("product_type", "Тип устройства", type_values))
+
     products = [HubProductSchemeExtV3(id=item.hubstock_id,
                                       origin=item.origin,
                                       warranty=item.warranty,
@@ -239,10 +247,8 @@ async def get_category_products(query: CategoryQuery = Depends(),
     products_page = products[(page - 1) * limit: page * limit]
 
     return CategoryProductsResponse(breadcrumbs=breadcrumbs,
-                                    filters=FiltersResponse(
-                                        sku_filters=sku_filters,
-                                        model_filters=model_filters,
-                                    ),
+                                    filters=FiltersResponse(sku_filters=sku_filters,
+                                                            model_filters=model_filters),
                                     sort=sort_response,
                                     products=products_page,
                                     pagination=pagination,
