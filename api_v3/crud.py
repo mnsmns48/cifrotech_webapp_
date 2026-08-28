@@ -2,6 +2,7 @@ from sqlalchemy import RowMapping, select, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from api_service.s3_helper import get_url_from_s3
 from api_service.schemas import BrandModel, TypeModel
 from api_v3.schemas import CategoryItem
 from models import HUbStock, ProductOrigin, ProductImage, ProductFeaturesLink, ProductFeaturesGlobal, AttributeValue, \
@@ -108,37 +109,49 @@ async def fetch_category_items(path_ids: set[int], session: AsyncSession) -> lis
         return []
 
     base_stmt = (
-        select(HUbStock.id.label("hubstock_id"),
-               HUbStock.origin.label("origin"),
-               HUbStock.warranty,
-               HUbStock.output_price,
-               ProductOrigin.title,
-               ProductFeaturesLink.feature_id,
-               ProductFeaturesGlobal.title.label("model"),
-               ProductFeaturesGlobal.type_id.label("type_id"),
-               ProductFeaturesGlobal.brand_id.label("brand_id"),
-               ProductType.id.label("ptype_id"),
-               ProductType.type.label("ptype_title"),
-               ProductBrand.id.label("pbrand_id"),
-               ProductBrand.brand.label("pbrand_title"),
-               HUbStock.updated_at,
-               ).join(ProductOrigin, ProductOrigin.origin == HUbStock.origin)
+        select(
+            HUbStock.id.label("hubstock_id"),
+            HUbStock.origin.label("origin"),
+            HUbStock.warranty,
+            HUbStock.output_price,
+            ProductOrigin.title,
+            ProductFeaturesLink.feature_id,
+            ProductFeaturesGlobal.title.label("model"),
+            ProductFeaturesGlobal.type_id.label("type_id"),
+            ProductFeaturesGlobal.brand_id.label("brand_id"),
+            ProductType.id.label("ptype_id"),
+            ProductType.type.label("ptype_title"),
+            ProductBrand.id.label("pbrand_id"),
+            ProductBrand.brand.label("pbrand_title"),
+            HUbStock.updated_at,
+        )
+        .join(ProductOrigin, ProductOrigin.origin == HUbStock.origin)
         .outerjoin(ProductFeaturesLink, ProductFeaturesLink.origin == ProductOrigin.origin)
         .outerjoin(ProductFeaturesGlobal, ProductFeaturesGlobal.id == ProductFeaturesLink.feature_id)
         .outerjoin(ProductType, ProductType.id == ProductFeaturesGlobal.type_id)
         .outerjoin(ProductBrand, ProductBrand.id == ProductFeaturesGlobal.brand_id)
-        .where(HUbStock.path_id.in_(path_ids), ProductOrigin.is_deleted.is_(False)))
+        .where(
+            HUbStock.path_id.in_(path_ids),
+            ProductOrigin.is_deleted.is_(False)
+        )
+    )
 
     base_rows = await fetch_rows(session, base_stmt)
 
     origins = [row["origin"] for row in base_rows]
     pics_map: dict[int, RowMapping] = await fetch_pics_map(session, origins)
 
-    items: list[CategoryItem] = list()
+    items: list[CategoryItem] = []
 
     for row in base_rows:
         origin = row["origin"]
         pics_info = pics_map.get(origin, {})
+
+        raw_pics = pics_info.get("pics", []) or []
+        raw_preview = pics_info.get("preview")
+
+        pics = get_url_from_s3(raw_pics, path=str(origin)) if raw_pics else []
+        preview = get_url_from_s3(raw_preview, path=str(origin)) if raw_preview else None
 
         type_model = None
         if row["ptype_id"] is not None:
@@ -148,19 +161,25 @@ async def fetch_category_items(path_ids: set[int], session: AsyncSession) -> lis
         if row["pbrand_id"] is not None:
             brand_model = BrandModel(id=row["pbrand_id"], brand=row["pbrand_title"])
 
-        items.append(CategoryItem(hubstock_id=row["hubstock_id"],
-                                  origin=origin,
-                                  warranty=row["warranty"],
-                                  output_price=row["output_price"],
-                                  title=row["title"],
-                                  model=row["model"],
-                                  feature_id=row["feature_id"],
-                                  type=type_model,
-                                  brand=brand_model,
-                                  pics=pics_info.get("pics", []) or [],
-                                  preview=pics_info.get("preview"),
-                                  updated_at=row["updated_at"]))
+        items.append(
+            CategoryItem(
+                hubstock_id=row["hubstock_id"],
+                origin=origin,
+                warranty=row["warranty"],
+                output_price=row["output_price"],
+                title=row["title"],
+                model=row["model"],
+                feature_id=row["feature_id"],
+                type=type_model,
+                brand=brand_model,
+                pics=pics,
+                preview=preview,
+                updated_at=row["updated_at"],
+            )
+        )
+
     return items
+
 
 
 async def fetch_base_attrs(product_type_ids: set[int], session: AsyncSession) -> set[int]:
