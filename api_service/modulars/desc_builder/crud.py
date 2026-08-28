@@ -1,4 +1,5 @@
 import re
+from typing import Dict
 
 from jinja2 import TemplateSyntaxError, UndefinedError, TemplateRuntimeError
 from sqlalchemy import select
@@ -10,6 +11,7 @@ from api_service.modulars.formula.filters import get_param
 from api_service.schemas import GenerateDescriptionPayload, SpecsParamScheme, DescriptionResponse, DescriptionError, \
     DescriptionSuccess
 from api_service.s3_helper import get_url_from_s3
+from api_service.schemas.desc_builder import BlockResponse, ValueInfo, ProductDescription
 from config import settings
 
 from models import ProductFeaturesGlobal, SpecsComposer, SpecPath, ProductFeaturesLink
@@ -108,117 +110,229 @@ def build_paths_map(path_rows: list[SpecPath]):
 
 
 def render_formula_description(prepared_line: dict, paths_map: dict, info: dict):
-    values = dict()
-    first_icon = None
-    first_title = None
-    first_alias = None
-    first_in_filter = None
+    values: Dict[str, ValueInfo] = {}
     has_non_empty_value = False
+    first_icon = None
 
+    # 1. Собираем raw и метаданные
     for var in prepared_line["vars"]:
         if var not in paths_map:
-            values[var] = ""
+            values[var] = ValueInfo(raw="", processed="", alias=None, in_filter=None)
             continue
 
         schemes = paths_map[var]["paths"]
-        value = get_param(info, schemes)
+        raw_value = str(get_param(info, schemes) or "")
 
-        values[var] = str(value or "")
+        alias = paths_map[var].get("alias")
+        in_filter = paths_map[var].get("in_filter")
 
-        if not value:
-            continue
+        values[var] = ValueInfo(
+            raw=raw_value,
+            processed="",  # заполним позже
+            alias=alias,
+            in_filter=in_filter
+        )
 
-        has_non_empty_value = True
-
-        if first_title is None:
-            first_title = var
-            first_alias = paths_map[var].get("alias")
-            first_in_filter = paths_map[var].get("in_filter")
-
-            icon = paths_map[var].get("icon")
-
-            if icon:
-                first_icon = get_url_from_s3(icon, settings.s3.utils_path)
+        if raw_value:
+            has_non_empty_value = True
+            if first_icon is None:
+                icon = paths_map[var].get("icon")
+                if icon:
+                    first_icon = get_url_from_s3(icon, settings.s3.utils_path)
 
     if not has_non_empty_value:
         return None
 
-    rendered = prepared_line["template"].render(**values).strip()
+    # 2. Рендерим text — полная формула
+    rendered = prepared_line["template"].render(
+        **{var: values[var].raw for var in prepared_line["vars"]}
+    ).strip()
+
     rendered = re.sub(r"^,+", "", rendered)
     rendered = re.sub(r",+$", "", rendered)
     rendered = re.sub(r"\s{2,}", " ", rendered).strip()
 
-    return {"title": first_title, "icon": first_icon, "text": rendered,
-            "values": values, "alias": first_alias, "in_filter": first_in_filter}
+    # 3. processed = raw, пропущенный через фильтры
+    for var in prepared_line["vars"]:
+        raw = values[var].raw
+        filters = prepared_line["filters"].get(var, [])
+        processed = apply_filters(raw, filters)
+        values[var].processed = processed
+
+    return BlockResponse(
+        text=rendered,
+        icon=first_icon,
+        values=values
+    )
+
+
+def apply_filters(value: str, filters: list[tuple[str, list]]) -> str:
+    """
+    Применяет фильтры Jinja вручную к одному значению.
+    filters: [("cut_left", ["inches", 0]), ("replace", ["Hz", ""])]
+    """
+
+    if not value:
+        return ""
+
+    result = value
+
+    for fname, args in filters:
+        try:
+            # фильтр должен существовать в env.filters
+            func = env.filters.get(fname)
+            if not func:
+                continue
+
+            # вызываем фильтр как обычную Python-функцию
+            # Jinja-фильтры всегда принимают первым аргументом value
+            result = func(result, *args)
+
+        except Exception:
+            # если фильтр упал — не ломаем весь пайплайн
+            continue
+
+    # финальная чистка
+    result = re.sub(r"\s{2,}", " ", str(result)).strip()
+    return result
+
 
 
 def prepare_formula_lines(lines: list[str]) -> list[dict]:
-    prepared = list()
+    prepared = []
+
+    # Находим все {{ ... }} блоки
+    block_pattern = r"{{\s*(.*?)\s*}}"
 
     for line in lines:
-        raw_vars = re.findall(r"{{\s*([A-Za-z0-9_]+)(?:\s*\|[^}]*)?\s*}}", line)
-
-        if not raw_vars:
+        blocks = re.findall(block_pattern, line)
+        if not blocks:
             continue
 
-        prepared.append({"vars": list(dict.fromkeys(raw_vars)), "template": env.from_string(line)})
+        vars_list = []
+        filters_map = {}
+
+        for block in blocks:
+            # Пример блока:
+            # "display_size | cut_left('inches', 0) | replace('Hz', '')"
+            parts = [p.strip() for p in block.split("|")]
+
+            var = parts[0]                     # первая часть — имя переменной
+            vars_list.append(var)
+
+            filters = []
+            for part in parts[1:]:             # остальные части — фильтры
+                # Пример part:
+                # "cut_left('inches', 0)"
+                m = re.match(r"(\w+)\s*\((.*)\)", part)
+                if not m:
+                    continue
+
+                fname = m.group(1)
+                args_raw = m.group(2).strip()
+
+                # Разбираем аргументы максимально просто
+                args = []
+                if args_raw:
+                    for arg in re.split(r"\s*,\s*", args_raw):
+                        arg = arg.strip().strip('"').strip("'")
+                        if arg.isdigit():
+                            arg = int(arg)
+                        args.append(arg)
+
+                filters.append((fname, args))
+
+            filters_map[var] = filters
+
+        prepared.append({
+            "vars": list(dict.fromkeys(vars_list)),
+            "filters": filters_map,
+            "template": env.from_string(line),
+        })
 
     return prepared
 
 
-def render_group(ids: list[int], pf_map: dict[int, dict], paths_map: dict, lines: list[str]):
+
+
+def render_group(
+        ids: list[int],
+        pf_map: dict[int, dict],
+        paths_map: dict,
+        lines: list[str],
+) -> dict[int, ProductDescription]:
     prepared_lines = prepare_formula_lines(lines)
 
-    result = dict()
+    result: dict[int, ProductDescription] = {}
 
     for pid in ids:
-        info = pf_map[pid]
-        blocks = list()
+        info = pf_map.get(pid) or {}
+        blocks: list[BlockResponse] = []
 
         for line in prepared_lines:
             block = render_formula_description(line, paths_map, info)
             if block:
                 blocks.append(block)
 
-        result[pid] = {"blocks": blocks}
+        result[pid] = ProductDescription(blocks=blocks)
 
     return result
 
 
-def assemble_result(group_results: list[dict[int, dict]]):
-    final = dict()
-    for group in group_results:
-        final.update(group)
-    return final
-
-
-async def generate_description_db(payload: GenerateDescriptionPayload, session: AsyncSession):
+async def generate_description_db(payload: GenerateDescriptionPayload, session: AsyncSession) -> DescriptionResponse:
     try:
         if payload.product_features_map:
             pf_map = payload.product_features_map
+
         elif payload.origins:
-            stmt = select(ProductFeaturesLink.feature_id).where(ProductFeaturesLink.origin.in_(payload.origins))
+            stmt = select(ProductFeaturesLink.feature_id).where(
+                ProductFeaturesLink.origin.in_(payload.origins)
+            )
             result = await session.execute(stmt)
             feature_ids = [row[0] for row in result.all()]
             pf_map = {fid: None for fid in feature_ids}
+
         else:
-            return DescriptionResponse(error=DescriptionError(error="No product_features_map or origins provided"))
+            return DescriptionResponse(
+                error=DescriptionError(error="No product_features_map or origins provided")
+            )
+
         product_ids = list(pf_map.keys())
+
         await prepare_product_info_bulk(session, pf_map)
+
         meta_rows = await load_meta_bulk(session, product_ids)
         groups = group_by_type_source(meta_rows)
 
-        group_results = list()
+        final: dict[int, ProductDescription] = {}
+
         for (type_id, source), ids in groups.items():
             composer, paths_map, lines = await load_group_resources(session, type_id, source)
-            if not composer:
-                group_results.append({pid: {"blocks": []} for pid in ids})
+
+            if not composer or not paths_map or not lines:
+                # нет формулы/путей → пустые блоки
+                for pid in ids:
+                    final[pid] = ProductDescription(blocks=[])
                 continue
-            group_results.append(render_group(ids, pf_map, paths_map, lines))
 
-        result = assemble_result(group_results)
+            prepared_lines = prepare_formula_lines(lines)
 
-        return DescriptionResponse(success=DescriptionSuccess(products=result))
+            for pid in ids:
+                info = pf_map.get(pid) or {}
+                blocks: list[BlockResponse] = []
+
+                for line in prepared_lines:
+                    block = render_formula_description(line, paths_map, info)
+                    if block:
+                        blocks.append(block)
+                    print(block)
+                final[pid] = ProductDescription(blocks=blocks)
+
+        return DescriptionResponse(
+            success=DescriptionSuccess(products=final)
+        )
 
     except (TemplateSyntaxError, UndefinedError, TemplateRuntimeError) as e:
-        return DescriptionResponse(error=DescriptionError(error="Template rendering failed", details=str(e)))
+        return DescriptionResponse(
+            error=DescriptionError(error="Template rendering failed", details=str(e))
+        )

@@ -84,13 +84,17 @@ class DeleteSpecPath(BaseModel):
     id: int
 
 
+class ValueInfo(BaseModel):
+    raw: str
+    processed: str
+    alias: Optional[str]
+    in_filter: Optional[bool]
+
+
 class BlockResponse(BaseModel):
-    title: Optional[str] = None
-    icon: Optional[str] = None
     text: str
-    values: Dict[str, str]
-    alias: Optional[str] = None
-    in_filter: bool | None = None
+    icon: Optional[str] = None
+    values: Dict[str, ValueInfo]
 
 
 class ProductDescription(BaseModel):
