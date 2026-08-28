@@ -1,18 +1,22 @@
 from typing import List, Dict, Tuple
 
 from fastapi import HTTPException
+from jinja2 import TemplateSyntaxError, UndefinedError, TemplateRuntimeError
 from redis.asyncio import Redis
 
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from api_service.modulars.desc_builder.crud import generate_description_db
+from api_service.modulars.desc_builder.crud import prepare_product_info_bulk, load_meta_bulk, \
+    load_group_resources
+from api_service.modulars.desc_builder.logic import render_blocks_for_product, prepare_formula_lines, \
+    group_by_type_source
 from api_service.schemas import FormulaIdObj, FormulaEntityTypeScheme, GenerateDescriptionPayload, \
     FetchComposerResponse, TypeModel, FormulaResponse
 from api_service.schemas.desc_builder import SpecsComposerExpandedScheme, SpecsPathRequest, SpecPathResponse, \
     CreateSpecsComposer, SaveSpecsComposer, SpecsComposerResponse, UpdateComposer, CreateSpecPath, UpdateSpecPath, \
-    DescriptionResponse, BlockResponse, ProductDescription
+    DescriptionResponse, BlockResponse, ProductDescription, DescriptionError, DescriptionSuccess
 from api_service.s3_helper import get_url_from_s3
 from cache import CacheManager
 from cache.keys.features import short_specs_key
@@ -53,7 +57,43 @@ class DescBuilder:
 
     @staticmethod
     async def generate_description(payload: GenerateDescriptionPayload, session: AsyncSession) -> DescriptionResponse:
-        return await generate_description_db(payload, session)
+        try:
+            if payload.product_features_map:
+                pf_map = payload.product_features_map
+            elif payload.origins:
+                stmt = select(ProductFeaturesLink.feature_id).where(ProductFeaturesLink.origin.in_(payload.origins))
+                execute_result = await session.execute(stmt)
+                feature_ids = [row[0] for row in execute_result.all()]
+                pf_map = {fid: None for fid in feature_ids}
+            else:
+                return DescriptionResponse(error=DescriptionError(error="No product_features_map or origins provided"))
+
+            product_ids = list(pf_map.keys())
+            await prepare_product_info_bulk(session, pf_map)
+            meta_rows = await load_meta_bulk(session, product_ids)
+            groups = group_by_type_source(meta_rows)
+
+            result: dict[int, ProductDescription] = dict()
+
+            for (type_id, source), ids in groups.items():
+                composer, paths_map, lines = await load_group_resources(session, type_id, source)
+
+                if not composer or not paths_map or not lines:
+                    for pid in ids:
+                        result[pid] = ProductDescription(blocks=[])
+                    continue
+
+                prepared_lines = prepare_formula_lines(lines)
+
+                for pid in ids:
+                    info = pf_map.get(pid) or {}
+                    blocks = render_blocks_for_product(prepared_lines, paths_map, info)
+                    result[pid] = ProductDescription(blocks=blocks)
+
+            return DescriptionResponse(success=DescriptionSuccess(products=result))
+
+        except (TemplateSyntaxError, UndefinedError, TemplateRuntimeError) as e:
+            return DescriptionResponse(error=DescriptionError(error="Template rendering failed", details=str(e)))
 
     @staticmethod
     async def fetch_composer(formula_entity_type_id: int, session: AsyncSession):

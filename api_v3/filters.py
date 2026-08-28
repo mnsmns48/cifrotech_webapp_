@@ -1,19 +1,16 @@
 import json
 import hashlib
+import re
 from collections import defaultdict
-from typing import Any, Dict, Set, List
+from typing import Any, Dict, List
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api_service.modulars.desc_builder.service import DescBuilder
 from api_service.schemas.desc_builder import BlockResponse
-from api_v3.schemas import HubLevelSchemeV3, FilterOption
+from api_v3.schemas import FilterOption
 from api_v3.slug import slugify
-from cache import CacheManager
-from cache.settings import cache_ttl
-from models import ProductFeaturesHubMenuLevelLink, ProductFeaturesGlobal, AttributeLink, AttributeBrandRule, \
-    AttributeKey, AttributeValue, AttributeModelOption
+from models import AttributeKey, AttributeValue, AttributeModelOption
 
 
 def _normalize_value(value: Any) -> Any:
@@ -120,32 +117,73 @@ async def build_sku_filters(product_type_ids: set[int], feature_ids: set[int], b
 
 
 def build_model_filters(specs_map: Dict[int, List[BlockResponse]]) -> List[FilterOption]:
-    filter_blocks = []
-    for fid, blocks in specs_map.items():
+    groups: dict[str, dict[str, Any]] = defaultdict(lambda: {"key": None, "label": None, "values": set()})
+
+    for blocks in specs_map.values():
         for block in blocks:
-            if block.in_filter:
-                filter_blocks.append(block)
+            for value_info in block.values.values():
+                if not value_info.in_filter:
+                    continue
 
-    groups = defaultdict(lambda: {"key": None, "label": None, "values": set()})
+                if not value_info.alias:
+                    continue
 
-    for block in filter_blocks:
-        group_label = block.title or block.alias or "Характеристика"
-        group_key = block.alias or slugify(group_label)
+                group_label = value_info.alias
+                group_key = slugify(group_label)
 
-        g = groups[group_key]
-        g["key"] = group_key
-        g["label"] = group_label
+                g = groups[group_key]
+                g["key"] = group_key
+                g["label"] = group_label
 
-        for v in block.values.values():
-            g["values"].add(v)
+                if value_info.processed:
+                    g["values"].add(value_info.processed)
 
-    model_filters = list()
+    model_filters: list[FilterOption] = []
+
     for group_key, data in groups.items():
-        values = sorted(data["values"])
-        model_filters.append(FilterOption(key=data["key"],
-                                          label=data["label"],
-                                          type="select",
-                                          values=[{"label": v} for v in values],
-                                          active=[],
-                                          meta=None))
+        raw_values = list(data["values"])
+        sorted_values = sort_filter_values(raw_values)
+
+        model_filters.append(
+            FilterOption(
+                key=data["key"],
+                label=data["label"],
+                type="select",
+                values=[{"label": v} for v in sorted_values],
+                active=[],
+                meta=None
+            )
+        )
+
     return model_filters
+
+
+def normalize_numeric_value(v: str) -> str:
+    return re.sub(r'[^0-9.,-]', '', v).replace(',', '.')
+
+
+def sort_filter_values(values: list[str]) -> list[str]:
+    numeric_values = []
+    string_values = []
+
+    for v in values:
+        cleaned = normalize_numeric_value(v)
+
+        try:
+            num = float(cleaned)
+            numeric_values.append((num, v))
+        except ValueError:
+            string_values.append(v)
+
+    numeric_values.sort(key=lambda x: x[0])
+    string_values.sort(key=lambda x: x.lower())
+
+    return [orig for _, orig in numeric_values] + string_values
+
+
+def make_custom_filter(key: str, label: str, raw_items: list[dict]) -> FilterOption:
+    unique = {(v["id"], v["label"]) for v in raw_items}
+    items = [{"id": i, "label": l} for i, l in unique]
+    items.sort(key=lambda x: x["label"].lower())
+
+    return FilterOption(key=key, label=label, type="select", values=items, active=[], meta=None)

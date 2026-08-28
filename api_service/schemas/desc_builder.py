@@ -92,6 +92,7 @@ class ValueInfo(BaseModel):
 
 
 class BlockResponse(BaseModel):
+    title: str
     text: str
     icon: Optional[str] = None
     values: Dict[str, ValueInfo]
