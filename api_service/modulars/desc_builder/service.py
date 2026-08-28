@@ -276,7 +276,7 @@ class DescBuilder:
         for fid, product_desc in specs_map.items():
             blocks = list()
             for block in product_desc.blocks:
-                blocks.append(BlockResponse(**block.dict()))
+                blocks.append(BlockResponse(**block.model_dump()))
             result[fid] = blocks
 
         return result
