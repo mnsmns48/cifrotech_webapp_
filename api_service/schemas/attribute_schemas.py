@@ -187,3 +187,9 @@ class AttributeKeyValueSchema(BaseModel):
 class AttrValueRequestByKeyAndExcludes(BaseModel):
     key_id: int
     exclude_value_id_list: list[int] | None = None
+
+
+class BrandRuleSchema(BaseModel):
+    brand_id: int
+    include: set[int]
+    exclude: set[int]

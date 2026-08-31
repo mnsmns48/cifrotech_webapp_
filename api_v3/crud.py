@@ -181,21 +181,23 @@ async def fetch_category_items(path_ids: set[int], session: AsyncSession) -> lis
     return items
 
 
-
 async def fetch_base_attrs(product_type_ids: set[int], session: AsyncSession) -> set[int]:
     if not product_type_ids:
         return set()
 
-    attr_sets = list()
+    query = (select(AttributeLink.product_type_id, AttributeLink.attr_key_id)
+             .where(AttributeLink.product_type_id.in_(product_type_ids)))
 
-    for pt_id in product_type_ids:
-        q = select(AttributeLink.attr_key_id).where(AttributeLink.product_type_id == pt_id)
-        rows = await session.execute(q)
-        attr_sets.append({row[0] for row in rows})
+    rows = await session.execute(query)
+    type_to_attrs: dict[int, set[int]] = {}
 
-    if not attr_sets:
+    for pt_id, attr_key_id in rows:
+        type_to_attrs.setdefault(pt_id, set()).add(attr_key_id)
+
+    if not type_to_attrs:
         return set()
 
+    attr_sets = list(type_to_attrs.values())
     common_attrs = attr_sets[0]
 
     for attrs in attr_sets[1:]:
@@ -204,18 +206,20 @@ async def fetch_base_attrs(product_type_ids: set[int], session: AsyncSession) ->
     return common_attrs
 
 
-async def fetch_brand_rules(product_type_ids: set[int], brand_ids: set[int],
-                            session: AsyncSession) -> dict[int, dict[str, set[int]]]:
+async def fetch_brand_rules(product_type_ids: set[int],
+                            brand_ids: set[int], session: AsyncSession) -> dict[int, dict[str, set[int]]]:
     rules: dict[int, dict[str, set[int]]] = dict()
 
     if not product_type_ids or not brand_ids:
         return rules
 
-    q = select(AttributeBrandRule.brand_id,
-               AttributeBrandRule.attr_key_id,
-               AttributeBrandRule.rule_type).where(AttributeBrandRule.product_type_id.in_(product_type_ids),
-                                                   AttributeBrandRule.brand_id.in_(brand_ids))
-    rows = await session.execute(q)
+    query = (select(AttributeBrandRule.brand_id,
+                    AttributeBrandRule.attr_key_id,
+                    AttributeBrandRule.rule_type)
+             .where(AttributeBrandRule.product_type_id.in_(product_type_ids),
+                    AttributeBrandRule.brand_id.in_(brand_ids)))
+
+    rows = await session.execute(query)
 
     for brand_id, attr_key_id, rule_type in rows:
         if brand_id not in rules:

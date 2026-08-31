@@ -2,18 +2,20 @@ import math
 import time
 from typing import List
 
-from fastapi import APIRouter, Query, Depends, HTTPException
+from fastapi import APIRouter, Query, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_miniapp.crud import fetch_hub_levels
+from api_service.func import collect_unique_models
 from api_service.modulars.desc_builder.service import DescBuilder
 
 from api_service.s3_helper import get_url_from_s3
+from api_service.schemas import BrandRuleSchema, TypeModel, BrandModel
 from api_service.schemas.desc_builder import BlockResponse
 
 from api_v3.crud import (fetch_products_cursor_paginated, get_product_full, fetch_base_attrs, fetch_brand_rules,
                          fetch_category_items)
-from api_v3.filters import build_sku_filters, build_model_filters, make_custom_filter
+from api_v3.filters import build_sku_filters, build_model_filters, make_custom_filter, compute_filters_hash
 from api_v3.logic import resolve_menu_levels_to_path_ids, build_cursor_response, build_route, build_attrs, build_images, \
     build_feature_data, resolve_slug_path_to_level, collect_descendants
 from api_v3.schemas import InfiniteProductsResponse, HubProductSchemeExtV3, ProductV3Response, HubLevelSchemeV3, \
@@ -146,10 +148,22 @@ async def get_product(origin: int, session: AsyncSession = Depends(db.scoped_ses
                          "категорий, уровни меню, модельные фильтры и спецификации товаров для ускорения "
                          "ответа. При отсутствии товаров возвращает пустые фильтры, пустой список товаров "
                          "и заглушки сортировки/пагинации."))
-async def get_category_products(query: CategoryQuery = Depends(),
+async def get_category_products(request: Request,
+                                query: CategoryQuery = Depends(),
                                 session: AsyncSession = Depends(db.scoped_session_dependency),
                                 cache: CacheManager = Depends(get_cache_manager)):
     start = time.monotonic()
+
+    raw_params = request.query_params
+
+    SERVICE_PARAMS = {"path", "page", "limit", "sort"}
+
+    active_filters = dict()
+    for key in raw_params.keys():
+        if key in SERVICE_PARAMS:
+            continue
+        values = raw_params.getlist(key)
+        active_filters[key] = values if len(values) > 1 else values[0]
 
     slug_path = query.path.strip("/").split("/")
     category, breadcrumbs = await resolve_slug_path_to_level(slug_path=slug_path, cache=cache, session=session)
@@ -211,20 +225,16 @@ async def get_category_products(query: CategoryQuery = Depends(),
     base_attrs = await fetch_base_attrs(product_type_ids, session)
     brand_rules = await fetch_brand_rules(product_type_ids, brand_ids, session)
 
-    sku_filters = await build_sku_filters(product_type_ids=product_type_ids,
-                                          feature_ids=feature_ids,
-                                          brand_ids=brand_ids,
-                                          base_attrs=base_attrs,
-                                          brand_rules=brand_rules,
+    brand_rules_schemas = [
+        BrandRuleSchema(brand_id=brand_id, include=rules["include"], exclude=rules["exclude"])
+        for brand_id, rules in brand_rules.items()]
+
+    type_values = collect_unique_models(items, "type", TypeModel)
+    brand_values = collect_unique_models(items, "brand", BrandModel)
+
+    sku_filters = await build_sku_filters(product_types=type_values, brands=brand_values,
+                                          base_attrs=base_attrs, brand_rules=brand_rules_schemas,
                                           session=session)
-
-    brand_values = [{"id": item.brand.id, "label": item.brand.brand}
-                    for item in items if item.brand]
-    sku_filters.append(make_custom_filter("brand", "Бренд", brand_values))
-
-    type_values = [{"id": item.type.id, "label": item.type.type}
-                   for item in items if item.type]
-    sku_filters.append(make_custom_filter("product_type", "Тип устройства", type_values))
 
     products = [HubProductSchemeExtV3(id=item.hubstock_id,
                                       origin=item.origin,
@@ -246,10 +256,19 @@ async def get_category_products(query: CategoryQuery = Depends(),
     pagination = Pagination(page=page, limit=limit, total=total, total_pages=total_pages)
     products_page = products[(page - 1) * limit: page * limit]
 
+    filters_hash = compute_filters_hash(slug="/".join(slug_path),
+                                        active_filters=active_filters,
+                                        sort_key=sort_key,
+                                        page=page,
+                                        limit=limit,
+                                        model_filters=[f.model_dump() for f in model_filters],
+                                        sku_filters=[f.model_dump() for f in sku_filters])
+
     return CategoryProductsResponse(breadcrumbs=breadcrumbs,
                                     filters=FiltersResponse(sku_filters=sku_filters,
                                                             model_filters=model_filters),
                                     sort=sort_response,
                                     products=products_page,
                                     pagination=pagination,
+                                    filters_hash=filters_hash,
                                     duration_ms=int((time.monotonic() - start) * 1000))

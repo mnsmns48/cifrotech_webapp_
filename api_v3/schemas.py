@@ -88,7 +88,7 @@ class CategoryProductsResponse(BaseModel):
     products: list[HubProductSchemeExtV3]
     pagination: Pagination
     sort: SortResponse
-    # filters_hash: str
+    filters_hash: str
     duration_ms: int
 
 

@@ -36,7 +36,8 @@ from api_service.schemas.attribute_schemas import CreateAttrKey, UpdateAttrKey, 
     TypeDependencyLink, AttributeBrandRuleLink, TypeAndBrandPayload, ProductFeaturesAttributeOptions, \
     AttributeValueSchema, ModelAttributeValuesSchema, Types, ModelAttributesRequest, ModelAttributesResponse, \
     AttributeModelOptionLink, ParsingResultAttributeResponse, AttributeValueSchema, AttributeOriginValueCheckRequest, \
-    AttributeOriginValueCheckResponse, AttributeKeyValueSchema, AttributeKey, AttrValueRequestByKeyAndExcludes
+    AttributeOriginValueCheckResponse, AttributeKeyValueSchema, AttributeKey, AttrValueRequestByKeyAndExcludes, \
+    BrandRuleSchema
 
 from api_service.schemas.formula import FormulaBase, FormulaCreate, FormulaUpdate, FormulaResponse, \
     FormulaPreviewResponse, FormulaPreviewRequest, FormulaValidateRequest, FormulaIdObj, FormulaEntityTypeScheme, \
@@ -98,7 +99,7 @@ __all__ += ["CreateAttrKey", "UpdateAttrKey", "TypesDependenciesResponse", "Type
             "ProductFeaturesAttributeOptions", "AttributeValueSchema", "ModelAttributeValuesSchema", "Types",
             "ModelAttributesRequest", "ModelAttributesResponse", "AttributeModelOptionLink",
             "ParsingResultAttributeResponse", "AttributeValueSchema", "AttributeOriginValueCheckRequest",
-            "AttributeOriginValueCheckResponse", "CreateAttribute", "UpdateAttribute"]
+            "AttributeOriginValueCheckResponse", "CreateAttribute", "UpdateAttribute", "BrandRuleSchema"]
 
 __all__ += ["FormulaBase", "FormulaCreate", "FormulaUpdate", "FormulaResponse", "FormulaPreviewResponse",
             "FormulaPreviewRequest", "FormulaValidateRequest", "FormulaIdObj", "FormulaEntityTypeScheme",

@@ -7,10 +7,11 @@ from typing import Any, Dict, List
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api_service.schemas import TypeModel, BrandModel, BrandRuleSchema
 from api_service.schemas.desc_builder import BlockResponse
 from api_v3.schemas import FilterOption
 from api_v3.slug import slugify
-from models import AttributeKey, AttributeValue, AttributeModelOption
+from models import AttributeKey, AttributeValue
 
 
 def _normalize_value(value: Any) -> Any:
@@ -55,20 +56,18 @@ def generate_filters_hash(filters: Dict[str, Any]) -> str:
     return hashlib.md5(json_str.encode("utf-8")).hexdigest()
 
 
-async def build_sku_filters(product_type_ids: set[int], feature_ids: set[int], brand_ids: set[int],
-                            base_attrs: set[int], brand_rules: dict[int, dict[str, set[int]]],
+async def build_sku_filters(product_types: list[TypeModel],
+                            brands: list[BrandModel],
+                            base_attrs: set[int],
+                            brand_rules: list[BrandRuleSchema],
                             session: AsyncSession) -> list[FilterOption]:
-    if not product_type_ids or not brand_ids:
-        return []
-
+    rules_map = {r.brand_id: r for r in brand_rules}
     brand_attr_sets: list[set[int]] = list()
 
-    for brand_id in brand_ids:
-        rules = brand_rules.get(brand_id, {"include": set(), "exclude": set()})
-
-        include_keys = rules["include"]
-        exclude_keys = rules["exclude"]
-
+    for brand in brands:
+        rules = rules_map.get(brand.id)
+        include_keys = rules.include if rules else set()
+        exclude_keys = rules.exclude if rules else set()
         brand_attrs = (base_attrs - exclude_keys) | include_keys
         brand_attr_sets.append(brand_attrs)
 
@@ -82,37 +81,45 @@ async def build_sku_filters(product_type_ids: set[int], feature_ids: set[int], b
     if not common_attrs:
         return []
 
-    sku_filters: list[FilterOption] = []
+    sku_filters: list[FilterOption] = list()
+
+    q_keys = select(AttributeKey).where(AttributeKey.id.in_(common_attrs))
+    keys_rows = (await session.execute(q_keys)).scalars().all()
+    keys_map = {k.id: k for k in keys_rows}
+
+    q_values = (select(AttributeValue.id,
+                       AttributeValue.alias,
+                       AttributeValue.attr_key_id)
+                .where(AttributeValue.attr_key_id.in_(common_attrs))
+                )
+
+    values_rows = await session.execute(q_values)
+
+    grouped_values: dict[int, dict[str, int]] = dict()
+
+    for row in values_rows:
+        alias = row.alias
+        attr_key_id = row.attr_key_id
+
+        grouped_values.setdefault(attr_key_id, {})
+        grouped_values[attr_key_id].setdefault(alias, row.id)
 
     for attr_key_id in common_attrs:
-        q_key = select(AttributeKey).where(AttributeKey.id == attr_key_id)
-        attr_key = (await session.execute(q_key)).scalar_one()
-        q_values = select(AttributeValue.id,
-                          AttributeValue.alias).join(
-            AttributeModelOption,
-            AttributeModelOption.attr_value_id == AttributeValue.id
-        ).where(
-            AttributeModelOption.model_id.in_(feature_ids),
-            AttributeValue.attr_key_id == attr_key_id,
-        )
+        attr_key = keys_map[attr_key_id]
+        alias_map = grouped_values.get(attr_key_id, {})
 
-        rows = await session.execute(q_values)
+        raw_items = [{"id": id_, "label": alias}
+                     for alias, id_ in alias_map.items()]
 
-        seen_aliases = dict()
-        for row in rows:
-            alias = row.alias
-            if alias not in seen_aliases:
-                seen_aliases[alias] = row.id
+        sku_filters.append(make_custom_filter(key=attr_key.key,
+                                              label=attr_key.alias or attr_key.key,
+                                              raw_items=raw_items))
 
-        unique_values = [{"id": id_, "label": alias}
-                         for alias, id_ in sorted(seen_aliases.items(), key=lambda x: x[0].lower())]
+    brand_values = [{"id": b.id, "label": b.brand} for b in brands]
+    sku_filters.append(make_custom_filter("brand", "Бренд", brand_values))
+    type_values = [{"id": t.id, "label": t.type} for t in product_types]
+    sku_filters.append(make_custom_filter("product_type", "Тип устройства", type_values))
 
-        sku_filters.append(FilterOption(key=attr_key.key,
-                                        label=attr_key.alias or attr_key.key,
-                                        type="select",
-                                        values=unique_values,
-                                        active=[],
-                                        meta=None))
     return sku_filters
 
 
@@ -187,3 +194,18 @@ def make_custom_filter(key: str, label: str, raw_items: list[dict]) -> FilterOpt
     items.sort(key=lambda x: x["label"].lower())
 
     return FilterOption(key=key, label=label, type="select", values=items, active=[], meta=None)
+
+
+def compute_filters_hash(slug: str,
+                         active_filters: Dict[str, Any],
+                         sort_key: str,
+                         page: int,
+                         limit: int,
+                         model_filters: List[Dict[str, Any]],
+                         sku_filters: List[Dict[str, Any]]) -> str:
+    payload = {"slug": slug, "active_filters": active_filters, "sort": sort_key,
+               "page": page, "limit": limit, "model_filters": model_filters,
+               "sku_filters": sku_filters}
+
+    raw = json.dumps(payload, sort_keys=True, ensure_ascii=False)
+    return hashlib.md5(raw.encode("utf-8")).hexdigest()
