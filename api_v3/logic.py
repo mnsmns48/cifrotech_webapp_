@@ -1,22 +1,15 @@
-from typing import List, Dict
-
-from fastapi import HTTPException
-from sqlalchemy import select, RowMapping
+from sqlalchemy import RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api_miniapp.crud import fetch_hub_levels
 from api_service.modulars.desc_builder.service import DescBuilder
 from api_service.s3_helper import get_url_from_s3
 from api_service.schemas import HubLevelPath, AttributeKeyValueSchema, AttributeKey, BrandModel, TypeModel
 from api_service.schemas.features_schemas import FeatureInnerRow, FeatureCategoryScheme, FeatureProductScheme
 
 from api_v3.crud import get_menu_level, get_feature_with_type_brand
-from api_v3.schemas import HubLevelSchemeV3
 from cache import CacheManager
 from cache.keys.features import feature_key
-from cache.keys.hub import MENU_LEVELS_CACHE_KEY
 from cache.settings import cache_ttl
-from models import HUbMenuLevel
 
 
 # async def load_menu_tree(session: AsyncSession) -> Dict[int, List[int]]:
@@ -161,7 +154,6 @@ async def build_feature_data(session: AsyncSession, cache: CacheManager, origin_
     short_specs = short_specs_map.get(feature.id)
 
     return type_obj, brand_obj, full_specs, pros_cons, short_specs
-
 
 # async def resolve_slug_path_to_level(slug_path: List[str], cache: CacheManager,
 #                                      session: AsyncSession) -> tuple[HubLevelSchemeV3, list[HubLevelSchemeV3]]:
