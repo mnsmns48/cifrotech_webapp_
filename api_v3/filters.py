@@ -9,51 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.schemas import TypeModel, BrandModel, BrandRuleSchema
 from api_service.schemas.desc_builder import BlockResponse
-from api_v3.schemas import FilterOption
+from api_v3.schemas import FilterOption, CategoryItem
 from api_v3.slug import slugify
 from models import AttributeKey, AttributeValue
-
-
-def _normalize_value(value: Any) -> Any:
-    if value is None:
-        return None
-
-    if isinstance(value, list):
-        normalized = [_normalize_value(v) for v in value]
-        return sorted(normalized)
-
-    if isinstance(value, dict):
-        return {
-            key: _normalize_value(value[key])
-            for key in sorted(value.keys())
-            if value[key] is not None
-        }
-
-    if isinstance(value, str) and value.isdigit():
-        return int(value)
-
-    return value
-
-
-def normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
-    cleaned = {
-        key: value
-        for key, value in filters.items()
-        if value not in (None, "", [], {})
-    }
-
-    normalized = {
-        key: _normalize_value(value)
-        for key, value in cleaned.items()
-    }
-
-    return normalized
-
-
-def generate_filters_hash(filters: Dict[str, Any]) -> str:
-    normalized = normalize_filters(filters)
-    json_str = json.dumps(normalized, ensure_ascii=False, sort_keys=True)
-    return hashlib.md5(json_str.encode("utf-8")).hexdigest()
 
 
 async def build_sku_filters(product_types: list[TypeModel],
@@ -209,3 +167,274 @@ def compute_filters_hash(slug: str,
 
     raw = json.dumps(payload, sort_keys=True, ensure_ascii=False)
     return hashlib.md5(raw.encode("utf-8")).hexdigest()
+
+
+def normalize_filters(
+        active_filters: dict[str, list[str]],
+        sku_filters: list[FilterOption],
+        model_filters: list[FilterOption],
+) -> dict[str, list[Any]]:
+    # 1. Собираем ключи SKU и MODEL фильтров
+    sku_keys = {f.key for f in sku_filters}
+    model_keys = {f.key for f in model_filters}
+
+    normalized: dict[str, list[Any]] = {}
+
+    for key, raw_values in active_filters.items():
+
+        # Всегда список
+        if not isinstance(raw_values, list):
+            raw_values = [raw_values]
+
+        # SKU‑фильтры → значения должны быть ID (int)
+        if key in sku_keys:
+            cleaned_values = []
+            for v in raw_values:
+                try:
+                    cleaned_values.append(int(v))
+                except ValueError:
+                    # Некорректное значение → игнорируем
+                    continue
+
+            if cleaned_values:
+                normalized[key] = cleaned_values
+
+        # MODEL‑фильтры → значения должны быть строки (label)
+        elif key in model_keys:
+            cleaned_values = [v.strip() for v in raw_values if v.strip()]
+            if cleaned_values:
+                normalized[key] = cleaned_values
+
+        # Диапазоны (price_min, price_max, battery_min, battery_max)
+        elif key.endswith("_min") or key.endswith("_max"):
+            try:
+                normalized[key] = [float(raw_values[0])]
+            except ValueError:
+                continue
+
+        # Остальные фильтры — игнорируем
+        else:
+            continue
+
+    return normalized
+
+
+def validate_filters(
+        normalized_filters: dict[str, list[Any]],
+        sku_filters: list[FilterOption],
+        model_filters: list[FilterOption],
+) -> dict[str, list[Any]]:
+    # Собираем допустимые значения SKU-фильтров
+    sku_allowed: dict[str, set[int]] = {}
+    for f in sku_filters:
+        allowed_ids = {v["id"] for v in f.values}
+        sku_allowed[f.key] = allowed_ids
+
+    # Собираем допустимые значения MODEL-фильтров
+    model_allowed: dict[str, set[str]] = {}
+    for f in model_filters:
+        allowed_labels = {v["label"] for v in f.values}
+        model_allowed[f.key] = allowed_labels
+
+    validated: dict[str, list[Any]] = {}
+
+    for key, values in normalized_filters.items():
+
+        # SKU-фильтры → проверяем ID
+        if key in sku_allowed:
+            allowed = sku_allowed[key]
+            cleaned = [v for v in values if v in allowed]
+            if cleaned:
+                validated[key] = cleaned
+
+        # MODEL-фильтры → проверяем label
+        elif key in model_allowed:
+            allowed = model_allowed[key]
+            cleaned = [v for v in values if v in allowed]
+            if cleaned:
+                validated[key] = cleaned
+
+        # Диапазоны → проверяем число
+        elif key.endswith("_min") or key.endswith("_max"):
+            try:
+                num = float(values[0])
+                validated[key] = [num]
+            except ValueError:
+                continue
+
+        # Остальное → игнорируем
+        else:
+            continue
+
+    return validated
+def prepare_model_specs_map(
+    specs_map: dict[int, list[BlockResponse]]
+) -> dict[int, dict[str, list[str]]]:
+    """
+    Готовим модельные характеристики:
+    feature_id → { key: [processed_values] }
+    """
+    result: dict[int, dict[str, list[str]]] = {}
+
+
+
+    for fid, blocks in specs_map.items():
+        model_map: dict[str, list[str]] = {}
+
+        for block in blocks:
+            for _, value_info in block.values.items():
+                if not value_info.in_filter:
+                    continue
+
+                alias = value_info.alias
+                if not alias:
+                    continue
+
+                key = slugify(alias)
+                processed = value_info.processed
+
+                model_map.setdefault(key, []).append(processed)
+
+        result[fid] = model_map
+
+    return result
+
+
+def match_sku_item(
+    item: CategoryItem,
+    filters: dict[str, list[Any]],
+    sku_keys: set[str]
+) -> bool:
+
+    for key, values in filters.items():
+
+        # Диапазоны
+        if key == "price_min":
+            if (item.output_price or 0) < values[0]:
+                print(f"[SKU FAIL] {item.title}: price_min {values[0]} > {item.output_price}")
+                return False
+            continue
+
+        if key == "price_max":
+            if (item.output_price or 0) > values[0]:
+                print(f"[SKU FAIL] {item.title}: price_max {values[0]} < {item.output_price}")
+                return False
+            continue
+
+        # SKU-фильтры
+        if key in sku_keys:
+
+            # brand
+            if key == "brand":
+                if item.brand is None or item.brand.id not in values:
+                    print(f"[SKU FAIL] {item.title}: brand {item.brand.id if item.brand else None} not in {values}")
+                    return False
+                continue
+
+            # product_type
+            if key == "product_type":
+                if item.type is None or item.type.id not in values:
+                    print(f"[SKU FAIL] {item.title}: type {item.type.id if item.type else None} not in {values}")
+                    return False
+                continue
+
+            # AttributeKey (Color, Rom, etc.)
+            if hasattr(item, "attr_values"):
+                attr_vals = item.attr_values.get(key)
+
+                print(f"[SKU DEBUG] {item.title}: key={key}, attr_vals={attr_vals}, filter_values={values}")
+
+                if not attr_vals:
+                    print(f"[SKU FAIL] {item.title}: no attr_values for key={key}")
+                    return False
+
+                if not any(v in attr_vals for v in values):
+                    print(f"[SKU FAIL] {item.title}: attr_vals {attr_vals} do not match {values}")
+                    return False
+
+                continue
+
+            print(f"[SKU FAIL] {item.title}: item has no attr_values")
+            return False
+
+    print(f"[SKU OK] {item.title}")
+    return True
+
+
+
+def match_model_item(
+    item: CategoryItem,
+    filters: dict[str, list[Any]],
+    model_keys: set[str],
+    model_specs_map: dict[int, dict[str, list[str]]]
+) -> bool:
+
+    fid = item.feature_id
+    if fid is None:
+        print(f"[MODEL FAIL] {item.title}: no feature_id")
+        return False
+
+    specs = model_specs_map.get(fid)
+    if not specs:
+        print(f"[MODEL FAIL] {item.title}: no specs for feature_id={fid}")
+        return False
+
+    for key, values in filters.items():
+        if key in model_keys:
+            spec_values = specs.get(key)
+
+            print(f"[MODEL DEBUG] {item.title}: key={key}, spec_values={spec_values}, filter_values={values}")
+
+            if spec_values is None:
+                print(f"[MODEL FAIL] {item.title}: no spec_values for key={key}")
+                return False
+
+            if not any(v in spec_values for v in values):
+                print(f"[MODEL FAIL] {item.title}: spec_values {spec_values} do not match {values}")
+                return False
+
+    print(f"[MODEL OK] {item.title}")
+    return True
+
+
+
+def filter_products_engine(
+    items: list[CategoryItem],
+    specs_map: dict[int, list[BlockResponse]],
+    validated_filters: dict[str, list[Any]],
+    sku_filters: list[FilterOption],
+    model_filters: list[FilterOption],
+) -> list[CategoryItem]:
+
+    # ---------------------------------------------------------
+    # 1. Подготовка SKU и MODEL ключей
+    # ---------------------------------------------------------
+    sku_keys = {f.key for f in sku_filters}
+    model_keys = {f.key for f in model_filters}
+
+    # ---------------------------------------------------------
+    # 2. Подготовка MODEL-спеков (ускорение ×3)
+    # ---------------------------------------------------------
+    model_specs_map = prepare_model_specs_map(specs_map)
+
+    # ---------------------------------------------------------
+    # 3. Один проход по товарам
+    # ---------------------------------------------------------
+    filtered = []
+
+    print("\n=== FILTER ENGINE START ===")
+    print("validated_filters:", validated_filters)
+    print("sku_filters:", [(f.key, [v["id"] for v in f.values]) for f in sku_filters])
+    print("model_filters:", [f.key for f in model_filters])
+    print("items_count:", len(items))
+
+    for item in items:
+        if not match_sku_item(item, validated_filters, sku_keys):
+            continue
+
+        if not match_model_item(item, validated_filters, model_keys, model_specs_map):
+            continue
+
+        filtered.append(item)
+
+    return filtered

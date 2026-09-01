@@ -19,18 +19,18 @@ from cache.settings import cache_ttl
 from models import HUbMenuLevel
 
 
-async def load_menu_tree(session: AsyncSession) -> Dict[int, List[int]]:
-    stmt = select(HUbMenuLevel.id, HUbMenuLevel.parent_id)
-    rows = (await session.execute(stmt)).all()
-    tree: Dict[int, List[int]] = dict()
-    for row in rows:
-        node_id = row.id
-        parent_id = row.parent_id
-        if parent_id not in tree:
-            tree[parent_id] = []
-        tree[parent_id].append(node_id)
-
-    return tree
+# async def load_menu_tree(session: AsyncSession) -> Dict[int, List[int]]:
+#     stmt = select(HUbMenuLevel.id, HUbMenuLevel.parent_id)
+#     rows = (await session.execute(stmt)).all()
+#     tree: Dict[int, List[int]] = dict()
+#     for row in rows:
+#         node_id = row.id
+#         parent_id = row.parent_id
+#         if parent_id not in tree:
+#             tree[parent_id] = []
+#         tree[parent_id].append(node_id)
+#
+#     return tree
 
 
 def collect_descendants(tree: dict[int, list[int]], node_id: int) -> set[int]:
@@ -41,16 +41,16 @@ def collect_descendants(tree: dict[int, list[int]], node_id: int) -> set[int]:
     return result
 
 
-async def resolve_menu_levels_to_path_ids(selected_levels: List[int], session: AsyncSession) -> List[int]:
-    if not selected_levels:
-        return []
-
-    tree = await load_menu_tree(session)
-    result: set[int] = set()
-    for level_id in selected_levels:
-        result.update(collect_descendants(tree, level_id))
-
-    return list(result)
+# async def resolve_menu_levels_to_path_ids(selected_levels: List[int], session: AsyncSession) -> List[int]:
+#     if not selected_levels:
+#         return []
+#
+#     tree = await load_menu_tree(session)
+#     result: set[int] = set()
+#     for level_id in selected_levels:
+#         result.update(collect_descendants(tree, level_id))
+#
+#     return list(result)
 
 
 def build_cursor_response(rows: list[RowMapping], limit: int):
@@ -163,59 +163,59 @@ async def build_feature_data(session: AsyncSession, cache: CacheManager, origin_
     return type_obj, brand_obj, full_specs, pros_cons, short_specs
 
 
-async def resolve_slug_path_to_level(slug_path: List[str], cache: CacheManager,
-                                     session: AsyncSession) -> tuple[HubLevelSchemeV3, list[HubLevelSchemeV3]]:
-    cached = await cache.get(MENU_LEVELS_CACHE_KEY)
-    if cached is None:
-        levels = await fetch_hub_levels(session)
-        raw_levels = [lvl.model_dump() for lvl in levels]
-        await cache.set(MENU_LEVELS_CACHE_KEY, raw_levels, ttl=cache_ttl.menu)
-        levels_data = raw_levels
-    else:
-        levels_data = cached
-
-    levels = [HubLevelSchemeV3(**item) for item in levels_data]
-
-    if not slug_path:
-        raise HTTPException(status_code=400, detail="Slug path is empty")
-
-    slug_map: Dict[str, List[HubLevelSchemeV3]] = {}
-    id_map: Dict[int, HubLevelSchemeV3] = {}
-
-    for lvl in levels:
-        slug_map.setdefault(lvl.slug, []).append(lvl)
-        id_map[lvl.id] = lvl
-
-    current_level: HubLevelSchemeV3 | None = None
-
-    for index, slug in enumerate(slug_path):
-        candidates = slug_map.get(slug)
-        if not candidates:
-            raise HTTPException(status_code=404, detail=f"Slug '{slug}' not found")
-
-        if index == 0:
-            depth0 = [lvl for lvl in candidates if lvl.depth == 0]
-            depth2 = [lvl for lvl in candidates if lvl.depth == 2]
-
-            if depth0:
-                current_level = depth0[0]
-            elif depth2:
-                current_level = depth2[0]
-            else:
-                raise HTTPException(status_code=400, detail=f"Slug '{slug}' cannot be used as first element")
-        else:
-            next_candidates = [lvl for lvl in candidates if lvl.parent_id == current_level.id]
-            if not next_candidates:
-                raise HTTPException(status_code=404,
-                                    detail=f"Slug '{slug}' does not match parent_id={current_level.id}")
-            current_level = next_candidates[0]
-
-    breadcrumbs = list()
-    node = current_level
-    while node is not None:
-        breadcrumbs.append(node)
-        node = id_map.get(node.parent_id)
-
-    breadcrumbs.reverse()
-
-    return current_level, breadcrumbs
+# async def resolve_slug_path_to_level(slug_path: List[str], cache: CacheManager,
+#                                      session: AsyncSession) -> tuple[HubLevelSchemeV3, list[HubLevelSchemeV3]]:
+#     cached = await cache.get(MENU_LEVELS_CACHE_KEY)
+#     if cached is None:
+#         levels = await fetch_hub_levels(session)
+#         raw_levels = [lvl.model_dump() for lvl in levels]
+#         await cache.set(MENU_LEVELS_CACHE_KEY, raw_levels, ttl=cache_ttl.menu)
+#         levels_data = raw_levels
+#     else:
+#         levels_data = cached
+#
+#     levels = [HubLevelSchemeV3(**item) for item in levels_data]
+#
+#     if not slug_path:
+#         raise HTTPException(status_code=400, detail="Slug path is empty")
+#
+#     slug_map: Dict[str, List[HubLevelSchemeV3]] = {}
+#     id_map: Dict[int, HubLevelSchemeV3] = {}
+#
+#     for lvl in levels:
+#         slug_map.setdefault(lvl.slug, []).append(lvl)
+#         id_map[lvl.id] = lvl
+#
+#     current_level: HubLevelSchemeV3 | None = None
+#
+#     for index, slug in enumerate(slug_path):
+#         candidates = slug_map.get(slug)
+#         if not candidates:
+#             raise HTTPException(status_code=404, detail=f"Slug '{slug}' not found")
+#
+#         if index == 0:
+#             depth0 = [lvl for lvl in candidates if lvl.depth == 0]
+#             depth2 = [lvl for lvl in candidates if lvl.depth == 2]
+#
+#             if depth0:
+#                 current_level = depth0[0]
+#             elif depth2:
+#                 current_level = depth2[0]
+#             else:
+#                 raise HTTPException(status_code=400, detail=f"Slug '{slug}' cannot be used as first element")
+#         else:
+#             next_candidates = [lvl for lvl in candidates if lvl.parent_id == current_level.id]
+#             if not next_candidates:
+#                 raise HTTPException(status_code=404,
+#                                     detail=f"Slug '{slug}' does not match parent_id={current_level.id}")
+#             current_level = next_candidates[0]
+#
+#     breadcrumbs = list()
+#     node = current_level
+#     while node is not None:
+#         breadcrumbs.append(node)
+#         node = id_map.get(node.parent_id)
+#
+#     breadcrumbs.reverse()
+#
+#     return current_level, breadcrumbs
