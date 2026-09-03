@@ -7,7 +7,7 @@ from api_service.schemas import BrandModel, TypeModel
 from api_v3.schemas import CategoryItem
 from models import HUbStock, ProductOrigin, ProductImage, ProductFeaturesLink, ProductFeaturesGlobal, AttributeValue, \
     AttributeOriginValue, AttributeLink, AttributeBrandRule, ProductType, ProductBrand, HUbMenuLevel
-from models.attributes import OverrideType
+from models.attributes import OverrideType, AttributeKey
 
 
 async def fetch_rows(session: AsyncSession, stmt):
@@ -108,6 +108,9 @@ async def fetch_category_items(path_ids: set[int], session: AsyncSession) -> lis
     if not path_ids:
         return []
 
+    # -----------------------------
+    # 1. Основной запрос по товарам
+    # -----------------------------
     base_stmt = (
         select(
             HUbStock.id.label("hubstock_id"),
@@ -138,9 +141,89 @@ async def fetch_category_items(path_ids: set[int], session: AsyncSession) -> lis
 
     base_rows = await fetch_rows(session, base_stmt)
 
+    # -----------------------------
+    # 2. Картинки
+    # -----------------------------
     origins = [row["origin"] for row in base_rows]
     pics_map: dict[int, RowMapping] = await fetch_pics_map(session, origins)
 
+    # -----------------------------
+    # 3. Атрибуты origin → attr_value_id
+    # -----------------------------
+    q_origin_values = (
+        select(AttributeOriginValue.origin_id,
+               AttributeOriginValue.attr_value_id)
+        .where(AttributeOriginValue.origin_id.in_(origins))
+    )
+    origin_value_rows = await fetch_rows(session, q_origin_values)
+
+    # origin_id → [attr_value_id]
+    origin_to_values: dict[int, list[int]] = {}
+    for row in origin_value_rows:
+        origin_to_values.setdefault(row["origin_id"], []).append(row["attr_value_id"])
+
+    # -----------------------------
+    # 4. Получаем AttributeValue
+    # -----------------------------
+    all_attr_value_ids = {row["attr_value_id"] for row in origin_value_rows}
+    if all_attr_value_ids:
+        q_values = (
+            select(AttributeValue.id,
+                   AttributeValue.attr_key_id)
+            .where(AttributeValue.id.in_(all_attr_value_ids))
+        )
+        value_rows = await fetch_rows(session, q_values)
+    else:
+        value_rows = []
+
+    # attr_value_id → attr_key_id
+    value_to_key: dict[int, int] = {
+        row["id"]: row["attr_key_id"] for row in value_rows
+    }
+
+    # -----------------------------
+    # 5. Получаем AttributeKey
+    # -----------------------------
+    all_attr_key_ids = {row["attr_key_id"] for row in value_rows}
+    if all_attr_key_ids:
+        q_keys = (
+            select(AttributeKey.id,
+                   AttributeKey.key)
+            .where(AttributeKey.id.in_(all_attr_key_ids))
+        )
+        key_rows = await fetch_rows(session, q_keys)
+    else:
+        key_rows = []
+
+    # attr_key_id → key (строка)
+    key_id_to_key: dict[int, str] = {
+        row["id"]: row["key"] for row in key_rows
+    }
+
+    # -----------------------------
+    # 6. Собираем attr_values для каждого origin
+    # -----------------------------
+    origin_attr_values: dict[int, dict[str, list[int]]] = {}
+
+    for origin_id, value_ids in origin_to_values.items():
+        kv: dict[str, list[int]] = {}
+
+        for val_id in value_ids:
+            key_id = value_to_key.get(val_id)
+            if key_id is None:
+                continue
+
+            key_str = key_id_to_key.get(key_id)
+            if key_str is None:
+                continue
+
+            kv.setdefault(key_str, []).append(val_id)
+
+        origin_attr_values[origin_id] = kv
+
+    # -----------------------------
+    # 7. Формируем CategoryItem
+    # -----------------------------
     items: list[CategoryItem] = []
 
     for row in base_rows:
@@ -175,10 +258,12 @@ async def fetch_category_items(path_ids: set[int], session: AsyncSession) -> lis
                 pics=pics,
                 preview=preview,
                 updated_at=row["updated_at"],
+                attr_values=origin_attr_values.get(origin, {})
             )
         )
 
     return items
+
 
 
 async def fetch_base_attrs(product_type_ids: set[int], session: AsyncSession) -> set[int]:

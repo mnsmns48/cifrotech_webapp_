@@ -18,6 +18,10 @@ class HubProductSchemeExtV3(HubProductScheme):
     short_specs: list[BlockResponse] | None = None
 
 
+class HubProductSchemeExtV3Attrs(HubProductSchemeExtV3):
+    attrs: list[str] | None = None
+
+
 class InfiniteProductsResponse(BaseModel):
     products: list[HubProductSchemeExtV3]
     next_cursor: int | None = None
@@ -105,3 +109,4 @@ class CategoryItem(BaseModel):
     pics: list[str] = []
     preview: Optional[str] = None
     updated_at: datetime
+    attr_values: dict[str, list[int]] = {}

@@ -141,8 +141,7 @@ async def get_product(origin: int, session: AsyncSession = Depends(db.scoped_ses
                              duration=duration_ms)
 
 
-@api_v3.get("/category",
-            response_model=CategoryProductsResponse,
+@api_v3.get("/category", response_model=CategoryProductsResponse,
             description=("Возвращает данные категории каталога по slug‑пути: хлебные крошки, "
                          "фильтры (SKU и модельные), список товаров с пагинацией, параметры сортировки "
                          "и время обработки запроса. Поддерживает вложенные категории, кеширует дерево "
@@ -157,44 +156,36 @@ async def get_category_products(request: Request, query: CategoryQuery = Depends
     SERVICE_PARAMS = {"path", "page", "limit", "sort"}
 
     active_filters_raw = {key: raw_params.getlist(key) for key in raw_params.keys() if key not in SERVICE_PARAMS}
-
+    # tree
     slug_path = query.path.strip("/").split("/")
     tree = MenuTree(session=session, cache=cache)
     category, breadcrumbs, path_ids = await tree.resolve_slug_to_category_and_path_ids(slug_path)
+    # items
     items: list[CategoryItem] = await fetch_category_items(path_ids, session)
     sort_key = query.sort or "price_asc"
 
     page = query.page or 1
     limit = query.limit or 24
 
-    sku_filters: list[FilterOption] = []
-    model_filters: list[FilterOption] = []
-
-    filters_hash = compute_filters_hash(slug="/".join(slug_path),
-                                        active_filters=active_filters_raw,
-                                        sort_key=sort_key,
-                                        page=page,
-                                        limit=limit,
-                                        model_filters=[f.model_dump() for f in model_filters],
-                                        sku_filters=[f.model_dump() for f in sku_filters])
-
-    filters_response = FiltersResponse(sku_filters=sku_filters,
-                                       model_filters=model_filters)
-
     if not items:
         pagination = Pagination(page=page, limit=limit, total=0, total_pages=0)
-
         return CategoryProductsResponse(breadcrumbs=breadcrumbs,
-                                        filters=filters_response,
+                                        filters=FiltersResponse(sku_filters=[],
+                                                                model_filters=[]),
                                         sort=apply_sort([], [], sort_key),
                                         products=[],
-                                        filters_hash=filters_hash,
+                                        filters_hash=compute_filters_hash(slug="/".join(slug_path),
+                                                                          active_filters=active_filters_raw,
+                                                                          sort_key=sort_key,
+                                                                          page=page,
+                                                                          limit=limit,
+                                                                          model_filters=[],
+                                                                          sku_filters=[]),
                                         pagination=pagination,
                                         duration_ms=int((time.monotonic() - start) * 1000))
 
     feature_ids = {item.feature_id for item in items if item.feature_id}
     specs_map = await DescBuilder.get_short_specs_bulk(list(feature_ids), session, cache)
-
     model_filters_cache_key = model_filters_key(list(feature_ids))
     cached = await cache.get(model_filters_cache_key)
 
@@ -202,11 +193,7 @@ async def get_category_products(request: Request, query: CategoryQuery = Depends
         model_filters = [FilterOption(**item) for item in cached]
     else:
         model_filters = build_model_filters(specs_map)
-        await cache.set(
-            model_filters_cache_key,
-            [f.model_dump() for f in model_filters],
-            ttl=cache_ttl.filters,
-        )
+        await cache.set(model_filters_cache_key, [f.model_dump() for f in model_filters], ttl=cache_ttl.filters)
 
     product_type_ids: set[int] = set()
     brand_ids: set[int] = set()
@@ -215,7 +202,6 @@ async def get_category_products(request: Request, query: CategoryQuery = Depends
     for item in items:
         if item.type:
             product_type_ids.add(item.type.id)
-
         if item.brand:
             brand_ids.add(item.brand.id)
         if item.feature_id and item.model:
@@ -224,8 +210,9 @@ async def get_category_products(request: Request, query: CategoryQuery = Depends
     base_attrs = await fetch_base_attrs(product_type_ids, session)
     brand_rules = await fetch_brand_rules(product_type_ids, brand_ids, session)
 
-    brand_rules_schemas = [BrandRuleSchema(brand_id=bid, include=rules["include"], exclude=rules["exclude"])
-                           for bid, rules in brand_rules.items()]
+    brand_rules_schemas = [BrandRuleSchema(
+        brand_id=bid, include=rules["include"], exclude=rules["exclude"]) for bid, rules in brand_rules.items()
+    ]
 
     type_values = collect_unique_models(items, "type", TypeModel)
     brand_values = collect_unique_models(items, "brand", BrandModel)

@@ -203,7 +203,6 @@ def normalize_filters(active_filters: dict[str, list[str]],
                 normalized[key] = [float(raw_values[0])]
             except ValueError:
                 continue
-
         else:
             continue
 
