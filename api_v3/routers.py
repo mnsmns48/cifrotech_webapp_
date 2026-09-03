@@ -141,139 +141,6 @@ async def get_product(origin: int, session: AsyncSession = Depends(db.scoped_ses
                              duration=duration_ms)
 
 
-# @api_v3.get("/category",
-#             response_model=CategoryProductsResponse,
-#             description=("Возвращает данные категории каталога по slug‑пути: хлебные крошки, "
-#                          "фильтры (SKU и модельные), список товаров с пагинацией, параметры сортировки "
-#                          "и время обработки запроса. Поддерживает вложенные категории, кеширует дерево "
-#                          "категорий, уровни меню, модельные фильтры и спецификации товаров для ускорения "
-#                          "ответа. При отсутствии товаров возвращает пустые фильтры, пустой список товаров "
-#                          "и заглушки сортировки/пагинации."))
-# async def get_category_products(request: Request,
-#                                 query: CategoryQuery = Depends(),
-#                                 session: AsyncSession = Depends(db.scoped_session_dependency),
-#                                 cache: CacheManager = Depends(get_cache_manager)):
-#     start = time.monotonic()
-#
-#     raw_params = request.query_params
-#
-#     SERVICE_PARAMS = {"path", "page", "limit", "sort"}
-#
-#     active_filters = dict()
-#     for key in raw_params.keys():
-#         if key in SERVICE_PARAMS:
-#             continue
-#         values = raw_params.getlist(key)
-#         active_filters[key] = values if len(values) > 1 else values[0]
-#
-#     slug_path = query.path.strip("/").split("/")
-#     category, breadcrumbs = await resolve_slug_path_to_level(slug_path=slug_path, cache=cache, session=session)
-#
-#     levels_data = await cache.get(MENU_LEVELS_CACHE_KEY)
-#     tree = await cache.get(MENU_TREE_CACHE_KEY)
-#
-#     if tree is not None:
-#         fixed_tree = dict()
-#         for k, v in tree.items():
-#             fixed_tree[int(k)] = [int(x) for x in v]
-#         tree = fixed_tree
-#
-#     if levels_data is None or tree is None:
-#         levels = await fetch_hub_levels(session)
-#         levels_data = [lvl.model_dump() for lvl in levels]
-#
-#         tree = dict()
-#         for lvl in levels:
-#             pid = lvl.parent_id
-#             if pid == 0:
-#                 continue
-#             tree.setdefault(pid, []).append(lvl.id)
-#
-#         await cache.set(MENU_LEVELS_CACHE_KEY, levels_data, ttl=cache_ttl.menu)
-#         await cache.set(MENU_TREE_CACHE_KEY, tree, ttl=cache_ttl.menu)
-#
-#     path_ids = collect_descendants(tree, category.id)
-#
-#     items: list[CategoryItem] = await fetch_category_items(path_ids, session)
-#
-#     sort_key = query.sort or "price_asc"
-#
-#     if not items:
-#         return CategoryProductsResponse(
-#             breadcrumbs=breadcrumbs,
-#             filters=FiltersResponse(sku_filters=[], model_filters=[]),
-#             sort=apply_sort([], [], sort_key),
-#             products=[],
-#             pagination=Pagination(page=query.page or 1, limit=query.limit or 24, total=0, total_pages=0),
-#             duration_ms=int((time.monotonic() - start) * 1000),
-#         )
-#
-#     feature_ids = {item.feature_id for item in items if item.feature_id}
-#     product_type_ids = {item.type.id for item in items if item.type}
-#     brand_ids = {item.brand.id for item in items if item.brand}
-#
-#     specs_map = await DescBuilder.get_short_specs_bulk(list(feature_ids), session, cache)
-#
-#     model_filters_cache_key = model_filters_key(list(feature_ids))
-#     cached = await cache.get(model_filters_cache_key)
-#
-#     if cached:
-#         model_filters = [FilterOption(**item) for item in cached]
-#     else:
-#         model_filters = build_model_filters(specs_map)
-#         await cache.set(model_filters_cache_key, [f.model_dump() for f in model_filters], ttl=cache_ttl.filters)
-#
-#     base_attrs = await fetch_base_attrs(product_type_ids, session)
-#     brand_rules = await fetch_brand_rules(product_type_ids, brand_ids, session)
-#
-#     brand_rules_schemas = [
-#         BrandRuleSchema(brand_id=brand_id, include=rules["include"], exclude=rules["exclude"])
-#         for brand_id, rules in brand_rules.items()]
-#
-#     type_values = collect_unique_models(items, "type", TypeModel)
-#     brand_values = collect_unique_models(items, "brand", BrandModel)
-#
-#     sku_filters = await build_sku_filters(product_types=type_values, brands=brand_values,
-#                                           base_attrs=base_attrs, brand_rules=brand_rules_schemas,
-#                                           session=session)
-#
-#     products = [HubProductSchemeExtV3(id=item.hubstock_id,
-#                                       origin=item.origin,
-#                                       warranty=item.warranty,
-#                                       output_price=item.output_price,
-#                                       title=item.title,
-#                                       pics=item.pics,
-#                                       preview=item.preview,
-#                                       model=item.model,
-#                                       short_specs=specs_map.get(item.feature_id)) for item in items]
-#     sort_response = apply_sort(products, items, sort_key)
-#
-#     page = query.page or 1
-#     limit = query.limit or 24
-#
-#     total = len(products)
-#     total_pages = math.ceil(total / limit)
-#
-#     pagination = Pagination(page=page, limit=limit, total=total, total_pages=total_pages)
-#     products_page = products[(page - 1) * limit: page * limit]
-#
-#     filters_hash = compute_filters_hash(slug="/".join(slug_path),
-#                                         active_filters=active_filters,
-#                                         sort_key=sort_key,
-#                                         page=page,
-#                                         limit=limit,
-#                                         model_filters=[f.model_dump() for f in model_filters],
-#                                         sku_filters=[f.model_dump() for f in sku_filters])
-#
-#     return CategoryProductsResponse(breadcrumbs=breadcrumbs,
-#                                     filters=FiltersResponse(sku_filters=sku_filters,
-#                                                             model_filters=model_filters),
-#                                     sort=sort_response,
-#                                     products=products_page,
-#                                     pagination=pagination,
-#                                     filters_hash=filters_hash,
-#                                     duration_ms=int((time.monotonic() - start) * 1000))
-
 @api_v3.get("/category",
             response_model=CategoryProductsResponse,
             description=("Возвращает данные категории каталога по slug‑пути: хлебные крошки, "
@@ -341,8 +208,18 @@ async def get_category_products(request: Request, query: CategoryQuery = Depends
             ttl=cache_ttl.filters,
         )
 
-    product_type_ids = {item.type.id for item in items if item.type}
-    brand_ids = {item.brand.id for item in items if item.brand}
+    product_type_ids: set[int] = set()
+    brand_ids: set[int] = set()
+    model_map: dict[int, str] = dict()
+
+    for item in items:
+        if item.type:
+            product_type_ids.add(item.type.id)
+
+        if item.brand:
+            brand_ids.add(item.brand.id)
+        if item.feature_id and item.model:
+            model_map.setdefault(item.feature_id, item.model)
 
     base_attrs = await fetch_base_attrs(product_type_ids, session)
     brand_rules = await fetch_brand_rules(product_type_ids, brand_ids, session)
@@ -354,6 +231,7 @@ async def get_category_products(request: Request, query: CategoryQuery = Depends
     brand_values = collect_unique_models(items, "brand", BrandModel)
 
     sku_filters = await build_sku_filters(product_types=type_values,
+                                          model_map=model_map,
                                           brands=brand_values,
                                           base_attrs=base_attrs,
                                           brand_rules=brand_rules_schemas,
@@ -406,7 +284,7 @@ async def get_category_products(request: Request, query: CategoryQuery = Depends
 
     pagination = Pagination(page=page, limit=limit, total=total, total_pages=total_pages)
 
-    return CategoryProductsResponse(breadcrumbs=breadcrumbs,
+    return CategoryProductsResponse(breadcrumbs=breadcrumbs[1:],
                                     filters=filters_response,
                                     sort=sort_response,
                                     products=products_page,

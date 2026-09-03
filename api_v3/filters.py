@@ -15,6 +15,7 @@ from models import AttributeKey, AttributeValue
 
 
 async def build_sku_filters(product_types: list[TypeModel],
+                            model_map: dict[int, str],
                             brands: list[BrandModel],
                             base_attrs: set[int],
                             brand_rules: list[BrandRuleSchema],
@@ -74,9 +75,11 @@ async def build_sku_filters(product_types: list[TypeModel],
                                               raw_items=raw_items))
 
     brand_values = [{"id": b.id, "label": b.brand} for b in brands]
-    sku_filters.append(make_custom_filter("brand", "Бренд", brand_values))
     type_values = [{"id": t.id, "label": t.type} for t in product_types]
+    model_values = [{"id": fid, "label": model} for fid, model in sorted(model_map.items(), key=lambda x: x[1])]
+    sku_filters.append(make_custom_filter("brand", "Бренд", brand_values))
     sku_filters.append(make_custom_filter("product_type", "Тип устройства", type_values))
+    sku_filters.append(make_custom_filter("model", "Модель", model_values))
 
     return sku_filters
 
