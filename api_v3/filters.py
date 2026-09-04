@@ -80,7 +80,6 @@ async def build_sku_filters(product_types: list[TypeModel],
     sku_filters.append(make_custom_filter("brand", "Бренд", brand_values))
     sku_filters.append(make_custom_filter("product_type", "Тип устройства", type_values))
     sku_filters.append(make_custom_filter("model", "Модель", model_values))
-
     return sku_filters
 
 
@@ -183,7 +182,7 @@ def normalize_filters(active_filters: dict[str, list[str]],
         if not isinstance(raw_values, list):
             raw_values = [raw_values]
         if key in sku_keys:
-            cleaned_values = []
+            cleaned_values = list()
             for v in raw_values:
                 try:
                     cleaned_values.append(int(v))
@@ -273,40 +272,44 @@ def prepare_model_specs_map(specs_map: dict[int, list[BlockResponse]]) -> dict[i
     return result
 
 
-def match_sku_item(item: CategoryItem, filters: dict[str, list[Any]], sku_keys: set[str]) -> bool:
-    for key, values in filters.items():
+def match_sku_item(item: CategoryItem,
+                   filters: dict[str, list[Any]],
+                   sku_keys: set[str]) -> bool:
+    price = item.output_price or 0
 
-        if key == "price_min":
-            if (item.output_price or 0) < values[0]:
-                return False
-            continue
+    minv = filters.get("price_min")
+    if minv and price < minv[0]:
+        return False
 
-        if key == "price_max":
-            if (item.output_price or 0) > values[0]:
-                return False
-            continue
+    maxv = filters.get("price_max")
+    if maxv and price > maxv[0]:
+        return False
 
-        if key in sku_keys:
-
-            if key == "brand":
-                if item.brand is None or item.brand.id not in values:
-                    return False
-                continue
-
-            if key == "product_type":
-                if item.type is None or item.type.id not in values:
-                    return False
-                continue
-
-            if hasattr(item, "attr_values"):
-                attr_vals = item.attr_values.get(key)
-                if not attr_vals:
-                    return False
-
-                if not any(v in attr_vals for v in values):
-                    return False
-                continue
+    brand_vals = filters.get("brand")
+    if brand_vals:
+        b = item.brand
+        if b is None or b.id not in brand_vals:
             return False
+
+    type_vals = filters.get("product_type")
+    if type_vals:
+        t = item.type
+        if t is None or t.id not in type_vals:
+            return False
+
+    attr_values = item.attr_values
+    for key in sku_keys:
+        vals = filters.get(key)
+        if not vals:
+            continue
+
+        item_vals = attr_values.get(key)
+        if not item_vals:
+            return False
+
+        if not set(vals).intersection(item_vals):
+            return False
+
     return True
 
 
@@ -314,7 +317,8 @@ def match_model_item(item: CategoryItem,
                      filters: dict[str, list[Any]],
                      model_keys: set[str],
                      model_specs_map: dict[int, dict[str, list[str]]]) -> bool:
-    if not any(key in model_keys for key in filters.keys()):
+    active_model_keys = model_keys.intersection(filters)
+    if not active_model_keys:
         return True
 
     fid = item.feature_id
@@ -325,14 +329,15 @@ def match_model_item(item: CategoryItem,
     if not specs:
         return False
 
-    for key, values in filters.items():
-        if key in model_keys:
-            spec_values = specs.get(key)
-            if spec_values is None:
-                return False
+    for key in active_model_keys:
+        values = filters[key]
+        spec_values = specs.get(key)
 
-            if not any(v in spec_values for v in values):
-                return False
+        if not spec_values:
+            return False
+
+        if not any(value in spec_values for value in values):
+            return False
 
     return True
 

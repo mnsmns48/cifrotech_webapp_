@@ -23,8 +23,8 @@ def apply_sort(products: list[HubProductSchemeExtV3], items: list[CategoryItem],
     return SortResponse(
         active=sort_key,
         options=[
-            SortOption(key="price_asc", label="По возрастанию цены"),
-            SortOption(key="price_desc", label="По убыванию цены"),
+            SortOption(key="price_asc", label="Сначала дешевле"),
+            SortOption(key="price_desc", label="Сначала дороже"),
             SortOption(key="updated_desc", label="Последние обновлённые"),
             SortOption(key="title_asc", label="от А до Я"),
             SortOption(key="title_desc", label="от Я до А"),
