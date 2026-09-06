@@ -274,7 +274,7 @@ async def get_category_products(request: Request, query: CategoryQuery = Depends
 
     pagination = Pagination(page=page, limit=limit, total=total, total_pages=total_pages)
 
-    return CategoryProductsResponse(breadcrumbs=breadcrumbs[1:],
+    return CategoryProductsResponse(breadcrumbs=breadcrumbs,
                                     filters=filters_response,
                                     sort=sort_response,
                                     products=products_page,

@@ -36,7 +36,7 @@ class InfiniteProductsResponse(BaseModel):
 class ProductV3Response(BaseModel):
     id: int
     origin: int
-    route: list[HubLevelPath]
+    route: list[HubLevelRouteV3]
     warranty: Optional[str] = None
     output_price: Optional[float] = None
     title: str
