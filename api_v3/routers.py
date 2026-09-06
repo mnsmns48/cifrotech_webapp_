@@ -125,7 +125,7 @@ async def get_product(origin: int, session: AsyncSession = Depends(db.scoped_ses
     pics = pics or []
 
     duration_ms = int((time.monotonic() - start) * 1000)
-    print(route)
+
     return ProductV3Response(id=hub_stock.id,
                              origin=origin_obj.origin,
                              route=route,
