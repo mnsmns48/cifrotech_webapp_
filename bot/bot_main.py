@@ -43,6 +43,7 @@ async def bot_setup_webhook():
             await asyncio.sleep(e.retry_after)
 
     bot_obj = await bot.me()
+    logging.info("Telegram API доступен. Setup Webhook")
     return bot_obj.username
 
 

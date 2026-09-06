@@ -1,15 +1,20 @@
-from sqlalchemy import RowMapping
+from sqlalchemy import RowMapping, select, literal
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from api_service.modulars.desc_builder.service import DescBuilder
 from api_service.s3_helper import get_url_from_s3
 from api_service.schemas import HubLevelPath, AttributeKeyValueSchema, AttributeKey, BrandModel, TypeModel
 from api_service.schemas.features_schemas import FeatureInnerRow, FeatureCategoryScheme, FeatureProductScheme
 
-from api_v3.crud import get_menu_level, get_feature_with_type_brand
+from api_v3.crud import get_feature_with_type_brand
+from api_v3.menu_tree import MenuTree
+from api_v3.schemas import HubLevelSchemeV3, HubLevelRouteV3
+from api_v3.slug import slugify
 from cache import CacheManager
 from cache.keys.features import feature_key
 from cache.settings import cache_ttl
+from models import HUbMenuLevel
 
 
 # async def load_menu_tree(session: AsyncSession) -> Dict[int, List[int]]:
@@ -57,17 +62,19 @@ def build_cursor_response(rows: list[RowMapping], limit: int):
     return next_cursor, has_more
 
 
-async def build_route(session, leaf_id: int) -> list[HubLevelPath]:
-    route = list()
-    current = leaf_id
-    while True:
-        level = await get_menu_level(session, current)
-        if not level:
+async def build_route(tree: MenuTree, leaf_id: int) -> list[HubLevelRouteV3]:
+    levels = await tree.load_levels_cached()
+    id_map = {lvl.id: lvl for lvl in levels}
+
+    route: list[HubLevelRouteV3] = list()
+    current = id_map.get(leaf_id)
+
+    while current:
+        route.append(HubLevelRouteV3(path_id=current.id, label=current.label, slug=current.slug))
+        if current.parent_id == 0 or current.parent_id == current.id:
             break
-        route.append(HubLevelPath(path_id=level.id, label=level.label))
-        if level.parent_id == 0 or level.parent_id == level.id:
-            break
-        current = level.parent_id
+
+        current = id_map.get(current.parent_id)
 
     route.reverse()
     return route

@@ -14,6 +14,10 @@ class HubLevelSchemeV3(HubMenuLevelSchema):
     depth: int
 
 
+class HubLevelRouteV3(HubLevelPath):
+    slug: str
+
+
 class HubProductSchemeExtV3(HubProductScheme):
     short_specs: list[BlockResponse] | None = None
 

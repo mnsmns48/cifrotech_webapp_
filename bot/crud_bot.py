@@ -1,5 +1,10 @@
+import asyncio
+import logging
 from datetime import date, datetime, timedelta
 from typing import List, Optional
+
+from aiogram.exceptions import TelegramNetworkError
+from aiohttp import ClientTimeout, ClientSession, ClientError
 from sqlalchemy import select, Result, update, text, desc, func
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +19,18 @@ from models import Guests, TgBotOptions, HUbMenuLevel, HUbStock, ProductOrigin, 
 async def user_spotted(session: AsyncSession, data: dict) -> None:
     await session.execute(insert(Guests), data)
     await session.commit()
+
+
+async def is_tg_available() -> bool:
+    test_url = "https://api.telegram.org"
+    timeout = ClientTimeout(total=1)
+
+    try:
+        async with ClientSession(timeout=timeout) as session:
+            async with session.get(test_url) as resp:
+                return resp.status == 200
+    except (ClientError, asyncio.TimeoutError, TelegramNetworkError) as e:
+        return False
 
 
 async def get_last_guests(session: AsyncSession) -> list[dict]:

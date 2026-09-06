@@ -100,10 +100,6 @@ async def get_feature_with_type_brand(session, feature_id: int):
     return result.scalar_one_or_none()
 
 
-async def get_menu_level(session, level_id: int):
-    return await session.scalar(select(HUbMenuLevel).where(HUbMenuLevel.id == level_id))
-
-
 async def fetch_category_items(path_ids: set[int], session: AsyncSession) -> list[CategoryItem]:
     if not path_ids:
         return []

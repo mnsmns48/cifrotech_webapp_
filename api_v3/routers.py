@@ -48,6 +48,7 @@ async def get_levels(session: AsyncSession = Depends(db.scoped_session_dependenc
     levels = await fetch_hub_levels(session)
     raw_levels = [item.model_dump() for item in levels]
     await cache.set(MENU_LEVELS_CACHE_KEY, raw_levels, ttl=cache_ttl.menu)
+
     return levels
 
 
@@ -61,6 +62,7 @@ async def get_products(cursor: int | None = None, limit: int = 24,
                        cache: CacheManager = Depends(get_cache_manager)):
     start = time.monotonic()
     tree = MenuTree(session=session)
+
     path_ids = await tree.resolve_menu_levels_to_path_ids_rt(menu_levels)
     rows = await fetch_products_cursor_paginated(session=session, path_ids=path_ids, cursor=cursor, limit=limit)
     next_cursor, has_more = build_cursor_response(rows, limit)
@@ -115,14 +117,15 @@ async def get_product(origin: int, session: AsyncSession = Depends(db.scoped_ses
         raise HTTPException(404, "Нет данных о наличии товара")
 
     hub_stock = origin_obj.stocks[0]
-    route = await build_route(session, hub_stock.path_id) or []
+    tree = MenuTree(session=session, cache=cache)
+    route = await build_route(tree, hub_stock.path_id) or []
     type_obj, brand_obj, full_specs, pros_cons, short_specs = await build_feature_data(session, cache, origin_obj)
     attrs = build_attrs(origin_obj) or []
     pics, preview = build_images(origin_obj)
     pics = pics or []
 
     duration_ms = int((time.monotonic() - start) * 1000)
-
+    print(route)
     return ProductV3Response(id=hub_stock.id,
                              origin=origin_obj.origin,
                              route=route,
