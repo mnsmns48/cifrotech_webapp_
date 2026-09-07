@@ -224,8 +224,7 @@ async def get_category_products(request: Request, query: CategoryQuery = Depends
                                           model_map=model_map,
                                           brands=brand_values,
                                           base_attrs=base_attrs,
-                                          brand_rules=brand_rules_schemas,
-                                          session=session)
+                                          brand_rules=brand_rules_schemas)
 
     filters_response = FiltersResponse(sku_filters=sku_filters, model_filters=model_filters)
 

@@ -14,14 +14,19 @@ from api_v3.slug import slugify
 from models import AttributeKey, AttributeValue
 
 
-async def build_sku_filters(product_types: list[TypeModel],
-                            model_map: dict[int, str],
-                            brands: list[BrandModel],
-                            base_attrs: set[int],
-                            brand_rules: list[BrandRuleSchema],
-                            session: AsyncSession) -> list[FilterOption]:
+async def build_sku_filters(
+    product_types: list[TypeModel],
+    model_map: dict[int, str],
+    brands: list[BrandModel],
+    base_attrs: set[int],
+    brand_rules: list[BrandRuleSchema],
+    attribute_keys: dict[int, AttributeKey],        # id → AttributeKey
+    attribute_values: list[AttributeValue],         # все AttributeValue
+) -> list[FilterOption]:
+
+    # --- 1. Пересечение атрибутов по правилам брендов ---
     rules_map = {r.brand_id: r for r in brand_rules}
-    brand_attr_sets: list[set[int]] = list()
+    brand_attr_sets: list[set[int]] = []
 
     for brand in brands:
         rules = rules_map.get(brand.id)
@@ -37,50 +42,56 @@ async def build_sku_filters(product_types: list[TypeModel],
     for s in brand_attr_sets[1:]:
         common_attrs &= s
 
-    if not common_attrs:
-        return []
+    sku_filters: list[FilterOption] = []
 
-    sku_filters: list[FilterOption] = list()
+    # --- 2. Атрибутные фильтры (без SQL) ---
+    if common_attrs:
+        # Берём AttributeKey из памяти
+        keys_map = {attr_id: attribute_keys[attr_id] for attr_id in common_attrs}
 
-    q_keys = select(AttributeKey).where(AttributeKey.id.in_(common_attrs))
-    keys_rows = (await session.execute(q_keys)).scalars().all()
-    keys_map = {k.id: k for k in keys_rows}
+        # Группируем AttributeValue из памяти
+        grouped_values: dict[int, dict[str, int]] = {}
 
-    q_values = (select(AttributeValue.id,
-                       AttributeValue.alias,
-                       AttributeValue.attr_key_id)
-                .where(AttributeValue.attr_key_id.in_(common_attrs))
+        for v in attribute_values:
+            if v.attr_key_id in common_attrs:
+                grouped_values.setdefault(v.attr_key_id, {})
+                grouped_values[v.attr_key_id].setdefault(v.alias, v.id)
+
+        # Собираем фильтры
+        for attr_key_id in common_attrs:
+            attr_key = keys_map[attr_key_id]
+            alias_map = grouped_values.get(attr_key_id, {})
+
+            raw_items = [
+                {"id": id_, "label": alias}
+                for alias, id_ in alias_map.items()
+            ]
+
+            sku_filters.append(
+                make_custom_filter(
+                    key=attr_key.key,
+                    label=attr_key.alias or attr_key.key,
+                    raw_items=raw_items,
+                    meta={"kind": "attr"},
                 )
+            )
 
-    values_rows = await session.execute(q_values)
-
-    grouped_values: dict[int, dict[str, int]] = dict()
-
-    for row in values_rows:
-        alias = row.alias
-        attr_key_id = row.attr_key_id
-
-        grouped_values.setdefault(attr_key_id, {})
-        grouped_values[attr_key_id].setdefault(alias, row.id)
-
-    for attr_key_id in common_attrs:
-        attr_key = keys_map[attr_key_id]
-        alias_map = grouped_values.get(attr_key_id, {})
-
-        raw_items = [{"id": id_, "label": alias}
-                     for alias, id_ in alias_map.items()]
-
-        sku_filters.append(make_custom_filter(key=attr_key.key,
-                                              label=attr_key.alias or attr_key.key,
-                                              raw_items=raw_items))
-
+    # --- 3. Специальные фильтры ---
     brand_values = [{"id": b.id, "label": b.brand} for b in brands]
     type_values = [{"id": t.id, "label": t.type} for t in product_types]
-    model_values = [{"id": fid, "label": model} for fid, model in sorted(model_map.items(), key=lambda x: x[1])]
-    sku_filters.append(make_custom_filter("brand", "Бренд", brand_values))
-    sku_filters.append(make_custom_filter("product_type", "Тип устройства", type_values))
-    sku_filters.append(make_custom_filter("model", "Модель", model_values))
+    model_values = [
+        {"id": fid, "label": model}
+        for fid, model in sorted(model_map.items(), key=lambda x: x[1])
+    ]
+
+    sku_filters.append(make_custom_filter("brand", "Бренд", brand_values, meta={"kind": "special"}))
+    sku_filters.append(make_custom_filter("product_type", "Тип устройства", type_values, meta={"kind": "special"}))
+    sku_filters.append(make_custom_filter("model", "Модель", model_values, meta={"kind": "special"}))
+
     return sku_filters
+
+
+
 
 
 def build_model_filters(specs_map: Dict[int, List[BlockResponse]]) -> List[FilterOption]:
@@ -272,9 +283,13 @@ def prepare_model_specs_map(specs_map: dict[int, list[BlockResponse]]) -> dict[i
     return result
 
 
-def match_sku_item(item: CategoryItem,
-                   filters: dict[str, list[Any]],
-                   sku_keys: set[str]) -> bool:
+def match_sku_item(
+        item: CategoryItem,
+        filters: dict[str, list[Any]],
+        sku_keys: set[str],
+) -> bool:
+
+    # Цена
     price = item.output_price or 0
 
     minv = filters.get("price_min")
@@ -285,25 +300,47 @@ def match_sku_item(item: CategoryItem,
     if maxv and price > maxv[0]:
         return False
 
+    # Бренд
     brand_vals = filters.get("brand")
     if brand_vals:
-        b = item.brand
-        if b is None or b.id not in brand_vals:
+        if item.brand is None:
             return False
 
+        if item.brand.id not in brand_vals:
+            return False
+
+    # Тип
     type_vals = filters.get("product_type")
     if type_vals:
-        t = item.type
-        if t is None or t.id not in type_vals:
+        if item.type is None:
             return False
 
+        if item.type.id not in type_vals:
+            return False
+
+    # Модель
+    model_vals = filters.get("model")
+    if model_vals:
+        if item.feature_id is None:
+            return False
+
+        if item.feature_id not in model_vals:
+            return False
+
+    # SKU attributes
     attr_values = item.attr_values
+
     for key in sku_keys:
+        # Служебные/специальные фильтры уже обработаны выше
+        if key in {"brand", "product_type", "model"}:
+            continue
+
         vals = filters.get(key)
         if not vals:
             continue
 
         item_vals = attr_values.get(key)
+
         if not item_vals:
             return False
 
