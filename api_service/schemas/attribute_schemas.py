@@ -193,3 +193,9 @@ class BrandRuleSchema(BaseModel):
     brand_id: int
     include: set[int]
     exclude: set[int]
+
+
+class AttributeKeySchema(BaseModel):
+    key: str
+    alias: str
+    values: list[AttributeValueSchema]

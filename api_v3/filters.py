@@ -9,89 +9,87 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.schemas import TypeModel, BrandModel, BrandRuleSchema
 from api_service.schemas.desc_builder import BlockResponse
-from api_v3.schemas import FilterOption, CategoryItem
+from api_v3.schemas import FilterOption, CategoryItem, AttributeIndex
 from api_v3.slug import slugify
 from models import AttributeKey, AttributeValue
 
 
-async def build_sku_filters(
-    product_types: list[TypeModel],
-    model_map: dict[int, str],
-    brands: list[BrandModel],
-    base_attrs: set[int],
-    brand_rules: list[BrandRuleSchema],
-    attribute_keys: dict[int, AttributeKey],        # id → AttributeKey
-    attribute_values: list[AttributeValue],         # все AttributeValue
-) -> list[FilterOption]:
-
-    # --- 1. Пересечение атрибутов по правилам брендов ---
-    rules_map = {r.brand_id: r for r in brand_rules}
-    brand_attr_sets: list[set[int]] = []
-
-    for brand in brands:
-        rules = rules_map.get(brand.id)
-        include_keys = rules.include if rules else set()
-        exclude_keys = rules.exclude if rules else set()
-        brand_attrs = (base_attrs - exclude_keys) | include_keys
-        brand_attr_sets.append(brand_attrs)
-
-    if not brand_attr_sets:
-        return []
-
-    common_attrs = brand_attr_sets[0]
-    for s in brand_attr_sets[1:]:
-        common_attrs &= s
-
+async def build_sku_filters(attribute_index: AttributeIndex) -> list[FilterOption]:
     sku_filters: list[FilterOption] = []
 
-    # --- 2. Атрибутные фильтры (без SQL) ---
-    if common_attrs:
-        # Берём AttributeKey из памяти
-        keys_map = {attr_id: attribute_keys[attr_id] for attr_id in common_attrs}
+    # attribute_index.items: dict[int, AttributeKeySchema]
+    for key_id, key_schema in attribute_index.items.items():
+        # key_schema.key        → строковый ключ (например "Rom")
+        # key_schema.alias      → alias ключа (например "Память")
+        # key_schema.values     → список AttributeValueSchema(id, alias)
 
-        # Группируем AttributeValue из памяти
-        grouped_values: dict[int, dict[str, int]] = {}
+        raw_items = [
+            {"id": v.id, "label": v.alias}
+            for v in key_schema.values
+        ]
 
-        for v in attribute_values:
-            if v.attr_key_id in common_attrs:
-                grouped_values.setdefault(v.attr_key_id, {})
-                grouped_values[v.attr_key_id].setdefault(v.alias, v.id)
-
-        # Собираем фильтры
-        for attr_key_id in common_attrs:
-            attr_key = keys_map[attr_key_id]
-            alias_map = grouped_values.get(attr_key_id, {})
-
-            raw_items = [
-                {"id": id_, "label": alias}
-                for alias, id_ in alias_map.items()
-            ]
-
-            sku_filters.append(
-                make_custom_filter(
-                    key=attr_key.key,
-                    label=attr_key.alias or attr_key.key,
-                    raw_items=raw_items,
-                    meta={"kind": "attr"},
-                )
+        sku_filters.append(
+            make_custom_filter(
+                key=key_schema.key,
+                label=key_schema.alias,
+                raw_items=raw_items,
             )
-
-    # --- 3. Специальные фильтры ---
-    brand_values = [{"id": b.id, "label": b.brand} for b in brands]
-    type_values = [{"id": t.id, "label": t.type} for t in product_types]
-    model_values = [
-        {"id": fid, "label": model}
-        for fid, model in sorted(model_map.items(), key=lambda x: x[1])
-    ]
-
-    sku_filters.append(make_custom_filter("brand", "Бренд", brand_values, meta={"kind": "special"}))
-    sku_filters.append(make_custom_filter("product_type", "Тип устройства", type_values, meta={"kind": "special"}))
-    sku_filters.append(make_custom_filter("model", "Модель", model_values, meta={"kind": "special"}))
+        )
 
     return sku_filters
 
 
+async def build_meta_filters(items: list[CategoryItem]) -> list[FilterOption]:
+    brands: set[tuple[int, str]] = set()
+    types: set[tuple[int, str]] = set()
+    models: set[tuple[int, str]] = set()
 
+    for item in items:
+        if item.brand:
+            brands.add((item.brand.id, item.brand.brand))
+
+        if item.type:
+            types.add((item.type.id, item.type.type))
+
+        if item.feature_id and item.model:
+            models.add((item.feature_id, item.model))
+
+    meta_filters: list[FilterOption] = []
+
+    # --- brand ---
+    if brands:
+        raw_items = [{"id": bid, "label": bname} for bid, bname in brands]
+        meta_filters.append(
+            make_custom_filter(
+                key="brand",
+                label="Бренд",
+                raw_items=raw_items,
+            )
+        )
+
+    # --- product_type ---
+    if types:
+        raw_items = [{"id": tid, "label": tname} for tid, tname in types]
+        meta_filters.append(
+            make_custom_filter(
+                key="product_type",
+                label="Тип товара",
+                raw_items=raw_items,
+            )
+        )
+
+    # --- model ---
+    if models:
+        raw_items = [{"id": fid, "label": fname} for fid, fname in models]
+        meta_filters.append(
+            make_custom_filter(
+                key="model",
+                label="Модель",
+                raw_items=raw_items,
+            )
+        )
+
+    return meta_filters
 
 
 def build_model_filters(specs_map: Dict[int, List[BlockResponse]]) -> List[FilterOption]:
@@ -182,81 +180,118 @@ def compute_filters_hash(slug: str,
     return hashlib.md5(raw.encode("utf-8")).hexdigest()
 
 
-def normalize_filters(active_filters: dict[str, list[str]],
-                      sku_filters: list[FilterOption], model_filters: list[FilterOption]) -> dict[str, list[Any]]:
+def normalize_filters(
+    active_filters: dict[str, list[str]],
+    sku_filters: list[FilterOption],
+    model_filters: list[FilterOption],
+    meta_filters: list[FilterOption],
+) -> dict[str, list[Any]]:
+
     sku_keys = {f.key for f in sku_filters}
     model_keys = {f.key for f in model_filters}
+    meta_keys = {f.key for f in meta_filters}
 
     normalized: dict[str, list[Any]] = {}
 
     for key, raw_values in active_filters.items():
         if not isinstance(raw_values, list):
             raw_values = [raw_values]
+
+        # SKU → всегда int
         if key in sku_keys:
-            cleaned_values = list()
+            cleaned = []
             for v in raw_values:
                 try:
-                    cleaned_values.append(int(v))
+                    cleaned.append(int(v))
                 except ValueError:
                     continue
+            if cleaned:
+                normalized[key] = cleaned
 
-            if cleaned_values:
-                normalized[key] = cleaned_values
-
+        # MODEL → всегда str
         elif key in model_keys:
-            cleaned_values = [v.strip() for v in raw_values if v.strip()]
-            if cleaned_values:
-                normalized[key] = cleaned_values
+            cleaned = [v.strip() for v in raw_values if v.strip()]
+            if cleaned:
+                normalized[key] = cleaned
 
+        # META → всегда int
+        elif key in meta_keys:
+            cleaned = []
+            for v in raw_values:
+                try:
+                    cleaned.append(int(v))
+                except ValueError:
+                    continue
+            if cleaned:
+                normalized[key] = cleaned
+
+        # price_min / price_max
         elif key.endswith("_min") or key.endswith("_max"):
             try:
                 normalized[key] = [float(raw_values[0])]
             except ValueError:
                 continue
-        else:
-            continue
 
     return normalized
 
 
-def validate_filters(normalized_filters: dict[str, list[Any]],
-                     sku_filters: list[FilterOption], model_filters: list[FilterOption]) -> dict[str, list[Any]]:
-    sku_allowed: dict[str, set[int]] = dict()
-    for f in sku_filters:
-        allowed_ids = {v["id"] for v in f.values}
-        sku_allowed[f.key] = allowed_ids
 
-    model_allowed: dict[str, set[str]] = dict()
-    for f in model_filters:
-        allowed_labels = {v["label"] for v in f.values}
-        model_allowed[f.key] = allowed_labels
+def validate_filters(
+    normalized_filters: dict[str, list[Any]],
+    sku_filters: list[FilterOption],
+    model_filters: list[FilterOption],
+    meta_filters: list[FilterOption],
+) -> dict[str, list[Any]]:
 
-    validated: dict[str, list[Any]] = dict()
+    sku_allowed: dict[str, set[int]] = {
+        f.key: {v["id"] for v in f.values}
+        for f in sku_filters
+    }
+
+    model_allowed: dict[str, set[str]] = {
+        f.key: {v["label"] for v in f.values}
+        for f in model_filters
+    }
+
+    meta_allowed: dict[str, set[int]] = {
+        f.key: {v["id"] for v in f.values}
+        for f in meta_filters
+    }
+
+    validated: dict[str, list[Any]] = {}
 
     for key, values in normalized_filters.items():
+
+        # SKU
         if key in sku_allowed:
             allowed = sku_allowed[key]
             cleaned = [v for v in values if v in allowed]
             if cleaned:
                 validated[key] = cleaned
 
+        # MODEL
         elif key in model_allowed:
             allowed = model_allowed[key]
             cleaned = [v for v in values if v in allowed]
             if cleaned:
                 validated[key] = cleaned
 
+        # META
+        elif key in meta_allowed:
+            allowed = meta_allowed[key]
+            cleaned = [v for v in values if v in allowed]
+            if cleaned:
+                validated[key] = cleaned
+
+        # price_min / price_max
         elif key.endswith("_min") or key.endswith("_max"):
             try:
-                num = float(values[0])
-                validated[key] = [num]
+                validated[key] = [float(values[0])]
             except ValueError:
                 continue
 
-        else:
-            continue
-
     return validated
+
 
 
 def prepare_model_specs_map(specs_map: dict[int, list[BlockResponse]]) -> dict[int, dict[str, list[str]]]:
@@ -282,16 +317,15 @@ def prepare_model_specs_map(specs_map: dict[int, list[BlockResponse]]) -> dict[i
 
     return result
 
-
 def match_sku_item(
-        item: CategoryItem,
-        filters: dict[str, list[Any]],
-        sku_keys: set[str],
+    item: CategoryItem,
+    filters: dict[str, list[Any]],
+    sku_keys: set[str],
 ) -> bool:
 
-    # Цена
     price = item.output_price or 0
 
+    # Цена
     minv = filters.get("price_min")
     if minv and price < minv[0]:
         return False
@@ -300,47 +334,15 @@ def match_sku_item(
     if maxv and price > maxv[0]:
         return False
 
-    # Бренд
-    brand_vals = filters.get("brand")
-    if brand_vals:
-        if item.brand is None:
-            return False
-
-        if item.brand.id not in brand_vals:
-            return False
-
-    # Тип
-    type_vals = filters.get("product_type")
-    if type_vals:
-        if item.type is None:
-            return False
-
-        if item.type.id not in type_vals:
-            return False
-
-    # Модель
-    model_vals = filters.get("model")
-    if model_vals:
-        if item.feature_id is None:
-            return False
-
-        if item.feature_id not in model_vals:
-            return False
-
     # SKU attributes
     attr_values = item.attr_values
 
     for key in sku_keys:
-        # Служебные/специальные фильтры уже обработаны выше
-        if key in {"brand", "product_type", "model"}:
-            continue
-
         vals = filters.get(key)
         if not vals:
             continue
 
         item_vals = attr_values.get(key)
-
         if not item_vals:
             return False
 
@@ -350,10 +352,39 @@ def match_sku_item(
     return True
 
 
+def match_meta_item(
+    item: CategoryItem,
+    filters: dict[str, list[Any]],
+    meta_keys: set[str],
+) -> bool:
+
+    # Бренд
+    if "brand" in meta_keys:
+        vals = filters.get("brand")
+        if vals:
+            if item.brand is None or item.brand.id not in vals:
+                return False
+
+    # Тип товара
+    if "product_type" in meta_keys:
+        vals = filters.get("product_type")
+        if vals:
+            if item.type is None or item.type.id not in vals:
+                return False
+
+    # Модель (feature_id)
+    if "model" in meta_keys:
+        vals = filters.get("model")
+        if vals:
+            if item.feature_id is None or item.feature_id not in vals:
+                return False
+
+    return True
 def match_model_item(item: CategoryItem,
                      filters: dict[str, list[Any]],
                      model_keys: set[str],
                      model_specs_map: dict[int, dict[str, list[str]]]) -> bool:
+
     active_model_keys = model_keys.intersection(filters)
     if not active_model_keys:
         return True
@@ -377,6 +408,7 @@ def match_model_item(item: CategoryItem,
             return False
 
     return True
+
 
 
 def filter_products_engine(items: list[CategoryItem], specs_map: dict[int, list[BlockResponse]],

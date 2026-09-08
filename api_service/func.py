@@ -83,19 +83,19 @@ async def process_image_update(code: int, current_icon: str | None, new_icon: st
     return UpdatedImageScheme(code=code, icon=new_icon, url=presigned_url)
 
 
-def collect_unique_models(items: list[Any], attr_name: str, model: Type[T]) -> list[T]:
-    seen: dict[int, T] = dict()
-
-    for item in items:
-        obj = getattr(item, attr_name, None)
-        if obj is None:
-            continue
-
-        obj_id = getattr(obj, "id", None)
-        if obj_id is None:
-            continue
-
-        if obj_id not in seen:
-            seen[obj_id] = model.model_validate(obj)
-
-    return list(seen.values())
+# def collect_unique_models(items: list[Any], attr_name: str, model: Type[T]) -> list[T]:
+#     seen: dict[int, T] = dict()
+#
+#     for item in items:
+#         obj = getattr(item, attr_name, None)
+#         if obj is None:
+#             continue
+#
+#         obj_id = getattr(obj, "id", None)
+#         if obj_id is None:
+#             continue
+#
+#         if obj_id not in seen:
+#             seen[obj_id] = model.model_validate(obj)
+#
+#     return list(seen.values())

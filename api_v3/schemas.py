@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 from api_miniapp.schemas import HubProductScheme
 from api_service.schemas import AttributeKeyValueSchema, HubLevelPath, TypeModel, BrandModel, HubMenuLevelSchema
+from api_service.schemas.attribute_schemas import AttributeKeySchema
 from api_service.schemas.desc_builder import BlockResponse
 from api_service.schemas.features_schemas import FeatureProductScheme
 
@@ -86,6 +87,7 @@ class SortResponse(BaseModel):
 
 
 class FiltersResponse(BaseModel):
+    meta_filters: list[FilterOption]
     sku_filters: list[FilterOption]
     model_filters: list[FilterOption]
 
@@ -98,6 +100,10 @@ class CategoryProductsResponse(BaseModel):
     sort: SortResponse
     filters_hash: str
     duration_ms: int
+
+
+class AttributeIndex(BaseModel):
+    items: dict[int, AttributeKeySchema]
 
 
 class CategoryItem(BaseModel):
