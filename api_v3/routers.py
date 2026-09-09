@@ -17,7 +17,7 @@ from api_v3.crud import (fetch_products_cursor_paginated, get_product_full, fetc
                          fetch_category_items)
 from api_v3.filters import build_sku_filters, build_model_filters, compute_filters_hash, validate_filters, \
     normalize_filters, match_sku_item, prepare_model_specs_map, \
-    match_model_item, build_meta_filters
+    match_model_item, build_meta_filters, match_meta_item
 from api_v3.logic import build_cursor_response, build_route, build_attrs, build_images, build_feature_data
 from api_v3.menu_tree import MenuTree
 from api_v3.schemas import InfiniteProductsResponse, HubProductSchemeExtV3, ProductV3Response, HubLevelSchemeV3, \
@@ -188,7 +188,7 @@ async def get_category_products(request: Request, query: CategoryQuery = Depends
 
     feature_ids = {item.feature_id for item in items if item.feature_id}
     specs_map = await DescBuilder.get_short_specs_bulk(list(feature_ids), session, cache)
-    # model filters
+
     model_filters_cache_key = model_filters_key(list(feature_ids))
     cached = await cache.get(model_filters_cache_key)
 
@@ -217,12 +217,15 @@ async def get_category_products(request: Request, query: CategoryQuery = Depends
 
     sku_keys = {f.key for f in sku_filters}
     model_keys = {f.key for f in model_filters}
+    meta_keys = {f.key for f in meta_filters}
 
     filtered_items = list()
     for item in items:
         if not match_sku_item(item, validated_filters, sku_keys):
             continue
         if not match_model_item(item, validated_filters, model_keys, model_specs_map):
+            continue
+        if not match_meta_item(item, validated_filters, meta_keys):
             continue
         filtered_items.append(item)
 
@@ -247,8 +250,7 @@ async def get_category_products(request: Request, query: CategoryQuery = Depends
 
     pagination = Pagination(page=page, limit=limit, total=total, total_pages=total_pages)
 
-    return CategoryProductsResponse(breadcrumbs=breadcrumbs,
-                                    filters=filters_response,
+    return CategoryProductsResponse(breadcrumbs=breadcrumbs, filters=filters_response,
                                     sort=sort_response,
                                     products=products_page,
                                     pagination=pagination,
