@@ -1,34 +1,21 @@
-from sqlalchemy import RowMapping, select, literal
+from typing import Optional
+
+from sqlalchemy import RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased
 
 from api_service.modulars.desc_builder.service import DescBuilder
 from api_service.s3_helper import get_url_from_s3
-from api_service.schemas import HubLevelPath, AttributeKeyValueSchema, AttributeKey, BrandModel, TypeModel
+from api_service.schemas import AttributeKeyValueSchema, AttributeKey, BrandModel, TypeModel
+from api_service.schemas.attribute_schemas import AttributeKeySchema, AttributeValueSchema
 from api_service.schemas.features_schemas import FeatureInnerRow, FeatureCategoryScheme, FeatureProductScheme
 
-from api_v3.crud import get_feature_with_type_brand
+from api_v3.crud import get_feature_with_type_brand, fetch_base_rows, fetch_pics_map, fetch_origin_value_rows, \
+    fetch_attribute_values, fetch_attribute_keys
 from api_v3.menu_tree import MenuTree
-from api_v3.schemas import HubLevelSchemeV3, HubLevelRouteV3
-from api_v3.slug import slugify
+from api_v3.schemas import HubLevelRouteV3, CategoryItem, AttributeIndex
 from cache import CacheManager
 from cache.keys.features import feature_key
 from cache.settings import cache_ttl
-from models import HUbMenuLevel
-
-
-# async def load_menu_tree(session: AsyncSession) -> Dict[int, List[int]]:
-#     stmt = select(HUbMenuLevel.id, HUbMenuLevel.parent_id)
-#     rows = (await session.execute(stmt)).all()
-#     tree: Dict[int, List[int]] = dict()
-#     for row in rows:
-#         node_id = row.id
-#         parent_id = row.parent_id
-#         if parent_id not in tree:
-#             tree[parent_id] = []
-#         tree[parent_id].append(node_id)
-#
-#     return tree
 
 
 def collect_descendants(tree: dict[int, list[int]], node_id: int) -> set[int]:
@@ -37,18 +24,6 @@ def collect_descendants(tree: dict[int, list[int]], node_id: int) -> set[int]:
     for child in children:
         result.update(collect_descendants(tree, child))
     return result
-
-
-# async def resolve_menu_levels_to_path_ids(selected_levels: List[int], session: AsyncSession) -> List[int]:
-#     if not selected_levels:
-#         return []
-#
-#     tree = await load_menu_tree(session)
-#     result: set[int] = set()
-#     for level_id in selected_levels:
-#         result.update(collect_descendants(tree, level_id))
-#
-#     return list(result)
 
 
 def build_cursor_response(rows: list[RowMapping], limit: int):
@@ -162,59 +137,104 @@ async def build_feature_data(session: AsyncSession, cache: CacheManager, origin_
 
     return type_obj, brand_obj, full_specs, pros_cons, short_specs
 
-# async def resolve_slug_path_to_level(slug_path: List[str], cache: CacheManager,
-#                                      session: AsyncSession) -> tuple[HubLevelSchemeV3, list[HubLevelSchemeV3]]:
-#     cached = await cache.get(MENU_LEVELS_CACHE_KEY)
-#     if cached is None:
-#         levels = await fetch_hub_levels(session)
-#         raw_levels = [lvl.model_dump() for lvl in levels]
-#         await cache.set(MENU_LEVELS_CACHE_KEY, raw_levels, ttl=cache_ttl.menu)
-#         levels_data = raw_levels
-#     else:
-#         levels_data = cached
-#
-#     levels = [HubLevelSchemeV3(**item) for item in levels_data]
-#
-#     if not slug_path:
-#         raise HTTPException(status_code=400, detail="Slug path is empty")
-#
-#     slug_map: Dict[str, List[HubLevelSchemeV3]] = {}
-#     id_map: Dict[int, HubLevelSchemeV3] = {}
-#
-#     for lvl in levels:
-#         slug_map.setdefault(lvl.slug, []).append(lvl)
-#         id_map[lvl.id] = lvl
-#
-#     current_level: HubLevelSchemeV3 | None = None
-#
-#     for index, slug in enumerate(slug_path):
-#         candidates = slug_map.get(slug)
-#         if not candidates:
-#             raise HTTPException(status_code=404, detail=f"Slug '{slug}' not found")
-#
-#         if index == 0:
-#             depth0 = [lvl for lvl in candidates if lvl.depth == 0]
-#             depth2 = [lvl for lvl in candidates if lvl.depth == 2]
-#
-#             if depth0:
-#                 current_level = depth0[0]
-#             elif depth2:
-#                 current_level = depth2[0]
-#             else:
-#                 raise HTTPException(status_code=400, detail=f"Slug '{slug}' cannot be used as first element")
-#         else:
-#             next_candidates = [lvl for lvl in candidates if lvl.parent_id == current_level.id]
-#             if not next_candidates:
-#                 raise HTTPException(status_code=404,
-#                                     detail=f"Slug '{slug}' does not match parent_id={current_level.id}")
-#             current_level = next_candidates[0]
-#
-#     breadcrumbs = list()
-#     node = current_level
-#     while node is not None:
-#         breadcrumbs.append(node)
-#         node = id_map.get(node.parent_id)
-#
-#     breadcrumbs.reverse()
-#
-#     return current_level, breadcrumbs
+
+def build_origin_attr_values(origin_value_rows: list[RowMapping], value_map: dict[int, tuple[int, str, Optional[str]]],
+                             key_map: dict[int, tuple[str, Optional[str]]]) -> dict[int, dict[str, list[int]]]:
+    origin_attr_values: dict[int, dict[str, list[int]]] = dict()
+
+    for row in origin_value_rows:
+        origin_id = row["origin_id"]
+        val_id = row["attr_value_id"]
+
+        key_id = value_map.get(val_id, (None, None, None))[0]
+        if key_id is None:
+            continue
+
+        key_str, _ = key_map.get(key_id, (None, None))
+        if key_str is None:
+            continue
+
+        origin_attr_values.setdefault(origin_id, {}).setdefault(key_str, []).append(val_id)
+
+    return origin_attr_values
+
+
+def build_attribute_index(value_map: dict[int, tuple[int, str, Optional[str]]],
+                          key_map: dict[int, tuple[str, Optional[str]]]) -> AttributeIndex:
+    attribute_index_items: dict[int, AttributeKeySchema] = dict()
+
+    for key_id, (key_str, key_alias) in key_map.items():
+        values: list[AttributeValueSchema] = list()
+
+        for val_id, (v_key_id, v_value, v_alias) in value_map.items():
+            if v_key_id == key_id:
+                values.append(AttributeValueSchema(id=val_id, value=v_value, alias=v_alias))
+
+        attribute_index_items[key_id] = AttributeKeySchema(key=key_str,
+                                                           alias=key_alias or key_str,
+                                                           values=values)
+
+    return AttributeIndex(items=attribute_index_items)
+
+
+def build_category_items(base_rows: list[RowMapping], pics_map: dict[int, RowMapping],
+                         origin_attr_values: dict[int, dict[str, list[int]]]) -> list[CategoryItem]:
+    items: list[CategoryItem] = list()
+
+    for row in base_rows:
+        origin = row["origin"]
+        pics_info = pics_map.get(origin, {})
+
+        raw_pics = pics_info.get("pics", []) or []
+        raw_preview = pics_info.get("preview")
+
+        pics = get_url_from_s3(raw_pics, path=str(origin)) if raw_pics else []
+        preview = get_url_from_s3(raw_preview, path=str(origin)) if raw_preview else None
+
+        type_model = TypeModel(id=row["ptype_id"], type=row["ptype_title"]) if row["ptype_id"] is not None else None
+        brand_model = BrandModel(id=row["pbrand_id"],
+                                 brand=row["pbrand_title"]) if row["pbrand_id"] is not None else None
+
+        items.append(CategoryItem(hubstock_id=row["hubstock_id"],
+                                  origin=origin,
+                                  warranty=row["warranty"],
+                                  output_price=row["output_price"],
+                                  title=row["title"],
+                                  model=row["model"],
+                                  feature_id=row["feature_id"],
+                                  type=type_model,
+                                  brand=brand_model,
+                                  pics=pics,
+                                  preview=preview,
+                                  updated_at=row["updated_at"],
+                                  attr_values=origin_attr_values.get(origin, {})))
+
+    return items
+
+
+async def fetch_category_items(path_ids: set[int], session: AsyncSession) -> tuple[list[CategoryItem], AttributeIndex]:
+    base_rows = await fetch_base_rows(path_ids, session)
+    if not base_rows:
+        return [], AttributeIndex(items={})
+
+    origins = [row["origin"] for row in base_rows]
+
+    pics_map = await fetch_pics_map(session, origins)
+
+    origin_value_rows = await fetch_origin_value_rows(origins, session)
+
+    all_value_ids = {row["attr_value_id"] for row in origin_value_rows}
+    value_rows = await fetch_attribute_values(all_value_ids, session)
+
+    value_map = {row["id"]: (row["attr_key_id"], row["value"], row["alias"]) for row in value_rows}
+
+    all_key_ids = {row["attr_key_id"] for row in value_rows}
+    key_rows = await fetch_attribute_keys(all_key_ids, session)
+
+    key_map = {row["id"]: (row["key"], row["alias"]) for row in key_rows}
+
+    origin_attr_values = build_origin_attr_values(origin_value_rows, value_map, key_map)
+    attribute_index = build_attribute_index(value_map, key_map)
+    items = build_category_items(base_rows, pics_map, origin_attr_values)
+
+    return items, attribute_index

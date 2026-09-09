@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Sequence
 
 from sqlalchemy import RowMapping, select, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -103,319 +103,6 @@ async def get_feature_with_type_brand(session, feature_id: int):
     return result.scalar_one_or_none()
 
 
-
-async def fetch_category_items(
-    path_ids: set[int],
-    session: AsyncSession
-) -> tuple[list[CategoryItem], AttributeIndex]:
-
-    if not path_ids:
-        return [], AttributeIndex(items={})
-
-    # --- 1. Основной запрос по товарам ---
-    base_stmt = (
-        select(
-            HUbStock.id.label("hubstock_id"),
-            HUbStock.origin.label("origin"),
-            HUbStock.warranty,
-            HUbStock.output_price,
-            ProductOrigin.title,
-            ProductFeaturesLink.feature_id,
-            ProductFeaturesGlobal.title.label("model"),
-            ProductFeaturesGlobal.type_id.label("type_id"),
-            ProductFeaturesGlobal.brand_id.label("brand_id"),
-            ProductType.id.label("ptype_id"),
-            ProductType.type.label("ptype_title"),
-            ProductBrand.id.label("pbrand_id"),
-            ProductBrand.brand.label("pbrand_title"),
-            HUbStock.updated_at,
-        )
-        .join(ProductOrigin, ProductOrigin.origin == HUbStock.origin)
-        .outerjoin(ProductFeaturesLink, ProductFeaturesLink.origin == ProductOrigin.origin)
-        .outerjoin(ProductFeaturesGlobal, ProductFeaturesGlobal.id == ProductFeaturesLink.feature_id)
-        .outerjoin(ProductType, ProductType.id == ProductFeaturesGlobal.type_id)
-        .outerjoin(ProductBrand, ProductBrand.id == ProductFeaturesGlobal.brand_id)
-        .where(
-            HUbStock.path_id.in_(path_ids),
-            ProductOrigin.is_deleted.is_(False),
-        )
-    )
-
-    base_rows = await fetch_rows(session, base_stmt)
-    origins = [row["origin"] for row in base_rows]
-
-    # --- 2. Картинки ---
-    pics_map: dict[int, RowMapping] = await fetch_pics_map(session, origins)
-
-    # --- 3. Значения атрибутов origin → value_id ---
-    q_origin_values = (
-        select(
-            AttributeOriginValue.origin_id,
-            AttributeOriginValue.attr_value_id
-        )
-        .where(AttributeOriginValue.origin_id.in_(origins))
-    )
-    origin_value_rows = await fetch_rows(session, q_origin_values)
-
-    origin_to_values: dict[int, list[int]] = {}
-    for row in origin_value_rows:
-        origin_to_values.setdefault(row["origin_id"], []).append(row["attr_value_id"])
-
-    # --- 4. Получаем AttributeValue (value_id → key_id, value, alias) ---
-    all_value_ids = {row["attr_value_id"] for row in origin_value_rows}
-
-    if all_value_ids:
-        q_values = (
-            select(
-                AttributeValue.id,
-                AttributeValue.attr_key_id,
-                AttributeValue.value,
-                AttributeValue.alias
-            )
-            .where(AttributeValue.id.in_(all_value_ids))
-        )
-        value_rows = await fetch_rows(session, q_values)
-    else:
-        value_rows = []
-
-    # value_id → (key_id, value, alias)
-    value_map: dict[int, tuple[int, str, Optional[str]]] = {
-        row["id"]: (row["attr_key_id"], row["value"], row["alias"])
-        for row in value_rows
-    }
-
-    # --- 5. Получаем AttributeKey (key_id → key, alias) ---
-    all_key_ids = {row["attr_key_id"] for row in value_rows}
-
-    if all_key_ids:
-        q_keys = (
-            select(
-                AttributeKey.id,
-                AttributeKey.key,
-                AttributeKey.alias
-            )
-            .where(AttributeKey.id.in_(all_key_ids))
-        )
-        key_rows = await fetch_rows(session, q_keys)
-    else:
-        key_rows = []
-
-    key_map: dict[int, tuple[str, Optional[str]]] = {
-        row["id"]: (row["key"], row["alias"]) for row in key_rows
-    }
-
-    # --- 6. Строим attr_values для каждого товара ---
-    origin_attr_values: dict[int, dict[str, list[int]]] = {}
-
-    for origin_id, value_ids in origin_to_values.items():
-        kv: dict[str, list[int]] = {}
-
-        for val_id in value_ids:
-            key_id = value_map.get(val_id, (None, None, None))[0]
-            if key_id is None:
-                continue
-
-            key_str, _ = key_map.get(key_id, (None, None))
-            if key_str is None:
-                continue
-
-            kv.setdefault(key_str, []).append(val_id)
-
-        origin_attr_values[origin_id] = kv
-
-    # --- 7. Строим AttributeIndex ---
-    attribute_index_items: dict[int, AttributeKeySchema] = {}
-
-    for key_id, (key_str, key_alias) in key_map.items():
-        values: list[AttributeValueSchema] = []
-
-        for val_id, (v_key_id, v_value, v_alias) in value_map.items():
-            if v_key_id == key_id:
-                values.append(
-                    AttributeValueSchema(
-                        id=val_id,
-                        value=v_value,
-                        alias=v_alias
-                    )
-                )
-
-        attribute_index_items[key_id] = AttributeKeySchema(
-            key=key_str,
-            alias=key_alias or key_str,
-            values=values
-        )
-
-    attribute_index = AttributeIndex(items=attribute_index_items)
-
-    # --- 8. Собираем CategoryItem ---
-    items: list[CategoryItem] = []
-
-    for row in base_rows:
-        origin = row["origin"]
-        pics_info = pics_map.get(origin, {})
-
-        raw_pics = pics_info.get("pics", []) or []
-        raw_preview = pics_info.get("preview")
-
-        pics = get_url_from_s3(raw_pics, path=str(origin)) if raw_pics else []
-        preview = get_url_from_s3(raw_preview, path=str(origin)) if raw_preview else None
-
-        type_model = None
-        if row["ptype_id"] is not None:
-            type_model = TypeModel(id=row["ptype_id"], type=row["ptype_title"])
-
-        brand_model = None
-        if row["pbrand_id"] is not None:
-            brand_model = BrandModel(id=row["pbrand_id"], brand=row["pbrand_title"])
-
-        items.append(
-            CategoryItem(
-                hubstock_id=row["hubstock_id"],
-                origin=origin,
-                warranty=row["warranty"],
-                output_price=row["output_price"],
-                title=row["title"],
-                model=row["model"],
-                feature_id=row["feature_id"],
-                type=type_model,
-                brand=brand_model,
-                pics=pics,
-                preview=preview,
-                updated_at=row["updated_at"],
-                attr_values=origin_attr_values.get(origin, {})
-            )
-        )
-
-    return items, attribute_index
-
-#
-#
-#
-# async def fetch_category_items(path_ids: set[int], session: AsyncSession) -> list[CategoryItem]:
-#     if not path_ids:
-#         return []
-#
-#     base_stmt = (select(HUbStock.id.label("hubstock_id"),
-#                         HUbStock.origin.label("origin"),
-#                         HUbStock.warranty,
-#                         HUbStock.output_price,
-#                         ProductOrigin.title,
-#                         ProductFeaturesLink.feature_id,
-#                         ProductFeaturesGlobal.title.label("model"),
-#                         ProductFeaturesGlobal.type_id.label("type_id"),
-#                         ProductFeaturesGlobal.brand_id.label("brand_id"),
-#                         ProductType.id.label("ptype_id"),
-#                         ProductType.type.label("ptype_title"),
-#                         ProductBrand.id.label("pbrand_id"),
-#                         ProductBrand.brand.label("pbrand_title"),
-#                         HUbStock.updated_at,
-#                         )
-#     .join(ProductOrigin, ProductOrigin.origin == HUbStock.origin)
-#     .outerjoin(ProductFeaturesLink, ProductFeaturesLink.origin == ProductOrigin.origin)
-#     .outerjoin(ProductFeaturesGlobal, ProductFeaturesGlobal.id == ProductFeaturesLink.feature_id)
-#     .outerjoin(ProductType, ProductType.id == ProductFeaturesGlobal.type_id)
-#     .outerjoin(ProductBrand, ProductBrand.id == ProductFeaturesGlobal.brand_id)
-#     .where(
-#         HUbStock.path_id.in_(path_ids),
-#         ProductOrigin.is_deleted.is_(False))
-#     )
-#
-#     base_rows = await fetch_rows(session, base_stmt)
-#
-#     origins = [row["origin"] for row in base_rows]
-#     pics_map: dict[int, RowMapping] = await fetch_pics_map(session, origins)
-#
-#     q_origin_values = (select(AttributeOriginValue.origin_id,
-#                               AttributeOriginValue.attr_value_id).where(AttributeOriginValue.origin_id.in_(origins)))
-#     origin_value_rows = await fetch_rows(session, q_origin_values)
-#
-#     origin_to_values: dict[int, list[int]] = dict()
-#     for row in origin_value_rows:
-#         origin_to_values.setdefault(row["origin_id"], []).append(row["attr_value_id"])
-#
-#     all_attr_value_ids = {row["attr_value_id"] for row in origin_value_rows}
-#     if all_attr_value_ids:
-#         q_values = (
-#             select(AttributeValue.id,
-#                    AttributeValue.attr_key_id)
-#             .where(AttributeValue.id.in_(all_attr_value_ids))
-#         )
-#         value_rows = await fetch_rows(session, q_values)
-#     else:
-#         value_rows = []
-#
-#     value_to_key: dict[int, int] = {row["id"]: row["attr_key_id"] for row in value_rows}
-#
-#     all_attr_key_ids = {row["attr_key_id"] for row in value_rows}
-#     if all_attr_key_ids:
-#         q_keys = (
-#             select(AttributeKey.id,
-#                    AttributeKey.key)
-#             .where(AttributeKey.id.in_(all_attr_key_ids))
-#         )
-#         key_rows = await fetch_rows(session, q_keys)
-#     else:
-#         key_rows = []
-#
-#     key_id_to_key: dict[int, str] = {
-#         row["id"]: row["key"] for row in key_rows
-#     }
-#
-#     origin_attr_values: dict[int, dict[str, list[int]]] = {}
-#
-#     for origin_id, value_ids in origin_to_values.items():
-#         kv: dict[str, list[int]] = {}
-#
-#         for val_id in value_ids:
-#             key_id = value_to_key.get(val_id)
-#             if key_id is None:
-#                 continue
-#
-#             key_str = key_id_to_key.get(key_id)
-#             if key_str is None:
-#                 continue
-#
-#             kv.setdefault(key_str, []).append(val_id)
-#
-#         origin_attr_values[origin_id] = kv
-#
-#     items: list[CategoryItem] = list()
-#
-#     for row in base_rows:
-#         origin = row["origin"]
-#         pics_info = pics_map.get(origin, {})
-#
-#         raw_pics = pics_info.get("pics", []) or []
-#         raw_preview = pics_info.get("preview")
-#
-#         pics = get_url_from_s3(raw_pics, path=str(origin)) if raw_pics else []
-#         preview = get_url_from_s3(raw_preview, path=str(origin)) if raw_preview else None
-#
-#         type_model = None
-#         if row["ptype_id"] is not None:
-#             type_model = TypeModel(id=row["ptype_id"], type=row["ptype_title"])
-#
-#         brand_model = None
-#         if row["pbrand_id"] is not None:
-#             brand_model = BrandModel(id=row["pbrand_id"], brand=row["pbrand_title"])
-#
-#         items.append(CategoryItem(hubstock_id=row["hubstock_id"],
-#                                   origin=origin,
-#                                   warranty=row["warranty"],
-#                                   output_price=row["output_price"],
-#                                   title=row["title"],
-#                                   model=row["model"],
-#                                   feature_id=row["feature_id"],
-#                                   type=type_model,
-#                                   brand=brand_model,
-#                                   pics=pics,
-#                                   preview=preview,
-#                                   updated_at=row["updated_at"],
-#                                   attr_values=origin_attr_values.get(origin, {})))
-#
-#     return items
-
-
 async def fetch_base_attrs(product_type_ids: set[int], session: AsyncSession) -> set[int]:
     if not product_type_ids:
         return set()
@@ -466,3 +153,59 @@ async def fetch_brand_rules(product_type_ids: set[int],
             rules[brand_id]["exclude"].add(attr_key_id)
 
     return rules
+
+
+async def fetch_base_rows(path_ids: set[int], session: AsyncSession) -> Sequence[RowMapping]:
+    if not path_ids:
+        return []
+
+    stmt = (select(HUbStock.id.label("hubstock_id"),
+                   HUbStock.origin.label("origin"),
+                   HUbStock.warranty,
+                   HUbStock.output_price,
+                   ProductOrigin.title,
+                   ProductFeaturesLink.feature_id,
+                   ProductFeaturesGlobal.title.label("model"),
+                   ProductFeaturesGlobal.type_id.label("type_id"),
+                   ProductFeaturesGlobal.brand_id.label("brand_id"),
+                   ProductType.id.label("ptype_id"),
+                   ProductType.type.label("ptype_title"),
+                   ProductBrand.id.label("pbrand_id"),
+                   ProductBrand.brand.label("pbrand_title"),
+                   HUbStock.updated_at)
+            .join(ProductOrigin, ProductOrigin.origin == HUbStock.origin)
+            .outerjoin(ProductFeaturesLink, ProductFeaturesLink.origin == ProductOrigin.origin)
+            .outerjoin(ProductFeaturesGlobal, ProductFeaturesGlobal.id == ProductFeaturesLink.feature_id)
+            .outerjoin(ProductType, ProductType.id == ProductFeaturesGlobal.type_id)
+            .outerjoin(ProductBrand, ProductBrand.id == ProductFeaturesGlobal.brand_id)
+            .where(HUbStock.path_id.in_(path_ids), ProductOrigin.is_deleted.is_(False)))
+
+    return await fetch_rows(session, stmt)
+
+
+async def fetch_origin_value_rows(origins: list[int], session: AsyncSession) -> Sequence[RowMapping]:
+    if not origins:
+        return []
+
+    stmt = (select(AttributeOriginValue.origin_id, AttributeOriginValue.attr_value_id)
+            .where(AttributeOriginValue.origin_id.in_(origins)))
+
+    return await fetch_rows(session, stmt)
+
+
+async def fetch_attribute_values(value_ids: set[int], session: AsyncSession) -> Sequence[RowMapping]:
+    if not value_ids:
+        return []
+
+    stmt = (select(AttributeValue.id, AttributeValue.attr_key_id, AttributeValue.value, AttributeValue.alias)
+            .where(AttributeValue.id.in_(value_ids)))
+
+    return await fetch_rows(session, stmt)
+
+
+async def fetch_attribute_keys(key_ids: set[int], session: AsyncSession) -> Sequence[RowMapping]:
+    if not key_ids:
+        return []
+
+    stmt = select(AttributeKey.id, AttributeKey.key, AttributeKey.alias).where(AttributeKey.id.in_(key_ids))
+    return await fetch_rows(session, stmt)

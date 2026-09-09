@@ -6,22 +6,21 @@ from fastapi import APIRouter, Query, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_miniapp.crud import fetch_hub_levels
-# from api_service.func import collect_unique_models
 from api_service.modulars.desc_builder.service import DescBuilder
 
 from api_service.s3_helper import get_url_from_s3
-from api_service.schemas import BrandRuleSchema, TypeModel, BrandModel
+
 from api_service.schemas.desc_builder import BlockResponse
 
-from api_v3.crud import (fetch_products_cursor_paginated, get_product_full, fetch_base_attrs, fetch_brand_rules,
-                         fetch_category_items)
+from api_v3.crud import fetch_products_cursor_paginated, get_product_full
 from api_v3.filters import build_sku_filters, build_model_filters, compute_filters_hash, validate_filters, \
     normalize_filters, match_sku_item, prepare_model_specs_map, \
     match_model_item, build_meta_filters, match_meta_item
-from api_v3.logic import build_cursor_response, build_route, build_attrs, build_images, build_feature_data
+from api_v3.logic import build_cursor_response, build_route, build_attrs, build_images, build_feature_data, \
+    fetch_category_items
 from api_v3.menu_tree import MenuTree
 from api_v3.schemas import InfiniteProductsResponse, HubProductSchemeExtV3, ProductV3Response, HubLevelSchemeV3, \
-    CategoryQuery, CategoryProductsResponse, FiltersResponse, FilterOption, CategoryItem, Pagination
+    CategoryQuery, CategoryProductsResponse, FiltersResponse, FilterOption, Pagination
 from api_v3.sorting import apply_sort
 from cache import get_cache_manager, CacheManager
 from cache.keys.filters import model_filters_key
