@@ -11,8 +11,15 @@ from api_v3.slug import slugify
 
 async def build_sku_filters(attribute_index: AttributeIndex) -> list[FilterOption]:
     sku_filters: list[FilterOption] = list()
+
     for key_id, key_schema in attribute_index.items.items():
-        raw_items = [{"id": v.id, "label": v.alias} for v in key_schema.values]
+        key_lower = key_schema.key.lower()
+
+        if "color" in key_lower:
+            raw_items = group_alias_values_grouped(key_schema.values)
+        else:
+            raw_items = [{"id": v.id, "label": v.alias} for v in key_schema.values]
+
         sku_filters.append(make_custom_filter(key=key_schema.key, label=key_schema.alias, raw_items=raw_items))
 
     return sku_filters
@@ -112,6 +119,9 @@ def sort_filter_values(values: list[str]) -> list[str]:
 
 
 def make_custom_filter(key: str, label: str, raw_items: list[dict]) -> FilterOption:
+    if raw_items and "ids" in raw_items[0]:
+        return FilterOption(key=key, label=label, type="select", values=raw_items, active=[], meta=None)
+
     unique = {(v["id"], v["label"]) for v in raw_items}
     items = [{"id": i, "label": l} for i, l in unique]
     items.sort(key=lambda x: x["label"].lower())
@@ -134,26 +144,42 @@ def compute_filters_hash(slug: str,
     return hashlib.md5(raw.encode("utf-8")).hexdigest()
 
 
-def normalize_filters(active_filters: dict[str, list[str]],
-                      sku_filters: list[FilterOption],
-                      model_filters: list[FilterOption],
-                      meta_filters: list[FilterOption]) -> dict[str, list[Any]]:
+def normalize_filters(active_filters: dict[str, list[str]], sku_filters: list[FilterOption],
+                      model_filters: list[FilterOption], meta_filters: list[FilterOption]) -> dict[str, list[Any]]:
     sku_keys = {f.key for f in sku_filters}
     model_keys = {f.key for f in model_filters}
     meta_keys = {f.key for f in meta_filters}
 
     normalized: dict[str, list[Any]] = dict()
 
+    sku_index = {f.key: f for f in sku_filters}
+
     for key, raw_values in active_filters.items():
         if not isinstance(raw_values, list):
             raw_values = [raw_values]
+
         if key in sku_keys:
+            f = sku_index[key]
+
+            if f.values and "ids" in f.values[0]:
+                collected_ids = list()
+
+                for raw in raw_values:
+                    for v in f.values:
+                        if v["label"] == raw:
+                            collected_ids.extend(v["ids"])
+
+                if collected_ids:
+                    normalized[key] = collected_ids
+                continue
+
             cleaned = list()
             for v in raw_values:
                 try:
                     cleaned.append(int(v))
                 except ValueError:
                     continue
+
             if cleaned:
                 normalized[key] = cleaned
 
@@ -163,7 +189,7 @@ def normalize_filters(active_filters: dict[str, list[str]],
                 normalized[key] = cleaned
 
         elif key in meta_keys:
-            cleaned = []
+            cleaned = list()
             for v in raw_values:
                 try:
                     cleaned.append(int(v))
@@ -183,13 +209,26 @@ def normalize_filters(active_filters: dict[str, list[str]],
 
 def validate_filters(normalized_filters: dict[str, list[Any]], sku_filters: list[FilterOption],
                      model_filters: list[FilterOption], meta_filters: list[FilterOption]) -> dict[str, list[Any]]:
-    sku_allowed = {f.key: {v["id"] for v in f.values} for f in sku_filters}
+    sku_allowed: dict[str, set[int]] = dict()
+
+    for f in sku_filters:
+        allowed_ids = set()
+
+        for v in f.values:
+            if "id" in v:
+                allowed_ids.add(v["id"])
+            elif "ids" in v:
+                allowed_ids.update(v["ids"])
+
+        sku_allowed[f.key] = allowed_ids
+
     model_allowed = {f.key: {v["label"] for v in f.values} for f in model_filters}
     meta_allowed = {f.key: {v["id"] for v in f.values} for f in meta_filters}
 
-    validated = dict()
+    validated: dict[str, list[Any]] = dict()
 
     for key, values in normalized_filters.items():
+
         if key in sku_allowed:
             allowed = sku_allowed[key]
             cleaned = [v for v in values if v in allowed]
@@ -317,22 +356,10 @@ def match_model_item(item: CategoryItem, filters: dict[str, list[Any]],
     return True
 
 
-def filter_products_engine(items: list[CategoryItem], specs_map: dict[int, list[BlockResponse]],
-                           validated_filters: dict[str, list[Any]],
-                           sku_filters: list[FilterOption],
-                           model_filters: list[FilterOption]) -> list[CategoryItem]:
-    sku_keys = {f.key for f in sku_filters}
-    model_keys = {f.key for f in model_filters}
-    model_specs_map = prepare_model_specs_map(specs_map)
-    filtered = list()
+def group_alias_values_grouped(values):
+    groups = dict()
+    for v in values:
+        alias = v.alias or ""
+        groups.setdefault(alias, []).append(v.id)
 
-    for item in items:
-        if not match_sku_item(item, validated_filters, sku_keys):
-            continue
-
-        if not match_model_item(item, validated_filters, model_keys, model_specs_map):
-            continue
-
-        filtered.append(item)
-
-    return filtered
+    return [{"label": alias, "ids": ids} for alias, ids in groups.items()]

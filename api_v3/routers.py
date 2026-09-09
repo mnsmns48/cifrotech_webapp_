@@ -158,11 +158,9 @@ async def get_category_products(request: Request, query: CategoryQuery = Depends
     SERVICE_PARAMS = {"path", "page", "limit", "sort"}
 
     active_filters_raw = {key: raw_params.getlist(key) for key in raw_params.keys() if key not in SERVICE_PARAMS}
-    # tree
     slug_path = query.path.strip("/").split("/")
     tree = MenuTree(session=session, cache=cache)
     category, breadcrumbs, path_ids = await tree.resolve_slug_to_category_and_path_ids(slug_path)
-    # items
     items, attribute_index = await fetch_category_items(path_ids, session)
     sort_key = query.sort or "price_asc"
 
@@ -199,6 +197,7 @@ async def get_category_products(request: Request, query: CategoryQuery = Depends
 
     sku_filters = await build_sku_filters(attribute_index)
     meta_filters = await build_meta_filters(items)
+
     filters_response = FiltersResponse(meta_filters=meta_filters, sku_filters=sku_filters, model_filters=model_filters)
 
     filters_hash = compute_filters_hash(slug="/".join(slug_path),
