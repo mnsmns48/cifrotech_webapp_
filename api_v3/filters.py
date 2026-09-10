@@ -16,9 +16,11 @@ async def build_sku_filters(attribute_index: AttributeIndex) -> list[FilterOptio
         key_lower = key_schema.key.lower()
 
         if "color" in key_lower:
-            raw_items = group_alias_values_grouped(key_schema.values)
+            raw_items = [{"label": alias,
+                          "slug": slugify(alias),
+                          "ids": ids} for alias, ids in group_alias_values_grouped(key_schema.values)]
         else:
-            raw_items = [{"id": v.id, "label": v.alias} for v in key_schema.values]
+            raw_items = [{"id": v.id, "label": v.alias, "slug": slugify(v.alias)} for v in key_schema.values]
 
         sku_filters.append(make_custom_filter(key=key_schema.key, label=key_schema.alias, raw_items=raw_items))
 
@@ -43,15 +45,15 @@ async def build_meta_filters(items: list[CategoryItem]) -> list[FilterOption]:
     meta_filters: list[FilterOption] = list()
 
     if brands:
-        raw_items = [{"id": bid, "label": bname} for bid, bname in brands]
+        raw_items = [{"id": bid, "label": bname, "slug": slugify(bname)} for bid, bname in brands]
         meta_filters.append(make_custom_filter(key="brand", label="Бренд", raw_items=raw_items))
 
     if types:
-        raw_items = [{"id": tid, "label": tname} for tid, tname in types]
+        raw_items = [{"id": tid, "label": tname, "slug": slugify(tname)} for tid, tname in types]
         meta_filters.append(make_custom_filter(key="product_type", label="Тип товара", raw_items=raw_items))
 
     if models:
-        raw_items = [{"id": fid, "label": fname} for fid, fname in models]
+        raw_items = [{"id": fid, "label": fname, "slug": slugify(fname)} for fid, fname in models]
         meta_filters.append(make_custom_filter(key="model", label="Модель", raw_items=raw_items))
 
     return meta_filters
@@ -85,12 +87,11 @@ def build_model_filters(specs_map: Dict[int, List[BlockResponse]]) -> List[Filte
         raw_values = list(data["values"])
         sorted_values = sort_filter_values(raw_values)
 
-        model_filters.append(FilterOption(key=data["key"],
-                                          label=data["label"],
-                                          type="select",
-                                          values=[{"label": v} for v in sorted_values],
-                                          active=[],
-                                          meta=None))
+        model_filters.append(
+            FilterOption(key=data["key"], label=data["label"], type="select",
+                         values=[{"label": v, "slug": slugify(v)} for v in sorted_values],
+                         active=[], meta=None)
+        )
 
     return model_filters
 
@@ -122,8 +123,8 @@ def make_custom_filter(key: str, label: str, raw_items: list[dict]) -> FilterOpt
     if raw_items and "ids" in raw_items[0]:
         return FilterOption(key=key, label=label, type="select", values=raw_items, active=[], meta=None)
 
-    unique = {(v["id"], v["label"]) for v in raw_items}
-    items = [{"id": i, "label": l} for i, l in unique]
+    unique = {(v["id"], v["label"], v["slug"]) for v in raw_items}
+    items = [{"id": i, "label": l, "slug": s} for i, l, s in unique]
     items.sort(key=lambda x: x["label"].lower())
 
     return FilterOption(key=key, label=label, type="select", values=items, active=[], meta=None)
@@ -144,7 +145,8 @@ def compute_filters_hash(slug: str,
     return hashlib.md5(raw.encode("utf-8")).hexdigest()
 
 
-def normalize_filters(active_filters: dict[str, list[str]], sku_filters: list[FilterOption],
+def normalize_filters(active_filters: dict[str, list[str]],
+                      sku_filters: list[FilterOption],
                       model_filters: list[FilterOption], meta_filters: list[FilterOption]) -> dict[str, list[Any]]:
     sku_keys = {f.key for f in sku_filters}
     model_keys = {f.key for f in model_filters}
@@ -153,6 +155,8 @@ def normalize_filters(active_filters: dict[str, list[str]], sku_filters: list[Fi
     normalized: dict[str, list[Any]] = dict()
 
     sku_index = {f.key: f for f in sku_filters}
+    model_index = {f.key: f for f in model_filters}
+    meta_index = {f.key: f for f in meta_filters}
 
     for key, raw_values in active_filters.items():
         if not isinstance(raw_values, list):
@@ -166,43 +170,55 @@ def normalize_filters(active_filters: dict[str, list[str]], sku_filters: list[Fi
 
                 for raw in raw_values:
                     for v in f.values:
-                        if v["label"] == raw:
+                        if v["slug"] == raw:
                             collected_ids.extend(v["ids"])
 
                 if collected_ids:
                     normalized[key] = collected_ids
                 continue
 
-            cleaned = list()
-            for v in raw_values:
-                try:
-                    cleaned.append(int(v))
-                except ValueError:
-                    continue
+            collected_ids = list()
 
-            if cleaned:
-                normalized[key] = cleaned
+            for raw in raw_values:
+                for v in f.values:
+                    if v["slug"] == raw:
+                        collected_ids.append(v["id"])
 
-        elif key in model_keys:
-            cleaned = [v.strip() for v in raw_values if v.strip()]
-            if cleaned:
-                normalized[key] = cleaned
+            if collected_ids:
+                normalized[key] = collected_ids
+            continue
 
-        elif key in meta_keys:
-            cleaned = list()
-            for v in raw_values:
-                try:
-                    cleaned.append(int(v))
-                except ValueError:
-                    continue
-            if cleaned:
-                normalized[key] = cleaned
+        if key in model_keys:
+            f = model_index[key]
+            collected_labels = list()
 
-        elif key.endswith("_min") or key.endswith("_max"):
+            for raw in raw_values:
+                for v in f.values:
+                    if v.get("slug") == raw:
+                        collected_labels.append(v["label"])
+
+            if collected_labels:
+                normalized[key] = collected_labels
+            continue
+
+        if key in meta_keys:
+            f = meta_index[key]
+            collected_ids = list()
+
+            for raw in raw_values:
+                for v in f.values:
+                    if v.get("slug") == raw:
+                        collected_ids.append(v["id"])
+
+            if collected_ids:
+                normalized[key] = collected_ids
+            continue
+
+        if key.endswith("_min") or key.endswith("_max"):
             try:
                 normalized[key] = [float(raw_values[0])]
             except ValueError:
-                continue
+                pass
 
     return normalized
 
@@ -362,4 +378,4 @@ def group_alias_values_grouped(values):
         alias = v.alias or ""
         groups.setdefault(alias, []).append(v.id)
 
-    return [{"label": alias, "ids": ids} for alias, ids in groups.items()]
+    return [(alias, ids) for alias, ids in groups.items()]
