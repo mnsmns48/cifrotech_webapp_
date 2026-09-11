@@ -1,6 +1,6 @@
 import asyncio
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, List, Any
 from aiohttp import ClientConnectionError, ClientResponseError
@@ -133,6 +133,31 @@ async def delete_from_parsing_line(payload: ParsingLineClearItemsRequest,
     stmt = (delete(ParsingLine).where(ParsingLine.vsl_id == payload.vsl_id, ParsingLine.origin.in_(payload.origins)))
     await session.execute(stmt)
     await session.commit()
+
+
+@parsing_router.post("/move_to_other_parsing_line")
+async def move_to_other_parsing_line(payload: ParsingLineClearItemsRequest,
+                                     session: AsyncSession = Depends(db.session_dependency)):
+    origins = payload.origins
+    target_vsl_id = payload.vsl_id
+
+    if not origins:
+        return {"status": "error", "message": "origins пустой"}
+
+    target_vsl = await session.get(VendorSearchLine, target_vsl_id)
+    if not target_vsl:
+        return {"status": "error", "message": "target_vsl_id не найден"}
+
+    await session.execute(delete(ParsingLine).where(
+        ParsingLine.vsl_id == target_vsl_id, ParsingLine.origin.in_(origins)))
+
+    await session.execute(update(ParsingLine).where(ParsingLine.origin.in_(origins)).values(vsl_id=target_vsl_id))
+    await session.execute(update(VendorSearchLine)
+                          .where(VendorSearchLine.id == target_vsl_id).values(dt_parsed=datetime.now(timezone.utc)))
+
+    await session.commit()
+
+    return {"status": "ok", "moved": len(origins), "target_vsl_id": target_vsl_id}
 
 
 @parsing_router.get("/get_parsing_items_dependency_list/{origin}")

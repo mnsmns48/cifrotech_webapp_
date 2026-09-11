@@ -1,16 +1,14 @@
-from collections import defaultdict
 from datetime import datetime, timezone
 
 from fastapi import HTTPException
-from sqlalchemy import select, delete, update
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import select
+
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from api_service.modulars.api_bridge.microline.client import MicrolineClient
 from api_service.modulars.api_bridge.microline.helpers import normalize_product_brands, sync_product_brands, \
     build_vsl_products, collect_needed_origins, build_vsl_brands_map, sync_product_origins, get_default_reward_lines, \
-    rebuild_parsing_lines
+    rebuild_parsing_lines, get_default_vsl_id
 from api_service.modulars.api_bridge.microline.schemas import AddVendorApiSearch, VendorApiSearchResponse, \
     DeleteVendorApiSearch, VendorApiSearchDeleteResponse, ApiSearchVSLResponse, UpdateLinesFromApi
 from api_service.modulars.api_bridge.token_services import AuthResult
@@ -164,7 +162,8 @@ class ApiBridgeService:
         vsl_brands_map = build_vsl_brands_map(payload.linked_VSL)
         await sync_product_brands(session=session, raw_products=payload.raw_products, vsl_brands_map=vsl_brands_map,
                                   linked_vsl=payload.linked_VSL)
-        vsl_products = build_vsl_products(payload.raw_products, payload.linked_VSL, vsl_brands_map)
+        default_vsl_id = await get_default_vsl_id(session, payload.linked_VSL[0].vendor_id)
+        vsl_products = build_vsl_products(payload.raw_products, payload.linked_VSL, vsl_brands_map, default_vsl_id)
         needed_origins = collect_needed_origins(vsl_products)
 
         if not needed_origins:

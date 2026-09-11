@@ -25,7 +25,7 @@ from api_service.schemas.range_reward_schemas import RewardRangeLineSchema, Rewa
     RewardRangeResponseSchema, RewardRangeBaseSchema
 
 from api_service.schemas.vsl_schemas import VSLScheme, VSLSchemeWithBrands, VSLSchemeWithBrandsCreate, \
-    VendorApiSearchLinkScheme
+    VendorApiSearchLinkScheme, VSLSchemeWithCounting
 
 from api_service.schemas.vendor_schemas import VendorSchema, VslId
 
@@ -62,7 +62,8 @@ __all__ = list()
 
 __all__ += ["VendorSchema"]
 
-__all__ += ["VSLScheme", "VslId", "VSLSchemeWithBrands", "VSLSchemeWithBrandsCreate", "VendorApiSearchLinkScheme"]
+__all__ += ["VSLScheme", "VslId", "VSLSchemeWithBrands", "VSLSchemeWithBrandsCreate", "VendorApiSearchLinkScheme",
+            "VSLSchemeWithCounting"]
 
 __all__ += ["ParsingRequest", "ParsingLinesIn", "ParsingToDiffData", "SourceContext", "ParsingResultOut",
             "AddAttributesValuesRequest", "DependencyImageItem", "DependencyOriginImplementation", "ImageResponseItem",

@@ -51,25 +51,31 @@ async def sync_product_brands(session: AsyncSession, raw_products, vsl_brands_ma
         await session.execute(insert(ProductBrand), new_brands)
 
 
-def build_vsl_products(raw_products, linked_vsl, vsl_brands_map):
+def build_vsl_products(raw_products, linked_vsl, vsl_brands_map, default_vsl_id):
     result = defaultdict(list)
 
+    brand_vsl_map = dict()
+    fallback_vsl_id = None
+
     for vsl in linked_vsl:
-        allowed = vsl_brands_map[vsl.id]
-        if allowed is None:
-            result[vsl.id].extend(raw_products)
+        brands = vsl_brands_map[vsl.id]
+
+        if brands:
+            for brand in brands:
+                brand_vsl_map[brand] = vsl.id
+        elif not vsl.is_default:
+            fallback_vsl_id = vsl.id
+
+    for product in raw_products:
+        if not product.brand:
+            if default_vsl_id:
+                result[default_vsl_id].append(product)
             continue
-        allowed_set = set(allowed)
 
-        for product in raw_products:
-            brand = product.brand
+        vsl_id = brand_vsl_map.get(product.brand, fallback_vsl_id)
 
-            if brand is None:
-                result[vsl.id].append(product)
-                continue
-
-            if brand in allowed_set:
-                result[vsl.id].append(product)
+        if vsl_id:
+            result[vsl_id].append(product)
 
     return result
 
@@ -129,23 +135,56 @@ async def get_default_reward_lines(session):
     return reward_lines, reward_range.id
 
 
+async def _process_single_vsl(session, vsl_id, products, deleted_origins,
+                              reward_lines, reward_range_id, clear_old: bool = True):
+    if clear_old:
+        await session.execute(delete(ParsingLine).where(ParsingLine.vsl_id == vsl_id))
+
+    rows = build_parsing_rows(
+        products=products,
+        vsl_id=vsl_id,
+        deleted_origins=deleted_origins,
+        reward_lines=reward_lines,
+        reward_range_id=reward_range_id
+    )
+
+    inserted = 0
+    if rows:
+        await session.execute(insert(ParsingLine), rows)
+        inserted = len(rows)
+
+    await session.execute(update(VendorSearchLine)
+                          .where(VendorSearchLine.id == vsl_id)
+                          .values(dt_parsed=datetime.now(timezone.utc)))
+
+    return inserted
+
+
 async def rebuild_parsing_lines(session, linked_vsl, vsl_products, deleted_origins, reward_lines, reward_range_id):
     total_inserted = 0
 
+    linked_ids = {v.id for v in linked_vsl}
+
     for vsl in linked_vsl:
+        total_inserted += await _process_single_vsl(session=session,
+                                                    vsl_id=vsl.id,
+                                                    products=vsl_products.get(vsl.id, []),
+                                                    deleted_origins=deleted_origins,
+                                                    reward_lines=reward_lines,
+                                                    reward_range_id=reward_range_id,
+                                                    clear_old=True)
 
-        await session.execute(delete(ParsingLine).where(ParsingLine.vsl_id == vsl.id))
+    for vsl_id, products in vsl_products.items():
+        if vsl_id in linked_ids:
+            continue
 
-        rows = build_parsing_rows(products=vsl_products[vsl.id], vsl_id=vsl.id,
-                                  deleted_origins=deleted_origins, reward_lines=reward_lines,
-                                  reward_range_id=reward_range_id)
-
-        if rows:
-            await session.execute(insert(ParsingLine), rows)
-            total_inserted += len(rows)
-
-        await session.execute(update(VendorSearchLine).where(VendorSearchLine.id == vsl.id)
-                              .values(dt_parsed=datetime.now(timezone.utc)))
+        total_inserted += await _process_single_vsl(session=session,
+                                                    vsl_id=vsl_id,
+                                                    products=products,
+                                                    deleted_origins=deleted_origins,
+                                                    reward_lines=reward_lines,
+                                                    reward_range_id=reward_range_id,
+                                                    clear_old=False)
 
     return total_inserted
 
@@ -179,3 +218,9 @@ def build_parsing_rows(products, vsl_id, deleted_origins, reward_lines, reward_r
                      "profit_range_id": reward_range_id})
 
     return rows
+
+
+async def get_default_vsl_id(session: AsyncSession, vendor_id: int):
+    return (await session.execute(select(VendorSearchLine.id)
+                                  .where(VendorSearchLine.vendor_id == vendor_id)
+                                  .where(VendorSearchLine.is_default.is_(True)))).scalar_one_or_none()

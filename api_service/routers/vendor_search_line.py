@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.requests import Request
-from sqlalchemy import select
+from sqlalchemy import select, update, func
 
 from api_service.schemas import VSLScheme, VSLSchemeWithBrandsCreate, VSLSchemeWithBrands, BrandModel, \
-    VendorApiSearchLinkScheme
+    VendorApiSearchLinkScheme, VSLSchemeWithCounting
 from api_service.utils import update_instance_fields
 from engine import db
-from models import ProductBrand
+from models import ProductBrand, ParsingLine
 from models.vendor import VendorSearchLine, VendorSearchLineBrandLink, VendorApiSearchLineLink
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,13 +14,24 @@ vendor_search_line_router = APIRouter(tags=['Service-Vendors-Search-Line'])
 
 
 @vendor_search_line_router.get("/get_vsl/{vendor_id}")
-async def get_vendors(request: Request, vendor_id: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
-    result = await session.execute(
-        select(VendorSearchLine).filter(VendorSearchLine.vendor_id == vendor_id).order_by(VendorSearchLine.id))
-    vendor_search_lines = list()
-    for vsl in result.scalars().all():
-        vendor_search_lines.append(VSLScheme.cls_validate(vsl))
-    return {"vsl": vendor_search_lines}
+async def get_vendor_search_lines(vendor_id: int,
+                                  session: AsyncSession = Depends(db.scoped_session_dependency)):
+    result = await session.execute(select(VendorSearchLine, func.count(ParsingLine.origin).label("count_lines"))
+                                   .outerjoin(ParsingLine, ParsingLine.vsl_id == VendorSearchLine.id)
+                                   .where(VendorSearchLine.vendor_id == vendor_id)
+                                   .group_by(VendorSearchLine.id)
+                                   .order_by(VendorSearchLine.is_default.desc(), VendorSearchLine.id))
+
+    rows = result.all()
+
+    vsl_list = []
+    for vsl, count_lines in rows:
+        vsl_list.append(VSLSchemeWithCounting(id=vsl.id, vendor_id=vsl.vendor_id,
+                                              title=vsl.title, url=vsl.url,
+                                              dt_parsed=vsl.dt_parsed, is_default=vsl.is_default,
+                                              count_lines=count_lines))
+
+    return {"vsl": vsl_list}
 
 
 @vendor_search_line_router.post("/create_vsl/{vendor_id}")
@@ -216,3 +227,15 @@ async def remove_link_vsl_api_search(payload: VendorApiSearchLinkScheme,
     await session.delete(link)
     await session.commit()
     return {"result": "removed"}
+
+
+@vendor_search_line_router.post("/set_default_vsl/{vsl_id}")
+async def set_default_vsl(vsl_id: int, session: AsyncSession = Depends(db.scoped_session_dependency)):
+    vsl = await session.get(VendorSearchLine, vsl_id)
+    await session.execute(update(VendorSearchLine)
+                          .where(VendorSearchLine.vendor_id == vsl.vendor_id)
+                          .values(is_default=False)
+                          )
+    vsl.is_default = True
+    await session.commit()
+    return {"status": "ok"}

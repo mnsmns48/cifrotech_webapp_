@@ -11,6 +11,7 @@ class VSLSchemeBase(BaseModel):
     title: str
     url: str
     dt_parsed: datetime | None = None
+    is_default: bool = False
 
 
 class VSLScheme(VSLSchemeBase):
@@ -36,3 +37,7 @@ class VSLSchemeWithBrandsCreate(VSLSchemeBase):
 class VendorApiSearchLinkScheme(BaseModel):
     api_search_id: int
     vsl_id: int
+
+
+class VSLSchemeWithCounting(VSLScheme):
+    count_lines: int

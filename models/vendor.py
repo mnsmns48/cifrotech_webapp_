@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, DateTime, func
+from sqlalchemy import ForeignKey, DateTime, func, Boolean
 from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -54,6 +54,7 @@ class VendorSearchLine(Base):
     title: Mapped[str] = mapped_column(nullable=False)
     url: Mapped[str] = mapped_column(nullable=False)
     dt_parsed: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_default: Mapped[bool] = mapped_column(Boolean, server_default="false", nullable=False)
 
     parsing_lines: Mapped["ParsingLine"] = relationship("ParsingLine", back_populates="vendor_search_line",
                                                         cascade="all, delete-orphan")
@@ -116,3 +117,10 @@ class RewardRangeLine(Base):
     is_percent: Mapped[bool] = mapped_column(nullable=False)
     reward: Mapped[int] = mapped_column(nullable=False)
     range: Mapped["RewardRange"] = relationship("RewardRange", back_populates="lines")
+
+
+class VendorSearchLineIsDefault(Base):
+    __tablename__ = "vendor_search_line_is_default"
+
+    vsl_id: Mapped[int] = mapped_column(ForeignKey("vendor_search_line.id", ondelete="CASCADE"), primary_key=True)
+    default_id: Mapped[int] = mapped_column(nullable=False)
