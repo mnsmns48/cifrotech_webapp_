@@ -1,7 +1,6 @@
 import json
 import hashlib
 import re
-from collections import defaultdict
 from typing import Any, Dict, List
 
 from api_service.schemas.desc_builder import BlockResponse
@@ -60,38 +59,36 @@ async def build_meta_filters(items: list[CategoryItem]) -> list[FilterOption]:
 
 
 def build_model_filters(specs_map: Dict[int, List[BlockResponse]]) -> List[FilterOption]:
-    groups: dict[str, dict[str, Any]] = defaultdict(lambda: {"key": None, "label": None, "values": set()})
+    groups: dict[str, dict[str, Any]] = dict()
 
     for blocks in specs_map.values():
         for block in blocks:
             for value_info in block.values.values():
-                if not value_info.in_filter:
+                if not value_info.in_filter or not value_info.alias:
                     continue
 
-                if not value_info.alias:
-                    continue
+                group_key = slugify(value_info.alias)
+                group = groups.get(group_key)
 
-                group_label = value_info.alias
-                group_key = slugify(group_label)
-
-                g = groups[group_key]
-                g["key"] = group_key
-                g["label"] = group_label
+                if group is None:
+                    group = {"key": group_key, "label": value_info.alias, "values": {}}
+                    groups[group_key] = group
 
                 if value_info.processed:
-                    g["values"].add(value_info.processed)
+                    value = value_info.processed
+                    slug = slugify(value)
+                    group["values"].setdefault(slug, value)
 
-    model_filters: list[FilterOption] = list()
+    model_filters = list()
 
-    for group_key, data in groups.items():
-        raw_values = list(data["values"])
-        sorted_values = sort_filter_values(raw_values)
-
-        model_filters.append(
-            FilterOption(key=data["key"], label=data["label"], type="select",
-                         values=[{"label": v, "slug": slugify(v)} for v in sorted_values],
-                         active=[], meta=None)
-        )
+    for group in groups.values():
+        values = sort_filter_values(group["values"].values())
+        model_filters.append(FilterOption(key=group["key"],
+                                          label=group["label"],
+                                          type="select",
+                                          values=[{"label": value, "slug": slugify(value)} for value in values],
+                                          active=[],
+                                          meta=None))
 
     return model_filters
 
