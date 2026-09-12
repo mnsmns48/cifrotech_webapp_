@@ -1,5 +1,4 @@
 import asyncio
-import logging
 from datetime import date, datetime, timedelta
 from typing import List, Optional
 
@@ -29,7 +28,7 @@ async def is_tg_available() -> bool:
         async with ClientSession(timeout=timeout) as session:
             async with session.get(test_url) as resp:
                 return resp.status == 200
-    except (ClientError, asyncio.TimeoutError, TelegramNetworkError) as e:
+    except (ClientError, asyncio.TimeoutError, TelegramNetworkError, ConnectionResetError) as e:
         return False
 
 
