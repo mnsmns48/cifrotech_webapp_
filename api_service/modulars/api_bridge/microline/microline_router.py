@@ -211,12 +211,19 @@ async def check_access(vendor_id: int,
         return error
 
     contractors = await service.client.get_contractors(vendor)
-    result = dict()
+
+    # result = dict()
+    # for line in contractors:
+    #     if line.get("contractorId"):
+    #         result.update({"contractorId": line.get("contractorId"), "status": "ok"})
+    #         for delivery_line in line.get("deliveryLocations", []):
+    #             result.update({"deliveryLocationId": delivery_line.get("deliveryLocationId")})
+
+    # Жёстко хардкодим 46023
 
     for line in contractors:
-        if line.get("contractorId"):
-            result.update({"contractorId": line.get("contractorId"), "status": "ok"})
-            for delivery_line in line.get("deliveryLocations", []):
-                result.update({"deliveryLocationId": delivery_line.get("deliveryLocationId")})
+        if line.get("contractorId") == 46023:
+            return {"status": "ok", "contractorId": 46023, "deliveryLocationId": 46023}
 
-    return result
+    # fallback если вдруг нет 46023
+    return {"status": "not_found"}

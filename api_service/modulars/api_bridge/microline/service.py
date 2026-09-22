@@ -65,8 +65,7 @@ class MicrolineService:
         vendor = await self._get_vendor(vendor_id, session)
         await self._ensure_auth(vendor, session)
 
-        return await self.client.get_products(vendor,
-                                              contractor_id=contractor_id,
+        return await self.client.get_products(vendor, contractor_id=contractor_id,
                                               delivery_location_id=delivery_location_id,
                                               category_id=category_id)
 
